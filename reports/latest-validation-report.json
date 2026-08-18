@@ -1,0 +1,101 @@
+{
+  "generatedAt": "2026-08-18T20:33:58.726Z",
+  "protocol": {
+    "assets": [
+      "EUR/USD",
+      "XAU/USD",
+      "GBP/USD",
+      "BTC/USD"
+    ],
+    "intervals": [
+      "15min",
+      "1h"
+    ],
+    "candlesPerSeries": 200,
+    "outcomeHorizon": "one subsequent candle",
+    "mode": "paper-validation",
+    "scope": "trend direction and 1:2 risk geometry baseline; not a complete evaluation of all prose PDF rules"
+  },
+  "results": [
+    {
+      "asset": "EUR/USD",
+      "interval": "15min",
+      "candles": 200,
+      "evaluated": 197,
+      "wins": 0,
+      "losses": 1,
+      "pending": 196,
+      "winRateOnClosed": 0
+    },
+    {
+      "asset": "XAU/USD",
+      "interval": "15min",
+      "candles": 200,
+      "evaluated": 197,
+      "wins": 3,
+      "losses": 21,
+      "pending": 173,
+      "winRateOnClosed": 12.5
+    },
+    {
+      "asset": "GBP/USD",
+      "interval": "15min",
+      "candles": 200,
+      "evaluated": 197,
+      "wins": 0,
+      "losses": 1,
+      "pending": 196,
+      "winRateOnClosed": 0
+    },
+    {
+      "asset": "BTC/USD",
+      "interval": "15min",
+      "candles": 200,
+      "evaluated": 197,
+      "wins": 1,
+      "losses": 0,
+      "pending": 196,
+      "winRateOnClosed": 100
+    },
+    {
+      "asset": "EUR/USD",
+      "interval": "1h",
+      "candles": 200,
+      "evaluated": 197,
+      "wins": 0,
+      "losses": 2,
+      "pending": 195,
+      "winRateOnClosed": 0
+    },
+    {
+      "asset": "XAU/USD",
+      "interval": "1h",
+      "candles": 200,
+      "evaluated": 197,
+      "wins": 16,
+      "losses": 34,
+      "pending": 147,
+      "winRateOnClosed": 32
+    },
+    {
+      "asset": "GBP/USD",
+      "interval": "1h",
+      "candles": 200,
+      "evaluated": 197,
+      "wins": 0,
+      "losses": 0,
+      "pending": 197,
+      "winRateOnClosed": null
+    },
+    {
+      "asset": "BTC/USD",
+      "interval": "1h",
+      "candles": 200,
+      "evaluated": 197,
+      "wins": 0,
+      "losses": 6,
+      "pending": 191,
+      "winRateOnClosed": 0
+    }
+  ]
+}

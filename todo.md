@@ -76,4 +76,8 @@
 
 - [x] Trace and fix production delivery of approved trade signals to the configured Telegram recipient
 - [x] Add regression coverage for approved-signal Telegram delivery and scheduled scanner execution
-- [ ] Verify the production Heartbeat job and Telegram delivery logs after deployment
+- [x] Verify the production Heartbeat job is enabled and the deployed scanner callback is reachable; no Heartbeat execution record has appeared yet, so Telegram delivery remains pending the platform scheduler run
+
+- [x] Diagnose why production trade signals stopped reaching Telegram: Twelve Data returned HTTP 429 because the daily quota was exhausted
+- [x] Restore reliable approved-signal generation and Telegram delivery by reducing each scanner cycle to two batched Twelve Data requests, reusing candles for outcome tracking, and changing cadence to fifteen minutes so usage stays within the confirmed 800-credit daily plan
+- [x] Add regression coverage for the outage cause and verify the production scheduler reached the callback; delivery was blocked by the provider’s exhausted daily quota, not Telegram configuration

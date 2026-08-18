@@ -15,7 +15,7 @@ vi.mock("./db", () => ({
 }));
 
 vi.mock("./integrations", () => ({
-  fetchMarketSeries: vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); }),
+  fetchMarketSeriesBatch: vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); }),
   fetchMarketSnapshot: vi.fn(),
   forensicAnalysis: vi.fn(),
   mirrorToSupabase: vi.fn(),

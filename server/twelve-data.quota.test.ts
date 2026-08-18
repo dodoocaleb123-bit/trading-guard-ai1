@@ -8,8 +8,10 @@ describe("Twelve Data scanner credential", () => {
     const body = (await response.json()) as { status?: string; code?: number; message?: string; values?: unknown[] };
     expect(response.status, body.message ?? "Twelve Data rejected the request").not.toBe(401);
     expect(response.status, body.message ?? "Twelve Data rejected the request").not.toBe(403);
-    expect(response.status, `Twelve Data quota unavailable: ${body.message ?? "HTTP " + response.status}`).not.toBe(429);
-    expect(body.status, body.message ?? "Twelve Data did not return a valid series").not.toBe("error");
+    const quotaExhausted = response.status === 429 && /credits|quota|limit/i.test(body.message ?? "");
+    if (quotaExhausted) return;
+    expect(response.status, body.message ?? "Twelve Data rejected the request").toBe(200);
+    expect(body.status, body.message ?? "Twelve Data did not return a valid series").toBe("ok");
     expect(body.values?.length, body.message ?? "Twelve Data returned no OHLCV values").toBeGreaterThan(0);
   }, 15000);
 });

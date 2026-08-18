@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
 import { createStrategyRule, getAllRulesText, getDb, listStrategyRules } from "./db";
-import { fetchMarketSeries, fetchMarketSnapshot, forensicAnalysis, mirrorToSupabase, sendTelegramMessage } from "./integrations";
+import { fetchMarketSeriesBatch, fetchMarketSnapshot, forensicAnalysis, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
 const TIMEFRAMES = ["15MIN", "1H"] as const;
@@ -36,14 +36,27 @@ export async function scanUser(userId: number) {
   if (!db) return { created: 0, tracked: 0 };
   const rules = await listStrategyRules(userId);
   if (rules.length === 0) return { created: 0, tracked: 0 };
+  let series15m: Map<string, MarketSeries>;
+  let series1h: Map<string, MarketSeries>;
+  try {
+    [series15m, series1h] = await Promise.all([
+      fetchMarketSeriesBatch(WATCHLIST, "15min"),
+      fetchMarketSeriesBatch(WATCHLIST, "1h"),
+    ]);
+  } catch (error) {
+    console.warn("[Scanner] Market batch unavailable; no signals created:", error instanceof Error ? error.message : error);
+    return { created: 0, tracked: 0 };
+  }
+  const seriesCache = new Map<string, MarketSeries>();
+  series15m.forEach((series, symbol) => seriesCache.set(`${symbol}:15MIN`, series));
+  series1h.forEach((series, symbol) => seriesCache.set(`${symbol}:1H`, series));
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
   for (const asset of WATCHLIST) {
     for (const timeframe of TIMEFRAMES) {
       try {
-        const interval = timeframe === "15MIN" ? "15min" : "1h";
-        const series = await fetchMarketSeries(asset, interval);
-        if (!shouldCreateCandidate(rules.length, series)) continue;
-        const levels = buildSignalLevels(asset, timeframe, series.close, series.trend as "UP" | "DOWN");
+        const series = seriesCache.get(`${asset}:${timeframe}`);
+        if (!series || !shouldCreateCandidate(rules.length, series)) continue;
+        const levels = buildSignalLevels(asset, timeframe, series.close, series.trend);
         const rationale = `OHLCV trend ${series.trend} confirmed on ${timeframe} from ${series.values.length} candles. Candidate remains subject to the full strategy memory.`;
         const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: levels.direction as "BUY" | "SELL", entry: String(levels.entry), stopLoss: String(levels.stopLoss), takeProfit: String(levels.takeProfit), riskReward: "2.00", confidence: String(levels.confidence), rationale, status: "PENDING" });
         const signal = { id: Number(result.insertId), ...levels };
@@ -55,17 +68,19 @@ export async function scanUser(userId: number) {
       }
     }
   }
-  return { created: created.length, tracked: await trackOpenSignals(userId) };
+  return { created: created.length, tracked: await trackOpenSignals(userId, seriesCache) };
 }
 
-export async function trackOpenSignals(userId: number) {
+export async function trackOpenSignals(userId: number, seriesCache?: Map<string, MarketSeries>) {
   const db = await getDb();
   if (!db) return 0;
   const open = await db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING")));
   let tracked = 0;
   for (const signal of open) {
     try {
-      const market = await fetchMarketSnapshot(signal.asset, signal.timeframe === "1H" ? "1h" : "15min");
+      const timeframe = signal.timeframe === "1H" ? "1H" : "15MIN";
+      const cached = seriesCache?.get(`${signal.asset}:${timeframe}`);
+      const market = cached ? { symbol: signal.asset, price: cached.close, close: cached.close, fetchedAt: cached.fetchedAt } : await fetchMarketSnapshot(signal.asset, timeframe === "1H" ? "1h" : "15min");
       const price = market.price;
       const stop = Number(signal.stopLoss);
       const target = Number(signal.takeProfit);

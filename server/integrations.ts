@@ -103,6 +103,27 @@ export async function fetchMarketSnapshot(asset: string, interval = "15min") {
   } satisfies MarketSnapshot;
 }
 
+export type MarketSeries = {
+  symbol: string;
+  interval: "15min" | "1h";
+  values: Array<Record<string, unknown>>;
+  close: number;
+  trend: "UP" | "DOWN";
+  fetchedAt: string;
+};
+
+function parseMarketSeries(symbol: string, interval: "15min" | "1h", payload: any): MarketSeries {
+  if (payload?.status === "error") throw new Error(payload.message ?? "OHLCV data unavailable");
+  const values = Array.isArray(payload?.values) ? payload.values : [];
+  if (values.length < 3) throw new Error("Not enough OHLCV data for timeframe");
+  const last = values[values.length - 1];
+  const prior = values[values.length - 2];
+  const close = Number(last.close);
+  const priorClose = Number(prior.close);
+  if (!Number.isFinite(close) || !Number.isFinite(priorClose)) throw new Error("OHLCV data has no usable close price");
+  return { symbol, interval, values, close, trend: close >= priorClose ? "UP" : "DOWN", fetchedAt: new Date().toISOString() };
+}
+
 export async function fetchMarketSeries(asset: string, interval: "15min" | "1h") {
   const symbol = normalizeAsset(asset);
   if (!ENV.twelveDataApiKey) throw new Error("Twelve Data is not configured");
@@ -110,14 +131,28 @@ export async function fetchMarketSeries(asset: string, interval: "15min" | "1h")
     params: { symbol, interval, outputsize: 30, order: "ASC", apikey: ENV.twelveDataApiKey },
     timeout: 15000,
   });
-  if (response.data?.status === "error") throw new Error(response.data.message ?? "OHLCV data unavailable");
-  const values = Array.isArray(response.data?.values) ? response.data.values : [];
-  if (values.length < 3) throw new Error("Not enough OHLCV data for timeframe");
-  const last = values[values.length - 1];
-  const prior = values[values.length - 2];
-  const close = Number(last.close);
-  const priorClose = Number(prior.close);
-  return { symbol, interval, values, close, trend: close >= priorClose ? "UP" : "DOWN", fetchedAt: new Date().toISOString() };
+  return parseMarketSeries(symbol, interval, response.data);
+}
+
+export async function fetchMarketSeriesBatch(assets: readonly string[], interval: "15min" | "1h") {
+  if (!ENV.twelveDataApiKey) throw new Error("Twelve Data is not configured");
+  const symbols = assets.map(normalizeAsset);
+  const response = await axios.get("https://api.twelvedata.com/time_series", {
+    params: { symbol: symbols.join(","), interval, outputsize: 30, order: "ASC", apikey: ENV.twelveDataApiKey },
+    timeout: 20000,
+  });
+  if (response.data?.status === "error") throw new Error(response.data.message ?? "OHLCV batch unavailable");
+  const result = new Map<string, MarketSeries>();
+  for (const symbol of symbols) {
+    const payload = response.data?.[symbol];
+    if (!payload) continue;
+    try {
+      result.set(symbol, parseMarketSeries(symbol, interval, payload));
+    } catch (error) {
+      console.warn(`[Market] ${symbol} ${interval} skipped:`, error instanceof Error ? error.message : error);
+    }
+  }
+  return result;
 }
 
 export function shouldNotifyApprovedAudit(verdict: string) {

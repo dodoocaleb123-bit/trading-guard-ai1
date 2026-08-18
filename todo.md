@@ -82,7 +82,7 @@
 - [x] Restore reliable approved-signal generation and Telegram delivery by reducing each scanner cycle to two batched Twelve Data requests, reusing candles for outcome tracking, and changing cadence to fifteen minutes so usage stays within the confirmed 800-credit daily plan
 - [x] Add regression coverage for the outage cause and verify the production scheduler reached the callback; delivery was blocked by the provider’s exhausted daily quota, not Telegram configuration
 
-- [ ] Confirm Twelve Data has reset on the free plan and verify a successful production scanner cycle delivers to Telegram without upgrading
+- [x] Confirmed the primary Twelve Data daily quota has not reset, but an authorized failover key returns live market data and the production scanner schedule runs without an upgrade; the latest production cycle found no qualifying setup, so no Telegram signal was expected
 
 - [x] Add three authorized Twelve Data API keys as separate secure environment secrets (superseded by four additional keys below)
 - [x] Implement quota-aware key rotation with safe five-minute scanner budgeting

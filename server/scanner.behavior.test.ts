@@ -29,6 +29,7 @@ describe("scanner unavailable-market behavior", () => {
     const result = await scanUser(1);
     expect(result.created).toBe(0);
     expect(result.tracked).toBe(0);
+    expect(result.marketData).toBe("unavailable");
     expect(db.insert).not.toHaveBeenCalled();
   });
 });

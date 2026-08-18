@@ -31,11 +31,15 @@ export function buildSignalLevels(asset: string, timeframe: "15MIN" | "1H", clos
   return { asset, timeframe, direction, entry, stopLoss, takeProfit, riskReward: 2, confidence };
 }
 
-export async function scanUser(userId: number) {
+type ScanMarketDataStatus = "available" | "unavailable" | "not-run";
+
+type ScanUserResult = { created: number; tracked: number; marketData: ScanMarketDataStatus };
+
+export async function scanUser(userId: number): Promise<ScanUserResult> {
   const db = await getDb();
-  if (!db) return { created: 0, tracked: 0 };
+  if (!db) return { created: 0, tracked: 0, marketData: "not-run" };
   const rules = await listStrategyRules(userId);
-  if (rules.length === 0) return { created: 0, tracked: 0 };
+  if (rules.length === 0) return { created: 0, tracked: 0, marketData: "not-run" };
   let series15m: Map<string, MarketSeries>;
   let series1h: Map<string, MarketSeries>;
   try {
@@ -45,7 +49,7 @@ export async function scanUser(userId: number) {
     ]);
   } catch (error) {
     console.warn("[Scanner] Market batch unavailable; no signals created:", error instanceof Error ? error.message : error);
-    return { created: 0, tracked: 0 };
+    return { created: 0, tracked: 0, marketData: "unavailable" };
   }
   const seriesCache = new Map<string, MarketSeries>();
   series15m.forEach((series, symbol) => seriesCache.set(`${symbol}:15MIN`, series));
@@ -68,7 +72,7 @@ export async function scanUser(userId: number) {
       }
     }
   }
-  return { created: created.length, tracked: await trackOpenSignals(userId, seriesCache) };
+  return { created: created.length, tracked: await trackOpenSignals(userId, seriesCache), marketData: "available" };
 }
 
 export async function trackOpenSignals(userId: number, seriesCache?: Map<string, MarketSeries>) {
@@ -107,14 +111,17 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
 
 export async function scanAllUsers() {
   const db = await getDb();
-  if (!db) return { users: 0, created: 0, tracked: 0 };
+  if (!db) return { users: 0, created: 0, tracked: 0, marketData: "not-run" as const };
   const allUsers = await db.select({ id: users.id }).from(users);
   let created = 0;
   let tracked = 0;
+  let marketData: ScanMarketDataStatus = allUsers.length ? "available" : "not-run";
   for (const user of allUsers) {
     const result = await scanUser(user.id);
     created += result.created;
     tracked += result.tracked;
+    if (result.marketData === "unavailable") marketData = "unavailable";
+    else if (result.marketData === "not-run" && marketData === "available") marketData = "not-run";
   }
-  return { users: allUsers.length, created, tracked };
+  return { users: allUsers.length, created, tracked, marketData };
 }

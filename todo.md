@@ -124,3 +124,8 @@
 - [x] Add regression coverage for strategy-generated scanner signals, denied outcomes, and delivery behavior
 - [x] Verify the five-minute scheduler, production logs, and live Telegram workflow after deployment; the enabled job reached the deployed callback, and when the strategy model service reported exhausted usage the scanner failed closed with no signal persistence or Telegram attempt
 
+
+- [x] Audit user-facing copy for wording that incorrectly attributes trading judgments to the scanner
+- [x] Clarify that the scanner collects and dispatches raw market data while the strategy-rules algorithm makes judgments and generates possible outcomes
+- [x] Add terminology regression coverage and verify the revised dashboard and scanner interface
+

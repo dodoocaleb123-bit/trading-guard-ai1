@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { createStrategyRule, getAllRulesText, getDb, listStrategyRules } from "./db";
+import { createStrategyRule, getAllRulesText, getDb, listStrategyRules, recordTelegramDelivery } from "./db";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, forensicAnalysis, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -65,7 +65,8 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: levels.direction as "BUY" | "SELL", entry: String(levels.entry), stopLoss: String(levels.stopLoss), takeProfit: String(levels.takeProfit), riskReward: "2.00", confidence: String(levels.confidence), rationale, status: "PENDING" });
         const signal = { id: Number(result.insertId), ...levels };
         await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale });
-        await sendTelegramMessage(`<b>TradingGuardAI signal</b>\n\nAsset: ${asset}\nTimeframe: ${timeframe}\nDirection: ${levels.direction}\nEntry: ${levels.entry}\nStop Loss: ${levels.stopLoss}\nTake Profit: ${levels.takeProfit}\nRisk/Reward: 1:2\nConfidence: ${levels.confidence}%`);
+        const delivery = await sendTelegramMessage(`<b>TradingGuardAI signal</b>\n\nAsset: ${asset}\nTimeframe: ${timeframe}\nDirection: ${levels.direction}\nEntry: ${levels.entry}\nStop Loss: ${levels.stopLoss}\nTake Profit: ${levels.takeProfit}\nRisk/Reward: 1:2\nConfidence: ${levels.confidence}%`);
+        await recordTelegramDelivery({ userId, signalId: signal.id, kind: "SIGNAL", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: `signal:${signal.id}`, error: delivery.error });
         created.push(signal);
       } catch (error) {
         console.warn(`[Scanner] ${asset} ${timeframe} skipped:`, error instanceof Error ? error.message : error);
@@ -100,7 +101,8 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
         const mirrored = await mirrorToSupabase("strategy_rules", { title: rule.title, content: learned, source_type: "text", source_file_name: "loss-forensics" });
         if (mirrored?.id) await db.update(generatedSignals).set({ outcomeNote: `${note} Learned: ${forensics.rootCause}` }).where(eq(generatedSignals.id, signal.id));
       }
-      await sendTelegramMessage(`<b>TradingGuardAI outcome</b>\n\n${signal.asset} ${signal.direction}\nStatus: ${status}\nClose price: ${price}`);
+      const delivery = await sendTelegramMessage(`<b>TradingGuardAI outcome</b>\n\n${signal.asset} ${signal.direction}\nStatus: ${status}\nClose price: ${price}`);
+      await recordTelegramDelivery({ userId, signalId: signal.id, kind: "OUTCOME", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: `outcome:${signal.id}:${status}`, error: delivery.error });
       tracked += 1;
     } catch (error) {
       console.warn(`[Tracker] ${signal.asset} ${signal.timeframe} skipped:`, error instanceof Error ? error.message : error);

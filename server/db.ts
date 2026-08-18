@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, generatedSignals, InsertUser, strategyRules, users } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, generatedSignals, InsertUser, strategyRules, telegramDeliveries, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -108,16 +108,57 @@ export async function listAuditMessages(userId: number) {
   return db.select().from(auditMessages).where(eq(auditMessages.userId, userId)).orderBy(desc(auditMessages.createdAt)).limit(50);
 }
 
+export function attachTelegramDelivery<T extends { id: number }, D extends { kind: string; signalId?: number | null; auditTradeId?: number | null }>(rows: T[], deliveries: D[], kind: "SIGNAL" | "AUDIT", key: "signalId" | "auditTradeId") {
+  return rows.map((row) => ({ ...row, telegramDelivery: deliveries.find((delivery) => delivery.kind === kind && delivery[key] === row.id) ?? null }));
+}
+
 export async function listGeneratedSignals(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(generatedSignals).where(eq(generatedSignals.userId, userId)).orderBy(desc(generatedSignals.openedAt)).limit(50);
+  const signals = await db.select().from(generatedSignals).where(eq(generatedSignals.userId, userId)).orderBy(desc(generatedSignals.openedAt)).limit(50);
+  const deliveries = await db.select().from(telegramDeliveries).where(eq(telegramDeliveries.userId, userId));
+  return attachTelegramDelivery(signals, deliveries, "SIGNAL", "signalId");
 }
 
 export async function listAuditTrades(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(auditTrades).where(eq(auditTrades.userId, userId)).orderBy(desc(auditTrades.createdAt)).limit(50);
+  const audits = await db.select().from(auditTrades).where(eq(auditTrades.userId, userId)).orderBy(desc(auditTrades.createdAt)).limit(50);
+  const deliveries = await db.select().from(telegramDeliveries).where(eq(telegramDeliveries.userId, userId));
+  return attachTelegramDelivery(audits, deliveries, "AUDIT", "auditTradeId");
+}
+
+export async function recordTelegramDelivery(input: { userId: number; signalId?: number; auditTradeId?: number; kind: "SIGNAL" | "AUDIT" | "OUTCOME"; status: "DELIVERED" | "FAILED"; telegramMessageId?: string; dedupeKey: string; error?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const deliveredAt = input.status === "DELIVERED" ? new Date() : null;
+  await db.insert(telegramDeliveries).values({ ...input, deliveredAt }).onDuplicateKeyUpdate({ set: { status: input.status, telegramMessageId: input.telegramMessageId ?? null, error: input.error ?? null, deliveredAt } });
+}
+
+export function summarizeDeliveryCounts(signals: Array<{ status: string }>, audits: Array<{ verdict: string }>, deliveries: Array<{ kind: string; status: string }>) {
+  const count = (kind: "SIGNAL" | "AUDIT" | "OUTCOME", status?: "DELIVERED" | "FAILED") => deliveries.filter((delivery) => delivery.kind === kind && (!status || delivery.status === status)).length;
+  return {
+    generated: signals.length,
+    pending: signals.filter((signal) => signal.status === "PENDING").length,
+    wins: signals.filter((signal) => signal.status === "WIN").length,
+    losses: signals.filter((signal) => signal.status === "LOSS").length,
+    audits: audits.length,
+    approvedAudits: audits.filter((audit) => audit.verdict === "APPROVED").length,
+    signalAttempts: count("SIGNAL"), signalDelivered: count("SIGNAL", "DELIVERED"), signalFailed: count("SIGNAL", "FAILED"),
+    auditAttempts: count("AUDIT"), auditDelivered: count("AUDIT", "DELIVERED"), auditFailed: count("AUDIT", "FAILED"),
+    approvedAuditDelivered: deliveries.filter((delivery) => delivery.kind === "AUDIT" && delivery.status === "DELIVERED").length,
+    approvedAuditFailed: deliveries.filter((delivery) => delivery.kind === "AUDIT" && delivery.status === "FAILED").length,
+    outcomeAttempts: count("OUTCOME"), outcomeDelivered: count("OUTCOME", "DELIVERED"), outcomeFailed: count("OUTCOME", "FAILED"),
+  };
+}
+
+export async function getSignalDeliverySummary(userId: number) {
+  const db = await getDb();
+  if (!db) return summarizeDeliveryCounts([], [], []);
+  const signals = await db.select().from(generatedSignals).where(eq(generatedSignals.userId, userId));
+  const audits = await db.select().from(auditTrades).where(eq(auditTrades.userId, userId));
+  const deliveries = await db.select().from(telegramDeliveries).where(eq(telegramDeliveries.userId, userId));
+  return summarizeDeliveryCounts(signals, audits, deliveries);
 }
 
 export async function getSettings(userId: number) {

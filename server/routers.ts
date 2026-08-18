@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { createStrategyRule, getDb, getRelevantRulesText, getSettings, listAuditMessages, listAuditTrades, listGeneratedSignals, listStrategyRules, markOnboardingComplete } from "./db";
+import { createStrategyRule, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, listAuditMessages, listAuditTrades, listGeneratedSignals, listStrategyRules, markOnboardingComplete, recordTelegramDelivery } from "./db";
 import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage } from "./integrations";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
@@ -67,9 +67,10 @@ export const appRouter = router({
         const result = await auditWithLLM({ tradeSignal: input.signal, rules: buildStrategyContext(localRules, mirroredRules), market });
         const assistantText = formatAuditResult(result, market);
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });
-        await db.insert(auditTrades).values({ userId: ctx.user.id, asset, timeframe: result.timeframe || "15MIN", direction: result.direction, entry: result.entry ? String(result.entry) : null, stopLoss: result.stopLoss ? String(result.stopLoss) : null, takeProfit: result.takeProfit ? String(result.takeProfit) : null, verdict: result.verdict, confidence: String(result.confidence), adjustments: result.adjustments });
+        const [auditTradeInsert] = await db.insert(auditTrades).values({ userId: ctx.user.id, asset, timeframe: result.timeframe || "15MIN", direction: result.direction, entry: result.entry ? String(result.entry) : null, stopLoss: result.stopLoss ? String(result.stopLoss) : null, takeProfit: result.takeProfit ? String(result.takeProfit) : null, verdict: result.verdict, confidence: String(result.confidence), adjustments: result.adjustments });
+        const auditTradeId = Number(auditTradeInsert.insertId);
         await mirrorToSupabase("audited_signals", { user_id: ctx.user.id, signal: input.signal, verdict: result.verdict, confidence: result.confidence, adjustments: result.adjustments, asset });
-        const telegramDelivered = shouldNotifyApprovedAudit(result.verdict)
+        const telegramDelivery = shouldNotifyApprovedAudit(result.verdict)
           ? await sendTelegramMessage(formatApprovedTelegramMessage({
               asset,
               timeframe: result.timeframe || "15MIN",
@@ -82,7 +83,11 @@ export const appRouter = router({
               ruleEvidence: result.ruleEvidence,
               confluenceScore: result.confluenceScore,
             }))
-          : false;
+          : { delivered: false, error: "Not an approved audit" };
+        if (shouldNotifyApprovedAudit(result.verdict)) {
+          await recordTelegramDelivery({ userId: ctx.user.id, auditTradeId, kind: "AUDIT", status: telegramDelivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: telegramDelivery.telegramMessageId, dedupeKey: `audit:${auditTradeId}`, error: telegramDelivery.error });
+        }
+        const telegramDelivered = telegramDelivery.delivered;
         if (shouldNotifyApprovedAudit(result.verdict)) {
           console.info(`[Telegram] Approved audit delivery ${telegramDelivered ? "succeeded" : "was unavailable"} for user ${ctx.user.id}`);
         }
@@ -97,6 +102,7 @@ export const appRouter = router({
   signals: router({
     list: protectedProcedure.query(({ ctx }) => listGeneratedSignals(ctx.user.id)),
     audits: protectedProcedure.query(({ ctx }) => listAuditTrades(ctx.user.id)),
+    deliverySummary: protectedProcedure.query(({ ctx }) => getSignalDeliverySummary(ctx.user.id)),
   }),
   scanner: router({
     status: protectedProcedure.query(({ ctx }) => getSettings(ctx.user.id)),

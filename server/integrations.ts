@@ -210,20 +210,22 @@ export function formatApprovedTelegramMessage(input: {
   return message.join("\\n");
 }
 
-export async function sendTelegramMessage(text: string) {
-  if (!ENV.telegramBotToken || !ENV.telegramChatId) return false;
+export async function sendTelegramMessage(text: string): Promise<{ delivered: boolean; telegramMessageId?: string; error?: string }> {
+  if (!ENV.telegramBotToken || !ENV.telegramChatId) return { delivered: false, error: "Telegram credentials are not configured" };
   try {
-    await axios.post(`https://api.telegram.org/bot${ENV.telegramBotToken}/sendMessage`, {
+    const response = await axios.post<{ ok?: boolean; result?: { message_id?: number }; description?: string }>(`https://api.telegram.org/bot${ENV.telegramBotToken}/sendMessage`, {
       chat_id: ENV.telegramChatId,
       text,
       parse_mode: "HTML",
       disable_web_page_preview: true,
     }, { timeout: 12000 });
+    const telegramMessageId = response.data.result?.message_id != null ? String(response.data.result.message_id) : undefined;
     console.info(`[Telegram] Notification delivered to configured chat (${text.startsWith("<b>TradingGuardAI signal</b>") ? "signal" : "outcome"})`);
-    return true;
+    return { delivered: true, telegramMessageId };
   } catch (error) {
-    console.warn("[Telegram] Could not send notification:", error instanceof Error ? error.message : error);
-    return false;
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("[Telegram] Could not send notification:", message);
+    return { delivered: false, error: message };
   }
 }
 

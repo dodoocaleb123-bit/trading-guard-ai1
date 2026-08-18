@@ -103,3 +103,14 @@
 - [x] Retain and run a reproducible real-data validation script; the measured result covers the app’s trend direction and 1:2 risk geometry, not a profitability claim for every prose PDF rule
 - [x] Retain explicit paper-validation mode in the durable report protocol and reuse the app’s generated-signal and WIN/LOSS/PENDING outcome tracking; the app does not place trades
 - [x] Save the validation sample report with performance, coverage, and limitations; most one-candle outcomes remained unresolved, so the sample is not sufficient for live-performance claims
+
+- [x] Add sent date and time to every Trading History entry
+- [x] Reconcile generated, approved, attempted, delivered, and failed Telegram signal counts with a durable delivery ledger; historical pre-ledger deliveries cannot be reconstructed
+- [x] Add auditable delivery status and count summaries so new app records match Telegram delivery outcomes
+
+- [x] Add explicit approved-audit counts and approved Telegram delivery counts to the reconciliation summary
+- [x] Join Telegram delivery status and delivered timestamp onto each generated signal and approved audit row
+- [x] Add regression coverage for per-record delivery status and approved-count reconciliation
+
+- [x] Surface approved-audit Telegram delivered and failed counts in the Trading History reconciliation card
+- [x] Add regression tests for per-record delivery joins on generated signals and approved audits

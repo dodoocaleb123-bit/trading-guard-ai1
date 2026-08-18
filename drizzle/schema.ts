@@ -82,6 +82,20 @@ export const auditTrades = mysqlTable("audit_trades", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+export const telegramDeliveries = mysqlTable("telegram_deliveries", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  signalId: int("signalId"),
+  auditTradeId: int("auditTradeId"),
+  kind: mysqlEnum("kind", ["SIGNAL", "AUDIT", "OUTCOME"]).notNull(),
+  status: mysqlEnum("status", ["DELIVERED", "FAILED"]).notNull(),
+  telegramMessageId: varchar("telegramMessageId", { length: 64 }),
+  dedupeKey: varchar("dedupeKey", { length: 255 }).notNull().unique(),
+  error: text("error"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  deliveredAt: timestamp("deliveredAt"),
+});
+
 export const appSettings = mysqlTable("app_settings", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().unique(),
@@ -94,3 +108,4 @@ export const appSettings = mysqlTable("app_settings", {
 export type StrategyRule = typeof strategyRules.$inferSelect;
 export type GeneratedSignal = typeof generatedSignals.$inferSelect;
 export type AuditTrade = typeof auditTrades.$inferSelect;
+export type TelegramDelivery = typeof telegramDeliveries.$inferSelect;

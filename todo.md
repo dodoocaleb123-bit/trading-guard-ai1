@@ -114,3 +114,13 @@
 
 - [x] Surface approved-audit Telegram delivered and failed counts in the Trading History reconciliation card
 - [x] Add regression tests for per-record delivery joins on generated signals and approved audits
+
+- [x] Route every autonomous scanner candidate through the shared strategy-rule evidence gate before persistence or Telegram delivery
+- [x] Ensure scanner-approved messages include rule citations, confluence, and validation status
+- [x] Add regression coverage proving rejected scanner candidates never reach Telegram
+
+- [x] Revise autonomous scanning so raw market data is sent to the strategy engine to generate the best-supported possible trade outcome and signal
+- [x] Preserve explainable rule citations, learning context, UNVALIDATED status, directional risk checks, and Telegram delivery reconciliation in the revised workflow
+- [x] Add regression coverage for strategy-generated scanner signals, denied outcomes, and delivery behavior
+- [ ] Verify the five-minute scheduler, production logs, and live Telegram workflow after deployment
+

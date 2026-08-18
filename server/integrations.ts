@@ -13,6 +13,9 @@ export type MarketSnapshot = {
   close?: number;
   change?: number;
   fetchedAt: string;
+  interval?: "15min" | "1h";
+  trend?: "UP" | "DOWN";
+  values?: Array<Record<string, unknown>>;
 };
 
 const supabaseHeaders = () => ({
@@ -300,7 +303,7 @@ export async function auditWithLLM(input: {
       },
       {
         role: "user",
-        content: `Evaluate this trade signal against the complete rule library and live snapshot. Signal:\n${input.tradeSignal}\n\nComplete strategy rule library:\n${input.rules}\n\nMarket snapshot:\n${JSON.stringify(input.market)}\n\nCite exact rule titles from the library in ruleEvidence and ruleFindings; do not invent citations. Use ruleFindings to state whether each cited rule supports BUY, supports SELL, or is NEUTRAL for this setup.`,
+        content: `Use the complete rule library and the raw market data to determine the best-supported possible trade outcome. The caller may provide context, but you must derive the direction, entry, stop loss, and take profit from the rules and observed market conditions rather than merely repeating a preselected setup. Return DENIED when rule evidence is insufficient or conflicting. Context:\n${input.tradeSignal}\n\nComplete strategy rule library:\n${input.rules}\n\nRaw market data and derived snapshot:\n${JSON.stringify(input.market)}\n\nCite exact rule titles from the library in ruleEvidence and ruleFindings; do not invent citations. Use ruleFindings to state whether each cited rule supports BUY, supports SELL, or is NEUTRAL for the generated setup.`,
       },
     ],
     response_format: {

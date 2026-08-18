@@ -1,13 +1,17 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { createStrategyRule, getAllRulesText, getDb, listStrategyRules, recordTelegramDelivery } from "./db";
-import { fetchMarketSeriesBatch, fetchMarketSnapshot, forensicAnalysis, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
+import { createStrategyRule, getAllRulesText, getDb, getRelevantRulesText, listStrategyRules, recordTelegramDelivery } from "./db";
+import { auditWithLLM, fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
 const TIMEFRAMES = ["15MIN", "1H"] as const;
 
 function precision(asset: string) {
   return asset === "BTC/USD" ? 2 : asset === "XAU/USD" ? 4 : 5;
+}
+
+export function shouldNotifyScannerSignal(verdict: string) {
+  return verdict === "APPROVED";
 }
 
 export function shouldCreateCandidate(ruleCount: number, series: { close?: number; trend?: string } | null) {
@@ -60,12 +64,34 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       try {
         const series = seriesCache.get(`${asset}:${timeframe}`);
         if (!series || !shouldCreateCandidate(rules.length, series)) continue;
-        const levels = buildSignalLevels(asset, timeframe, series.close, series.trend);
-        const rationale = `OHLCV trend ${series.trend} confirmed on ${timeframe} from ${series.values.length} candles. Candidate remains subject to the full strategy memory.`;
-        const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: levels.direction as "BUY" | "SELL", entry: String(levels.entry), stopLoss: String(levels.stopLoss), takeProfit: String(levels.takeProfit), riskReward: "2.00", confidence: String(levels.confidence), rationale, status: "PENDING" });
-        const signal = { id: Number(result.insertId), ...levels };
-        await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale });
-        const delivery = await sendTelegramMessage(`<b>TradingGuardAI signal</b>\n\nAsset: ${asset}\nTimeframe: ${timeframe}\nDirection: ${levels.direction}\nEntry: ${levels.entry}\nStop Loss: ${levels.stopLoss}\nTake Profit: ${levels.takeProfit}\nRisk/Reward: 1:2\nConfidence: ${levels.confidence}%`);
+        const tradeContext = `Generate the best-supported possible trade outcome for ${asset} on ${timeframe} from the raw market data. Do not assume a direction or precomputed levels. The result must be a paper-validation decision only and must remain UNVALIDATED.`;
+        const localRules = await getRelevantRulesText(userId, `${tradeContext}\nTrend: ${series.trend}\nLatest close: ${series.close}`, 80_000);
+        const mirroredRules = await fetchStrategyRulesFromSupabase();
+        const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 40_000);
+        const gated = await auditWithLLM({ tradeSignal: tradeContext, rules: [localRules, mirroredText].filter(Boolean).join("\n\n"), market: { symbol: asset, price: series.close, close: series.close, interval: series.interval, trend: series.trend, values: series.values, fetchedAt: series.fetchedAt } });
+        if (!shouldNotifyScannerSignal(gated.verdict)) {
+          console.info(`[Scanner] ${asset} ${timeframe} candidate rejected by strategy gate: ${gated.adjustments}`);
+          continue;
+        }
+        if (!gated.direction || gated.entry == null || gated.stopLoss == null || gated.takeProfit == null) {
+          console.info(`[Scanner] ${asset} ${timeframe} strategy engine returned an incomplete approved outcome; no signal sent.`);
+          continue;
+        }
+        const approvedLevels = {
+          asset,
+          timeframe,
+          direction: gated.direction,
+          entry: gated.entry,
+          stopLoss: gated.stopLoss,
+          takeProfit: gated.takeProfit,
+          riskReward: 2,
+          confidence: gated.confidence,
+        };
+        const rationale = formatAuditResult(gated, { symbol: asset, price: series.close, close: series.close, fetchedAt: series.fetchedAt });
+        const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), rationale, status: "PENDING" });
+        const signal = { id: Number(result.insertId), ...approvedLevels };
+        await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
+        const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore }));
         await recordTelegramDelivery({ userId, signalId: signal.id, kind: "SIGNAL", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: `signal:${signal.id}`, error: delivery.error });
         created.push(signal);
       } catch (error) {

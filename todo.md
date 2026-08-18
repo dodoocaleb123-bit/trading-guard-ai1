@@ -154,3 +154,18 @@
 - [x] Create and persist the real weekly Heartbeat job for the weekly strategy-summary callback (task UID: NuHvnxtr2LLaJ23tKLdLoD; Sunday 18:00 UTC; enabled)
 - [x] Add regression coverage for cron-only authorization, delivered-summary idempotency, and failed-delivery retry behavior
 
+
+- [x] Diagnose the current absence of Telegram trade signals from live scheduler, strategy-engine, cooldown, and delivery evidence: recent five-minute runs return created=0 with marketData=available; strategy engine is AVAILABLE; no current ledger verdicts or cooldown entries exist; latest generated signal delivery rows are DELIVERED
+
+
+- [x] Remove scanner-side trading-setup filtering so every valid raw OHLCV snapshot reaches the strategy-rules algorithm (superseded by the stricter pure-collector implementation below)
+- [x] Preserve only data-quality, authorization, provider-availability, and cooldown safety checks before strategy judgment (superseded by the user’s stricter requirement: no scanner-side market-data checks)
+- [x] Add regression coverage proving all valid market snapshots are forwarded and only the strategy-rules algorithm decides outcomes (covered by the final raw-forwarding regression)
+- [x] Run full validation, live workflow verification, and publish the correction (completed by the final raw-forwarding validation below)
+
+
+- [x] Make the scanner a pure raw-market-data collector with no quality checks, trading filters, scoring, or judgment
+- [x] Forward every retrieved asset/timeframe snapshot to the strategy-rules algorithm for interpretation and signal generation
+- [x] Update regression coverage so only the strategy-rules algorithm can approve outcomes and trigger Telegram delivery
+- [x] Run full validation, live forwarding verification, and publish the correction
+

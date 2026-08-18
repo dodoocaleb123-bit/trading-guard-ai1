@@ -108,19 +108,22 @@ describe("scanner approval gate", () => {
     expect(firstBatch.candidates[0].asset).toBe("EUR/USD");
   });
 
-  it("skips a recently analyzed setup during the configured cooldown", async () => {
-    fetchMarketSeriesBatch.mockResolvedValue(allSeries());
-    hasRecentStrategyDecision.mockResolvedValue(true);
+  it("forwards every retrieved raw snapshot without scanner-side trend or cooldown filtering", async () => {
+    const raw = allSeries();
+    raw.set("EUR/USD", { ...series("EUR/USD", "15min"), trend: "SIDEWAYS" as any });
+    fetchMarketSeriesBatch.mockResolvedValue(raw);
+    generateScannerDecisions.mockResolvedValue([]);
     generateScannerDecisions.mockClear();
-    insert.mockClear();
+    createStrategyDecision.mockClear();
 
     const result = await scanUser(1);
 
     expect(result.created).toBe(0);
-    expect(generateScannerDecisions).not.toHaveBeenCalled();
-    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "SKIPPED", decisionReason: expect.stringContaining("cooldown") }));
-    expect(insert).not.toHaveBeenCalled();
-    hasRecentStrategyDecision.mockResolvedValue(false);
+    expect(generateScannerDecisions).toHaveBeenCalledTimes(1);
+    const batch = generateScannerDecisions.mock.calls[0][0];
+    expect(batch.candidates).toHaveLength(8);
+    expect(batch.candidates.find((candidate: any) => candidate.asset === "EUR/USD" && candidate.timeframe === "15MIN").market.trend).toBe("SIDEWAYS");
+    expect(createStrategyDecision).not.toHaveBeenCalled();
   });
 
   it("fails closed when the strategy engine is unavailable", async () => {

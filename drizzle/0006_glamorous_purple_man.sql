@@ -1,0 +1,1 @@
+ALTER TABLE `telegram_deliveries` MODIFY COLUMN `kind` enum('SIGNAL','AUDIT','OUTCOME','SUMMARY') NOT NULL;

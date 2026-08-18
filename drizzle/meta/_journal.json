@@ -43,6 +43,13 @@
       "when": 1787093582769,
       "tag": "0005_famous_psynapse",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787094134325,
+      "tag": "0006_glamorous_purple_man",
+      "breakpoints": true
     }
   ]
 }

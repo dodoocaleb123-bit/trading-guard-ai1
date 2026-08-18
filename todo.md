@@ -143,3 +143,14 @@
 - [x] Add backend, UI, migration, and regression-test coverage for these improvements
 - [x] Run full validation, visual verification, and publish the release
 
+
+- [x] Add decision-ledger filtering by asset, timeframe, and judgment status
+- [x] Add CSV and JSON export for decision-ledger evidence
+- [x] Add a scheduled weekly strategy-judgment summary with safe notification delivery
+- [x] Add backend, UI, scheduler, and regression-test coverage for these features
+- [ ] Run full validation, visual verification, and publish the release
+
+
+- [ ] Create and persist the real weekly Heartbeat job for the weekly strategy-summary callback
+- [ ] Add regression coverage for cron-only authorization, delivered-summary idempotency, and failed-delivery retry behavior
+

@@ -2,6 +2,7 @@ import { and, desc, eq, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { appSettings, auditMessages, auditTrades, cooldownChangeLog, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, telegramDeliveries, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -128,11 +129,18 @@ export async function listAuditTrades(userId: number) {
   return attachTelegramDelivery(audits, deliveries, "AUDIT", "auditTradeId");
 }
 
-export async function recordTelegramDelivery(input: { userId: number; signalId?: number; auditTradeId?: number; kind: "SIGNAL" | "AUDIT" | "OUTCOME"; status: "DELIVERED" | "FAILED"; telegramMessageId?: string; dedupeKey: string; error?: string }) {
+export async function recordTelegramDelivery(input: { userId: number; signalId?: number; auditTradeId?: number; kind: "SIGNAL" | "AUDIT" | "OUTCOME" | "SUMMARY"; status: "DELIVERED" | "FAILED"; telegramMessageId?: string; dedupeKey: string; error?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const deliveredAt = input.status === "DELIVERED" ? new Date() : null;
   await db.insert(telegramDeliveries).values({ ...input, deliveredAt }).onDuplicateKeyUpdate({ set: { status: input.status, telegramMessageId: input.telegramMessageId ?? null, error: input.error ?? null, deliveredAt } });
+}
+
+export async function hasTelegramDelivery(dedupeKey: string) {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.select({ status: telegramDeliveries.status }).from(telegramDeliveries).where(eq(telegramDeliveries.dedupeKey, dedupeKey)).limit(1);
+  return rows[0]?.status === "DELIVERED";
 }
 
 export function summarizeDeliveryCounts(signals: Array<{ status: string }>, audits: Array<{ verdict: string }>, deliveries: Array<{ kind: string; status: string }>) {
@@ -189,10 +197,17 @@ export async function createStrategyDecision(input: typeof strategyDecisionLedge
   return { id: Number(result[0].insertId), ...input };
 }
 
-export async function listStrategyDecisions(userId: number) {
+export async function listStrategyDecisions(userId: number, filters: DecisionFilters = {}) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(strategyDecisionLedger).where(eq(strategyDecisionLedger.userId, userId)).orderBy(desc(strategyDecisionLedger.createdAt)).limit(100);
+  const rows = await db.select().from(strategyDecisionLedger).where(eq(strategyDecisionLedger.userId, userId)).orderBy(desc(strategyDecisionLedger.createdAt)).limit(500);
+  return filterStrategyDecisions(rows, filters);
+}
+
+export async function listStrategyDecisionsSince(userId: number, since: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(strategyDecisionLedger).where(and(eq(strategyDecisionLedger.userId, userId), gte(strategyDecisionLedger.createdAt, since))).orderBy(desc(strategyDecisionLedger.createdAt)).limit(500);
 }
 
 export async function hasRecentStrategyDecision(userId: number, cooldownKey: string, since: Date) {

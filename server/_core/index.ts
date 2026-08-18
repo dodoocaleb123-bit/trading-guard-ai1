@@ -12,6 +12,7 @@ import { sdk } from "./sdk";
 import { ENV } from "./env";
 import { scanAllUsers } from "../scanner";
 import { isAuthorizedScannerCron } from "../scheduled";
+import { sendWeeklyStrategySummary } from "../weekly-summary";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -52,6 +53,17 @@ async function startServer() {
   app.get("/healthz", (_req, res) => res.json({ ok: true, service: "trading-guard-ai" }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  app.post("/api/scheduled/weekly-strategy-summary", async (req, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (!isAuthorizedScannerCron(user)) return res.status(403).json({ error: "cron-only" });
+      const result = await sendWeeklyStrategySummary();
+      console.info(`[WeeklySummary] Scheduled run complete: decisions=${result.decisions ?? 0} delivery=${result.delivery ?? result.skipped ?? "none"}`);
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({ error: error instanceof Error ? error.message : "weekly summary failed", timestamp: new Date().toISOString() });
+    }
+  });
   app.post("/api/scheduled/trading-guard-scanner", async (req, res) => {
     try {
       const user = await sdk.authenticateRequest(req);

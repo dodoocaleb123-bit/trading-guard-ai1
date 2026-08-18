@@ -4,6 +4,7 @@ import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
 import { createStrategyRule, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listStrategyDecisions, listStrategyRules, markOnboardingComplete, recordCooldownChange, recordTelegramDelivery, updateSetupCooldown } from "./db";
+import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage } from "./integrations";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
@@ -106,7 +107,11 @@ export const appRouter = router({
   }),
   scanner: router({
     status: protectedProcedure.query(({ ctx }) => getSettings(ctx.user.id)),
-    decisions: protectedProcedure.query(({ ctx }) => listStrategyDecisions(ctx.user.id)),
+    decisions: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "1H"]).optional(), verdict: z.enum(["APPROVED", "DENIED", "SKIPPED", "UNAVAILABLE"]).optional() }).optional()).query(({ ctx, input }) => listStrategyDecisions(ctx.user.id, input ?? {})),
+    export: protectedProcedure.input(z.object({ format: z.enum(["csv", "json"]), asset: z.string().optional(), timeframe: z.enum(["15MIN", "1H"]).optional(), verdict: z.enum(["APPROVED", "DENIED", "SKIPPED", "UNAVAILABLE"]).optional() })).query(async ({ ctx, input }) => {
+      const rows = await listStrategyDecisions(ctx.user.id, { asset: input.asset, timeframe: input.timeframe, verdict: input.verdict });
+      return { format: input.format, filename: `strategy-decisions-${new Date().toISOString().slice(0, 10)}.${input.format}`, content: input.format === "csv" ? serializeDecisionLedgerCsv(rows) : serializeDecisionLedgerJson(rows) };
+    }),
     summary: protectedProcedure.query(({ ctx }) => getStrategyDecisionSummary(ctx.user.id)),
     cooldownHistory: protectedProcedure.query(({ ctx }) => listCooldownChanges(ctx.user.id)),
     updateCooldown: protectedProcedure.input(z.object({ minutes: z.number().int().min(0).max(1440) })).mutation(async ({ ctx, input }) => {

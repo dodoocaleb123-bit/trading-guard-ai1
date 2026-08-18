@@ -107,7 +107,7 @@ export const telegramDeliveries = mysqlTable("telegram_deliveries", {
   userId: int("userId").notNull(),
   signalId: int("signalId"),
   auditTradeId: int("auditTradeId"),
-  kind: mysqlEnum("kind", ["SIGNAL", "AUDIT", "OUTCOME"]).notNull(),
+  kind: mysqlEnum("kind", ["SIGNAL", "AUDIT", "OUTCOME", "SUMMARY"]).notNull(),
   status: mysqlEnum("status", ["DELIVERED", "FAILED"]).notNull(),
   telegramMessageId: varchar("telegramMessageId", { length: 64 }),
   dedupeKey: varchar("dedupeKey", { length: 255 }).notNull().unique(),

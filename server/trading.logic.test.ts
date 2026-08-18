@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractStrategyText, formatAuditResult, normalizeAsset } from "./integrations";
+import { extractStrategyText, formatAuditResult, gateAuditDecision, normalizeAsset } from "./integrations";
 import { buildSignalLevels, resolveOutcome } from "./scanner";
 import { buildStrategyContext, buildStrategyRuleRecord } from "./routers";
 
@@ -38,6 +38,15 @@ describe("TradingGuardAI market helpers", () => {
     expect(record.content.length).toBe(content.length);
     expect(record.sourceType).toBe("pdf");
     expect(record.storageKey).toContain("strategy-rules");
+  });
+
+  it("requires rule evidence, confidence, and directional levels before approval", () => {
+    const rules = "## Trend confirmation\n## Risk management\n## Session filter\n";
+    const approved = gateAuditDecision({ verdict: "APPROVED", confidence: 82, adjustments: "None", direction: "BUY", entry: 100, stopLoss: 98, takeProfit: 104, ruleEvidence: ["Trend confirmation", "Risk management", "Session filter"], ruleFindings: [{ title: "Trend confirmation", stance: "BUY", weight: 3 }, { title: "Risk management", stance: "BUY", weight: 2 }, { title: "Session filter", stance: "BUY", weight: 1 }] }, rules);
+    expect(approved.verdict).toBe("APPROVED");
+    const denied = gateAuditDecision({ verdict: "APPROVED", confidence: 90, adjustments: "None", direction: "BUY", entry: 100, stopLoss: 101, takeProfit: 104, ruleEvidence: ["Trend confirmation"], ruleFindings: [{ title: "Trend confirmation", stance: "BUY", weight: 1 }] }, rules);
+    expect(denied.verdict).toBe("DENIED");
+    expect(denied.adjustments).toContain("Decision gate");
   });
 
   it("formats structured approved and denied audit verdicts", () => {

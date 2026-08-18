@@ -139,3 +139,28 @@ export async function getAllRulesText(userId: number) {
   const rules = await listStrategyRules(userId);
   return rules.map((rule) => `## ${rule.title}\n${rule.content}`).join("\n\n");
 }
+
+export async function getRelevantRulesText(userId: number, query: string, maxChars = 120_000) {
+  const rules = await listStrategyRules(userId);
+  const queryTokens = new Set((query.toLowerCase().match(/[a-z0-9%/]+/g) ?? []).filter((token) => token.length > 2));
+  const scored = rules.map((rule) => {
+    const titleAndContent = `${rule.title} ${rule.content}`.toLowerCase();
+    const titleTokens = new Set((rule.title.toLowerCase().match(/[a-z0-9%/]+/g) ?? []).filter((token) => token.length > 2));
+    const queryTokenList = Array.from(queryTokens);
+    const overlap = queryTokenList.filter((token) => titleAndContent.includes(token)).length;
+    const titleOverlap = queryTokenList.filter((token) => titleTokens.has(token)).length;
+    const paragraphs = rule.content.split(/\n\s*\n|(?<=[.!?])\s+/).map((part) => part.trim()).filter(Boolean);
+    const excerpts = paragraphs.filter((part) => Array.from(queryTokens).some((token) => part.toLowerCase().includes(token))).slice(0, 6);
+    return { rule, score: overlap + titleOverlap * 3, excerpts: excerpts.length ? excerpts : paragraphs.slice(0, 2) };
+  }).sort((a, b) => b.score - a.score || b.rule.createdAt.getTime() - a.rule.createdAt.getTime());
+  const sections: string[] = [];
+  let chars = 0;
+  for (const item of scored) {
+    const section = `## ${item.rule.title}\nSource: ${item.rule.sourceFileName ?? "saved strategy rule"}\n${item.excerpts.join(" ")}`;
+    if (chars + section.length > maxChars && sections.length > 0) continue;
+    sections.push(section);
+    chars += section.length + 2;
+    if (chars >= maxChars) break;
+  }
+  return sections.join("\n\n");
+}

@@ -188,9 +188,26 @@ export function formatApprovedTelegramMessage(input: {
   takeProfit: number | null | undefined;
   confidence: number;
   adjustments: string;
+  ruleEvidence?: string[];
+  confluenceScore?: number;
 }) {
   const optional = (value: number | null | undefined) => value == null ? "—" : String(value);
-  return `<b>TradingGuardAI approved trade</b>\n\nAsset: ${input.asset}\nTimeframe: ${input.timeframe}\nDirection: ${input.direction}\nEntry: ${optional(input.entry)}\nStop Loss: ${optional(input.stopLoss)}\nTake Profit: ${optional(input.takeProfit)}\nConfidence: ${input.confidence}%\nAdjustments: ${input.adjustments}`;
+  const evidence = input.ruleEvidence?.length ? `\nRules applied: ${input.ruleEvidence.slice(0, 3).join("; ")}` : "";
+  const confluence = typeof input.confluenceScore === "number" ? `\nConfluence: ${input.confluenceScore}%` : "";
+  const message = [
+    "<b>TradingGuardAI approved trade</b>",
+    "",
+    `Asset: ${input.asset}`,
+    `Timeframe: ${input.timeframe}`,
+    `Direction: ${input.direction}`,
+    `Entry: ${optional(input.entry)}`,
+    `Stop Loss: ${optional(input.stopLoss)}`,
+    `Take Profit: ${optional(input.takeProfit)}`,
+    `Confidence: ${input.confidence}%`,
+    "Validation: UNVALIDATED",
+    `Adjustments: ${input.adjustments}${confluence}${evidence}`,
+  ];
+  return message.join("\\n");
 }
 
 export async function sendTelegramMessage(text: string) {
@@ -210,8 +227,62 @@ export async function sendTelegramMessage(text: string) {
   }
 }
 
-export function formatAuditResult(result: { verdict: "APPROVED" | "DENIED"; confidence: number; adjustments: string }, market: MarketSnapshot) {
-  return `${result.verdict === "APPROVED" ? "TRADE APPROVED" : "TRADE DENIED"}\n\nConfidence level: ${result.confidence}%\n\nAdjustments: ${result.adjustments}\n\nLive ${market.symbol}: ${market.price}`;
+export function gateAuditDecision(result: {
+  verdict: "APPROVED" | "DENIED";
+  confidence: number;
+  adjustments: string;
+  asset?: string;
+  timeframe?: string;
+  direction?: "BUY" | "SELL";
+  entry?: number | null;
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+  ruleEvidence?: string[];
+  ruleFindings?: Array<{ title: string; stance: "BUY" | "SELL" | "NEUTRAL"; weight: number }>;
+}, rules: string) {
+  const evidence = Array.isArray(result.ruleEvidence)
+    ? result.ruleEvidence.filter((title) => typeof title === "string" && title.trim() && rules.includes(title.trim())).slice(0, 8)
+    : [];
+  const hasValidLevels = [result.entry, result.stopLoss, result.takeProfit].every((value) => typeof value === "number" && Number.isFinite(value));
+  const direction = result.direction;
+  const levelsAreDirectional = direction === "BUY"
+    ? Number(result.stopLoss) < Number(result.entry) && Number(result.takeProfit) > Number(result.entry)
+    : direction === "SELL"
+      ? Number(result.stopLoss) > Number(result.entry) && Number(result.takeProfit) < Number(result.entry)
+      : false;
+  const findings = Array.isArray(result.ruleFindings)
+    ? result.ruleFindings.filter((finding) => finding && typeof finding.title === "string" && rules.includes(finding.title.trim()) && ["BUY", "SELL", "NEUTRAL"].includes(finding.stance)).slice(0, 8)
+    : [];
+  const buyScore = findings.filter((finding) => finding.stance === "BUY").reduce((sum, finding) => sum + Math.max(1, Math.min(5, Number(finding.weight) || 1)), 0);
+  const sellScore = findings.filter((finding) => finding.stance === "SELL").reduce((sum, finding) => sum + Math.max(1, Math.min(5, Number(finding.weight) || 1)), 0);
+  const totalDirectionalScore = buyScore + sellScore;
+  const dominantScore = Math.max(buyScore, sellScore);
+  const confluenceScore = totalDirectionalScore ? Math.round((dominantScore / totalDirectionalScore) * 100) : 0;
+  const hasDirectionalConflict = buyScore > 0 && sellScore > 0 && confluenceScore < 70;
+  const failures: string[] = [];
+  if (result.confidence < 75) failures.push("confidence is below the 75% approval threshold");
+  if (evidence.length < 3 || findings.length < 3) failures.push("fewer than three applicable strategy findings were cited");
+  if (hasDirectionalConflict) failures.push(`strategy findings conflict (BUY score ${buyScore} vs SELL score ${sellScore})`);
+  if (confluenceScore < 70) failures.push(`confluence score is ${confluenceScore}%, below the 70% threshold`);
+  if (!hasValidLevels || !levelsAreDirectional) failures.push("entry, stop loss, and take profit do not pass directional risk checks");
+  if (result.verdict === "APPROVED" && failures.length) {
+    return {
+      ...result,
+      verdict: "DENIED" as const,
+      ruleEvidence: evidence,
+      ruleFindings: findings,
+      confluenceScore,
+      validationStatus: "UNVALIDATED",
+      adjustments: `Decision gate: ${failures.join("; ")}. ${result.adjustments}`,
+    };
+  }
+  return { ...result, ruleEvidence: evidence, ruleFindings: findings, confluenceScore, validationStatus: "UNVALIDATED" as const };
+}
+
+export function formatAuditResult(result: { verdict: "APPROVED" | "DENIED"; confidence: number; adjustments: string; ruleEvidence?: string[]; confluenceScore?: number; validationStatus?: string }, market: MarketSnapshot) {
+  const evidence = result.ruleEvidence?.length ? `\n\nRules applied:\n${result.ruleEvidence.map((rule) => `- ${rule}`).join("\n")}` : "";
+  const confluence = typeof result.confluenceScore === "number" ? `\n\nConfluence score: ${result.confluenceScore}%` : "";
+  return `${result.verdict === "APPROVED" ? "TRADE APPROVED" : "TRADE DENIED"}\n\nConfidence level: ${result.confidence}%\n\nValidation status: ${result.validationStatus ?? "UNVALIDATED"}\n\nAdjustments: ${result.adjustments}${confluence}${evidence}\n\nLive ${market.symbol}: ${market.price}`;
 }
 
 export async function auditWithLLM(input: {
@@ -223,11 +294,11 @@ export async function auditWithLLM(input: {
     messages: [
       {
         role: "system",
-        content: "You are TradingGuardAI, a strict risk-discipline assistant. You never guarantee profit, never place trades, and must only approve a signal when it is consistent with the supplied strategy rules and market snapshot. Return valid JSON only.",
+        content: "You are TradingGuardAI, a strict risk-discipline assistant. You never guarantee profit, never place trades, and must only approve a signal when it is consistent with the supplied strategy rules and market snapshot. Use the entire supplied rule library, cite at least three applicable rule titles in ruleEvidence, provide matching ruleFindings with a BUY, SELL, or NEUTRAL stance and weight from 1 to 5, and return DENIED when rules conflict or evidence is insufficient. Return valid JSON only.",
       },
       {
         role: "user",
-        content: `Evaluate this trade signal against the rules and live snapshot. Signal:\n${input.tradeSignal}\n\nRules:\n${input.rules}\n\nMarket snapshot:\n${JSON.stringify(input.market)}`,
+        content: `Evaluate this trade signal against the complete rule library and live snapshot. Signal:\n${input.tradeSignal}\n\nComplete strategy rule library:\n${input.rules}\n\nMarket snapshot:\n${JSON.stringify(input.market)}\n\nCite exact rule titles from the library in ruleEvidence and ruleFindings; do not invent citations. Use ruleFindings to state whether each cited rule supports BUY, supports SELL, or is NEUTRAL for this setup.`,
       },
     ],
     response_format: {
@@ -247,15 +318,18 @@ export async function auditWithLLM(input: {
             entry: { type: ["number", "null"] },
             stopLoss: { type: ["number", "null"] },
             takeProfit: { type: ["number", "null"] },
+            ruleEvidence: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 8 },
+            ruleFindings: { type: "array", items: { type: "object", properties: { title: { type: "string" }, stance: { type: "string", enum: ["BUY", "SELL", "NEUTRAL"] }, weight: { type: "number", minimum: 1, maximum: 5 } }, required: ["title", "stance", "weight"], additionalProperties: false }, minItems: 0, maxItems: 8 },
           },
-          required: ["verdict", "confidence", "adjustments", "asset", "timeframe", "direction", "entry", "stopLoss", "takeProfit"],
+          required: ["verdict", "confidence", "adjustments", "asset", "timeframe", "direction", "entry", "stopLoss", "takeProfit", "ruleEvidence", "ruleFindings"],
           additionalProperties: false,
         },
       },
     },
   });
   const content = response.choices?.[0]?.message?.content;
-  return JSON.parse(typeof content === "string" ? content : "{}");
+  const parsed = JSON.parse(typeof content === "string" ? content : "{}");
+  return gateAuditDecision(parsed, input.rules);
 }
 
 export async function forensicAnalysis(signal: { asset: string; direction: string; entry: string; stopLoss: string; takeProfit: string }, market: MarketSnapshot, rules: string) {

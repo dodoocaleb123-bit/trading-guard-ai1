@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { createStrategyRule, getAllRulesText, getDb, getSettings, listAuditMessages, listAuditTrades, listGeneratedSignals, listStrategyRules, markOnboardingComplete } from "./db";
+import { createStrategyRule, getDb, getRelevantRulesText, getSettings, listAuditMessages, listAuditTrades, listGeneratedSignals, listStrategyRules, markOnboardingComplete } from "./db";
 import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage } from "./integrations";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
@@ -62,7 +62,7 @@ export const appRouter = router({
       const asset = normalizeAsset(assetMatch?.[1] ?? assetMatch?.[2] ?? "EUR/USD");
       try {
         const market = await fetchMarketSnapshot(asset);
-        const localRules = await getAllRulesText(ctx.user.id);
+        const localRules = await getRelevantRulesText(ctx.user.id, input.signal);
         const mirroredRules = await fetchStrategyRulesFromSupabase();
         const result = await auditWithLLM({ tradeSignal: input.signal, rules: buildStrategyContext(localRules, mirroredRules), market });
         const assistantText = formatAuditResult(result, market);
@@ -79,6 +79,8 @@ export const appRouter = router({
               takeProfit: result.takeProfit,
               confidence: Number(result.confidence ?? 0),
               adjustments: result.adjustments || "No adjustments.",
+              ruleEvidence: result.ruleEvidence,
+              confluenceScore: result.confluenceScore,
             }))
           : false;
         if (shouldNotifyApprovedAudit(result.verdict)) {

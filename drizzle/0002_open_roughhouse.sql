@@ -1,0 +1,1 @@
+ALTER TABLE `strategy_rules` MODIFY COLUMN `content` mediumtext NOT NULL;

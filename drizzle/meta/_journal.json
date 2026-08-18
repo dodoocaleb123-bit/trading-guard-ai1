@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1787016962774,
+      "tag": "0000_serious_karen_page",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1787017543518,
+      "tag": "0001_eager_triathlon",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1787019767336,
+      "tag": "0002_open_roughhouse",
+      "breakpoints": true
+    }
+  ]
+}

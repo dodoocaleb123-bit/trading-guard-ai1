@@ -43,9 +43,9 @@
 }
 
 :root {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
+  --primary: oklch(0.42 0.17 264);
+  --primary-foreground: oklch(0.98 0.01 95);
+  --sidebar-primary: oklch(0.42 0.17 264);
   --sidebar-primary-foreground: var(--color-blue-50);
   --chart-1: var(--color-blue-300);
   --chart-2: var(--color-blue-500);
@@ -53,21 +53,21 @@
   --chart-4: var(--color-blue-700);
   --chart-5: var(--color-blue-800);
   --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
+  --background: oklch(0.985 0.006 92);
+  --foreground: oklch(0.235 0.025 65);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.235 0.015 65);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.235 0.015 65);
   --secondary: oklch(0.98 0.001 286.375);
   --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
+  --muted: oklch(0.955 0.012 92);
   --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
+  --accent: oklch(0.94 0.018 92);
   --accent-foreground: oklch(0.141 0.005 285.823);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
+  --border: oklch(0.89 0.012 88);
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.623 0.214 259.815);
   --sidebar: oklch(0.985 0 0);
@@ -131,6 +131,14 @@
   input[type="radio"]:not(:disabled) {
     @apply cursor-pointer;
   }
+}
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+
+@layer base {
+  body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; background-image: radial-gradient(circle at 12% 8%, oklch(0.98 0.03 92 / 0.8), transparent 28rem), radial-gradient(circle at 92% 16%, oklch(0.96 0.03 264 / 0.12), transparent 25rem); }
+  .font-display { font-family: 'Manrope', ui-sans-serif, system-ui, sans-serif; }
+  .font-mono { font-family: 'DM Mono', ui-monospace, monospace; }
 }
 
 @layer components {

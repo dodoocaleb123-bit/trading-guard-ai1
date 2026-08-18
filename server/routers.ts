@@ -1,0 +1,103 @@
+import { COOKIE_NAME } from "@shared/const";
+import { z } from "zod";
+import { parse as parseCookie } from "cookie";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
+import { createStrategyRule, getAllRulesText, getDb, getSettings, listAuditMessages, listAuditTrades, listGeneratedSignals, listStrategyRules, markOnboardingComplete } from "./db";
+import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, sendTelegramMessage } from "./integrations";
+import { storagePut } from "./storage";
+import { createHeartbeatJob } from "./_core/heartbeat";
+import { getSessionCookieOptions } from "./_core/cookies";
+import { systemRouter } from "./_core/systemRouter";
+
+export function buildStrategyRuleRecord(input: { userId: number; title: string; sourceType: "pdf" | "docx" | "text"; fileName: string; content: string; storageKey: string; supabaseId: string | null }) {
+  return { userId: input.userId, title: input.title, sourceType: input.sourceType, sourceFileName: input.fileName, content: input.content, storageKey: input.storageKey, supabaseId: input.supabaseId };
+}
+
+export function buildStrategyContext(localRules: string, supabaseRules: Array<{ title?: string; content?: string }>) {
+  const mirrored = supabaseRules.filter((rule) => rule.content).map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content}`).join("\n\n");
+  return [localRules, mirrored].filter(Boolean).join("\n\n");
+}
+
+export const appRouter = router({
+    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
+  system: systemRouter,
+  auth: router({
+    me: publicProcedure.query(opts => opts.ctx.user),
+    logout: publicProcedure.mutation(({ ctx }) => {
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      return {
+        success: true,
+      } as const;
+    }),
+  }),
+
+  settings: router({
+    get: protectedProcedure.query(({ ctx }) => getSettings(ctx.user.id)),
+  }),
+  rules: router({
+    list: protectedProcedure.query(({ ctx }) => listStrategyRules(ctx.user.id)),
+    supabaseList: protectedProcedure.query(() => fetchStrategyRulesFromSupabase()),
+    ingest: protectedProcedure
+      .input(z.object({ fileName: z.string(), mimeType: z.string(), sourceType: z.enum(["pdf", "docx", "text"]), title: z.string().min(1), contentBase64: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const buffer = Buffer.from(input.contentBase64, "base64");
+        const content = await extractStrategyText(buffer, input.mimeType, input.fileName);
+        if (!content) throw new Error("No readable strategy text was found in this file");
+        const stored = await storagePut(`${ctx.user.id}/strategy-rules/${input.fileName}`, buffer, input.mimeType || "application/octet-stream");
+        const supabase = await mirrorToSupabase("strategy_rules", { title: input.title, content, source_file_name: input.fileName, source_type: input.sourceType, storage_key: stored.key });
+        const rule = await createStrategyRule(buildStrategyRuleRecord({ userId: ctx.user.id, title: input.title, sourceType: input.sourceType, fileName: input.fileName, content, storageKey: stored.key, supabaseId: supabase?.id ? String(supabase.id) : null }));
+        await markOnboardingComplete(ctx.user.id);
+        return rule;
+      }),
+  }),
+  audit: router({
+    history: protectedProcedure.query(({ ctx }) => listAuditMessages(ctx.user.id)),
+    run: protectedProcedure.input(z.object({ signal: z.string().min(8) })).mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+      await db.insert(auditMessages).values({ userId: ctx.user.id, role: "user", content: input.signal });
+      const assetMatch = input.signal.match(/(?:asset|symbol)\s*:\s*([A-Za-z/]+)|\b(EUR\/?USD|GBP\/?USD|XAU\/?USD|BTC\/?USD)\b/i);
+      const asset = normalizeAsset(assetMatch?.[1] ?? assetMatch?.[2] ?? "EUR/USD");
+      try {
+        const market = await fetchMarketSnapshot(asset);
+        const localRules = await getAllRulesText(ctx.user.id);
+        const mirroredRules = await fetchStrategyRulesFromSupabase();
+        const result = await auditWithLLM({ tradeSignal: input.signal, rules: buildStrategyContext(localRules, mirroredRules), market });
+        const assistantText = formatAuditResult(result, market);
+        await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });
+        await db.insert(auditTrades).values({ userId: ctx.user.id, asset, timeframe: result.timeframe || "15MIN", direction: result.direction, entry: result.entry ? String(result.entry) : null, stopLoss: result.stopLoss ? String(result.stopLoss) : null, takeProfit: result.takeProfit ? String(result.takeProfit) : null, verdict: result.verdict, confidence: String(result.confidence), adjustments: result.adjustments });
+        await mirrorToSupabase("audited_signals", { user_id: ctx.user.id, signal: input.signal, verdict: result.verdict, confidence: result.confidence, adjustments: result.adjustments, asset });
+        return { role: "assistant" as const, content: assistantText, verdict: result.verdict, confidence: result.confidence };
+      } catch (error) {
+        const content = `TRADE DENIED\\n\\nConfidence level: 0%\\n\\nAdjustments: Live market data or strategy rules were unavailable. No decision should be made without a verified market snapshot.`;
+        await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content, verdict: "DENIED", confidence: "0", asset });
+        return { role: "assistant" as const, content, verdict: "DENIED" as const, confidence: 0, error: error instanceof Error ? error.message : "Audit unavailable" };
+      }
+    }),
+  }),
+  signals: router({
+    list: protectedProcedure.query(({ ctx }) => listGeneratedSignals(ctx.user.id)),
+    audits: protectedProcedure.query(({ ctx }) => listAuditTrades(ctx.user.id)),
+  }),
+  scanner: router({
+    status: protectedProcedure.query(({ ctx }) => getSettings(ctx.user.id)),
+    toggle: protectedProcedure.input(z.object({ enabled: z.boolean() })).mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+      await db.insert(appSettings).values({ userId: ctx.user.id, scannerEnabled: input.enabled }).onDuplicateKeyUpdate({ set: { scannerEnabled: input.enabled } });
+      return { enabled: input.enabled };
+    }),
+    activate: protectedProcedure.mutation(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+      const session = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+      const job = await createHeartbeatJob({ name: `trading-guard-scanner-${ctx.user.id}`, cron: "0 */5 * * * *", path: "/api/scheduled/trading-guard-scanner", description: "TradingGuardAI five-minute market scanner and outcome tracker" }, session);
+      await db.insert(appSettings).values({ userId: ctx.user.id, scannerEnabled: true, scheduleCronTaskUid: job.taskUid }).onDuplicateKeyUpdate({ set: { scannerEnabled: true, scheduleCronTaskUid: job.taskUid } });
+      return job;
+    }),
+  }),
+});
+
+export type AppRouter = typeof appRouter;

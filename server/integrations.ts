@@ -80,13 +80,41 @@ export function normalizeAsset(asset: string) {
   return symbolMap[key] ?? symbolMap[asset.toUpperCase()] ?? asset.toUpperCase();
 }
 
+let twelveDataCursor = 0;
+
+function isTwelveDataFailoverError(error: unknown, payload?: any) {
+  const status = (error as any)?.response?.status ?? (error as any)?.status;
+  const code = payload?.code ?? (error as any)?.response?.data?.code;
+  const message = String(payload?.message ?? (error as any)?.response?.data?.message ?? (error as any)?.message ?? "");
+  return status === 401 || status === 403 || status === 429 || code === 401 || code === 403 || code === 429 || /credit|quota|rate.?limit|too many requests/i.test(message);
+}
+
+async function requestTwelveData(path: string, params: Record<string, string | number>, timeout: number) {
+  const keys = ENV.twelveDataApiKeys.length ? ENV.twelveDataApiKeys : [ENV.twelveDataApiKey].filter(Boolean);
+  if (!keys.length) throw new Error("Twelve Data is not configured");
+  let lastError: unknown;
+  for (let attempt = 0; attempt < keys.length; attempt += 1) {
+    const index = (twelveDataCursor + attempt) % keys.length;
+    const key = keys[index];
+    try {
+      const response = await axios.get(path, { params: { ...params, apikey: key }, timeout });
+      if (isTwelveDataFailoverError(undefined, response.data) || response.status === 401 || response.status === 403 || response.status === 429) {
+        lastError = new Error(response.data?.message ?? `Twelve Data key ${index + 1} unavailable`);
+        continue;
+      }
+      twelveDataCursor = (index + 1) % keys.length;
+      return response;
+    } catch (error) {
+      if (!isTwelveDataFailoverError(error)) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("All configured Twelve Data keys are unavailable");
+}
+
 export async function fetchMarketSnapshot(asset: string, interval = "15min") {
   const symbol = normalizeAsset(asset);
-  if (!ENV.twelveDataApiKey) throw new Error("Twelve Data is not configured");
-  const response = await axios.get("https://api.twelvedata.com/quote", {
-    params: { symbol, interval, apikey: ENV.twelveDataApiKey },
-    timeout: 15000,
-  });
+  const response = await requestTwelveData("https://api.twelvedata.com/quote", { symbol, interval }, 15000);
   if (response.data?.status === "error") throw new Error(response.data.message ?? "Market data unavailable");
   const quote = response.data;
   const price = Number(quote.close ?? quote.price ?? quote.previous_close);
@@ -126,21 +154,13 @@ function parseMarketSeries(symbol: string, interval: "15min" | "1h", payload: an
 
 export async function fetchMarketSeries(asset: string, interval: "15min" | "1h") {
   const symbol = normalizeAsset(asset);
-  if (!ENV.twelveDataApiKey) throw new Error("Twelve Data is not configured");
-  const response = await axios.get("https://api.twelvedata.com/time_series", {
-    params: { symbol, interval, outputsize: 30, order: "ASC", apikey: ENV.twelveDataApiKey },
-    timeout: 15000,
-  });
+  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol, interval, outputsize: 30, order: "ASC" }, 15000);
   return parseMarketSeries(symbol, interval, response.data);
 }
 
 export async function fetchMarketSeriesBatch(assets: readonly string[], interval: "15min" | "1h") {
-  if (!ENV.twelveDataApiKey) throw new Error("Twelve Data is not configured");
   const symbols = assets.map(normalizeAsset);
-  const response = await axios.get("https://api.twelvedata.com/time_series", {
-    params: { symbol: symbols.join(","), interval, outputsize: 30, order: "ASC", apikey: ENV.twelveDataApiKey },
-    timeout: 20000,
-  });
+  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 30, order: "ASC" }, 20000);
   if (response.data?.status === "error") throw new Error(response.data.message ?? "OHLCV batch unavailable");
   const result = new Map<string, MarketSeries>();
   for (const symbol of symbols) {

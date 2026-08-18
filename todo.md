@@ -81,3 +81,11 @@
 - [x] Diagnose why production trade signals stopped reaching Telegram: Twelve Data returned HTTP 429 because the daily quota was exhausted
 - [x] Restore reliable approved-signal generation and Telegram delivery by reducing each scanner cycle to two batched Twelve Data requests, reusing candles for outcome tracking, and changing cadence to fifteen minutes so usage stays within the confirmed 800-credit daily plan
 - [x] Add regression coverage for the outage cause and verify the production scheduler reached the callback; delivery was blocked by the provider’s exhausted daily quota, not Telegram configuration
+
+- [ ] Confirm Twelve Data has reset on the free plan and verify a successful production scanner cycle delivers to Telegram without upgrading
+
+- [x] Add three authorized Twelve Data API keys as separate secure environment secrets (superseded by four additional keys below)
+- [x] Implement quota-aware key rotation with safe five-minute scanner budgeting
+- [x] Add failover regression tests and verify Telegram delivery after deployment
+
+- [x] Configure four additional authorized Twelve Data API keys, for up to five total rotating accounts

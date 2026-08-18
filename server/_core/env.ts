@@ -10,6 +10,13 @@ export const ENV = {
   supabaseUrl: process.env.SUPABASE_URL ?? "",
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? "",
   twelveDataApiKey: process.env.TWELVE_DATA_API_KEY ?? "",
+  twelveDataApiKeys: [
+    process.env.TWELVE_DATA_API_KEY,
+    process.env.TWELVE_DATA_API_KEY_2,
+    process.env.TWELVE_DATA_API_KEY_3,
+    process.env.TWELVE_DATA_API_KEY_4,
+    process.env.TWELVE_DATA_API_KEY_5,
+  ].filter((key): key is string => Boolean(key)),
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
   telegramChatId: process.env.TELEGRAM_CHAT_ID ?? "",
   frontendOrigin: process.env.FRONTEND_ORIGIN ?? "",

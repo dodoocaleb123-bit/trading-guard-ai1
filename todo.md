@@ -73,3 +73,7 @@
 ## Publish handoff
 
 - [x] Publish instructions: open the latest checkpoint in the Manus Management UI and click **Publish**; choose the default Autoscale hosting option unless an always-on worker is required. After publishing, use the generated Manus URL to sign in and complete the authenticated dashboard smoke test.
+
+- [x] Trace and fix production delivery of approved trade signals to the configured Telegram recipient
+- [x] Add regression coverage for approved-signal Telegram delivery and scheduled scanner execution
+- [ ] Verify the production Heartbeat job and Telegram delivery logs after deployment

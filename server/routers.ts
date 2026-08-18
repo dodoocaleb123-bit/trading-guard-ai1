@@ -4,7 +4,7 @@ import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
 import { createStrategyRule, getAllRulesText, getDb, getSettings, listAuditMessages, listAuditTrades, listGeneratedSignals, listStrategyRules, markOnboardingComplete } from "./db";
-import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, sendTelegramMessage } from "./integrations";
+import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage } from "./integrations";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -69,7 +69,22 @@ export const appRouter = router({
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });
         await db.insert(auditTrades).values({ userId: ctx.user.id, asset, timeframe: result.timeframe || "15MIN", direction: result.direction, entry: result.entry ? String(result.entry) : null, stopLoss: result.stopLoss ? String(result.stopLoss) : null, takeProfit: result.takeProfit ? String(result.takeProfit) : null, verdict: result.verdict, confidence: String(result.confidence), adjustments: result.adjustments });
         await mirrorToSupabase("audited_signals", { user_id: ctx.user.id, signal: input.signal, verdict: result.verdict, confidence: result.confidence, adjustments: result.adjustments, asset });
-        return { role: "assistant" as const, content: assistantText, verdict: result.verdict, confidence: result.confidence };
+        const telegramDelivered = shouldNotifyApprovedAudit(result.verdict)
+          ? await sendTelegramMessage(formatApprovedTelegramMessage({
+              asset,
+              timeframe: result.timeframe || "15MIN",
+              direction: result.direction || "UNKNOWN",
+              entry: result.entry,
+              stopLoss: result.stopLoss,
+              takeProfit: result.takeProfit,
+              confidence: Number(result.confidence ?? 0),
+              adjustments: result.adjustments || "No adjustments.",
+            }))
+          : false;
+        if (shouldNotifyApprovedAudit(result.verdict)) {
+          console.info(`[Telegram] Approved audit delivery ${telegramDelivered ? "succeeded" : "was unavailable"} for user ${ctx.user.id}`);
+        }
+        return { role: "assistant" as const, content: assistantText, verdict: result.verdict, confidence: result.confidence, telegramDelivered };
       } catch (error) {
         const content = `TRADE DENIED\\n\\nConfidence level: 0%\\n\\nAdjustments: Live market data or strategy rules were unavailable. No decision should be made without a verified market snapshot.`;
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content, verdict: "DENIED", confidence: "0", asset });

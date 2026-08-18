@@ -120,6 +120,24 @@ export async function fetchMarketSeries(asset: string, interval: "15min" | "1h")
   return { symbol, interval, values, close, trend: close >= priorClose ? "UP" : "DOWN", fetchedAt: new Date().toISOString() };
 }
 
+export function shouldNotifyApprovedAudit(verdict: string) {
+  return verdict === "APPROVED";
+}
+
+export function formatApprovedTelegramMessage(input: {
+  asset: string;
+  timeframe: string;
+  direction: string;
+  entry: number | null | undefined;
+  stopLoss: number | null | undefined;
+  takeProfit: number | null | undefined;
+  confidence: number;
+  adjustments: string;
+}) {
+  const optional = (value: number | null | undefined) => value == null ? "—" : String(value);
+  return `<b>TradingGuardAI approved trade</b>\n\nAsset: ${input.asset}\nTimeframe: ${input.timeframe}\nDirection: ${input.direction}\nEntry: ${optional(input.entry)}\nStop Loss: ${optional(input.stopLoss)}\nTake Profit: ${optional(input.takeProfit)}\nConfidence: ${input.confidence}%\nAdjustments: ${input.adjustments}`;
+}
+
 export async function sendTelegramMessage(text: string) {
   if (!ENV.telegramBotToken || !ENV.telegramChatId) return false;
   try {

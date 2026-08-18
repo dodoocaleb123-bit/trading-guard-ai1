@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import { ENV } from "./env";
 import { scanAllUsers } from "../scanner";
+import { isAuthorizedScannerCron } from "../scheduled";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -54,7 +55,7 @@ async function startServer() {
   app.post("/api/scheduled/trading-guard-scanner", async (req, res) => {
     try {
       const user = await sdk.authenticateRequest(req);
-      if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
+      if (!isAuthorizedScannerCron(user)) return res.status(403).json({ error: "cron-only" });
       const result = await scanAllUsers();
       console.info(`[Scanner] Scheduled run complete: users=${result.users} created=${result.created} tracked=${result.tracked}`);
       return res.json({ ok: true, ...result });

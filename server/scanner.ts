@@ -59,34 +59,25 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   series15m.forEach((series, symbol) => seriesCache.set(`${symbol}:15MIN`, series));
   series1h.forEach((series, symbol) => seriesCache.set(`${symbol}:1H`, series));
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
-  for (const asset of WATCHLIST) {
-    for (const timeframe of TIMEFRAMES) {
+  const mirroredRules = await fetchStrategyRulesFromSupabase();
+  const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 40_000);
+  const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate) => candidate.series && shouldCreateCandidate(rules.length, candidate.series));
+  for (let offset = 0; offset < candidates.length; offset += 4) {
+    await Promise.all(candidates.slice(offset, offset + 4).map(async ({ asset, timeframe, series }) => {
+      if (!series) return;
       try {
-        const series = seriesCache.get(`${asset}:${timeframe}`);
-        if (!series || !shouldCreateCandidate(rules.length, series)) continue;
         const tradeContext = `Generate the best-supported possible trade outcome for ${asset} on ${timeframe} from the raw market data. Do not assume a direction or precomputed levels. The result must be a paper-validation decision only and must remain UNVALIDATED.`;
         const localRules = await getRelevantRulesText(userId, `${tradeContext}\nTrend: ${series.trend}\nLatest close: ${series.close}`, 80_000);
-        const mirroredRules = await fetchStrategyRulesFromSupabase();
-        const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 40_000);
         const gated = await auditWithLLM({ tradeSignal: tradeContext, rules: [localRules, mirroredText].filter(Boolean).join("\n\n"), market: { symbol: asset, price: series.close, close: series.close, interval: series.interval, trend: series.trend, values: series.values, fetchedAt: series.fetchedAt } });
         if (!shouldNotifyScannerSignal(gated.verdict)) {
           console.info(`[Scanner] ${asset} ${timeframe} candidate rejected by strategy gate: ${gated.adjustments}`);
-          continue;
+          return;
         }
         if (!gated.direction || gated.entry == null || gated.stopLoss == null || gated.takeProfit == null) {
           console.info(`[Scanner] ${asset} ${timeframe} strategy engine returned an incomplete approved outcome; no signal sent.`);
-          continue;
+          return;
         }
-        const approvedLevels = {
-          asset,
-          timeframe,
-          direction: gated.direction,
-          entry: gated.entry,
-          stopLoss: gated.stopLoss,
-          takeProfit: gated.takeProfit,
-          riskReward: 2,
-          confidence: gated.confidence,
-        };
+        const approvedLevels = { asset, timeframe, direction: gated.direction, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: 2, confidence: gated.confidence };
         const rationale = formatAuditResult(gated, { symbol: asset, price: series.close, close: series.close, fetchedAt: series.fetchedAt });
         const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), rationale, status: "PENDING" });
         const signal = { id: Number(result.insertId), ...approvedLevels };
@@ -97,7 +88,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       } catch (error) {
         console.warn(`[Scanner] ${asset} ${timeframe} skipped:`, error instanceof Error ? error.message : error);
       }
-    }
+    }));
   }
   return { created: created.length, tracked: await trackOpenSignals(userId, seriesCache), marketData: "available" };
 }

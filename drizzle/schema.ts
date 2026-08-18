@@ -82,6 +82,26 @@ export const auditTrades = mysqlTable("audit_trades", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+export const strategyDecisionLedger = mysqlTable("strategy_decision_ledger", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  asset: varchar("asset", { length: 32 }).notNull(),
+  timeframe: varchar("timeframe", { length: 16 }).notNull(),
+  verdict: mysqlEnum("verdict", ["APPROVED", "DENIED"]).notNull(),
+  confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull(),
+  confluenceScore: decimal("confluenceScore", { precision: 5, scale: 2 }).default("0").notNull(),
+  ruleEvidence: mediumtext("ruleEvidence"),
+  ruleFindings: mediumtext("ruleFindings"),
+  marketSnapshot: mediumtext("marketSnapshot"),
+  generatedDirection: mysqlEnum("generatedDirection", ["BUY", "SELL"]),
+  generatedEntry: decimal("generatedEntry", { precision: 18, scale: 8 }),
+  generatedStopLoss: decimal("generatedStopLoss", { precision: 18, scale: 8 }),
+  generatedTakeProfit: decimal("generatedTakeProfit", { precision: 18, scale: 8 }),
+  decisionReason: text("decisionReason"),
+  cooldownKey: varchar("cooldownKey", { length: 255 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export const telegramDeliveries = mysqlTable("telegram_deliveries", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
@@ -101,6 +121,10 @@ export const appSettings = mysqlTable("app_settings", {
   userId: int("userId").notNull().unique(),
   onboardingComplete: boolean("onboardingComplete").default(false).notNull(),
   scannerEnabled: boolean("scannerEnabled").default(true).notNull(),
+  setupCooldownMinutes: int("setupCooldownMinutes").default(30).notNull(),
+  strategyEngineStatus: mysqlEnum("strategyEngineStatus", ["AVAILABLE", "UNAVAILABLE", "NOT_RUN"]).default("NOT_RUN").notNull(),
+  strategyEngineLastRunAt: timestamp("strategyEngineLastRunAt"),
+  strategyEngineLastError: text("strategyEngineLastError"),
   scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -109,3 +133,4 @@ export type StrategyRule = typeof strategyRules.$inferSelect;
 export type GeneratedSignal = typeof generatedSignals.$inferSelect;
 export type AuditTrade = typeof auditTrades.$inferSelect;
 export type TelegramDelivery = typeof telegramDeliveries.$inferSelect;
+export type StrategyDecision = typeof strategyDecisionLedger.$inferSelect;

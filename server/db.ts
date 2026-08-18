@@ -1,6 +1,6 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, generatedSignals, InsertUser, strategyRules, telegramDeliveries, users } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, telegramDeliveries, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -163,11 +163,43 @@ export async function getSignalDeliverySummary(userId: number) {
 
 export async function getSettings(userId: number) {
   const db = await getDb();
-  if (!db) return { onboardingComplete: false, scannerEnabled: true, scheduleCronTaskUid: null };
+  if (!db) return { onboardingComplete: false, scannerEnabled: true, setupCooldownMinutes: 30, strategyEngineStatus: "NOT_RUN" as const, strategyEngineLastRunAt: null, strategyEngineLastError: null, scheduleCronTaskUid: null };
   const rows = await db.select().from(appSettings).where(eq(appSettings.userId, userId)).limit(1);
   if (rows[0]) return rows[0];
   await db.insert(appSettings).values({ userId });
-  return { onboardingComplete: false, scannerEnabled: true, scheduleCronTaskUid: null };
+  return { onboardingComplete: false, scannerEnabled: true, setupCooldownMinutes: 30, strategyEngineStatus: "NOT_RUN" as const, strategyEngineLastRunAt: null, strategyEngineLastError: null, scheduleCronTaskUid: null };
+}
+
+export async function updateStrategyEngineStatus(userId: number, input: { status: "AVAILABLE" | "UNAVAILABLE" | "NOT_RUN"; error?: string | null }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(appSettings).values({ userId, strategyEngineStatus: input.status, strategyEngineLastRunAt: new Date(), strategyEngineLastError: input.error ?? null }).onDuplicateKeyUpdate({ set: { strategyEngineStatus: input.status, strategyEngineLastRunAt: new Date(), strategyEngineLastError: input.error ?? null } });
+}
+
+export async function updateSetupCooldown(userId: number, minutes: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(appSettings).values({ userId, setupCooldownMinutes: minutes }).onDuplicateKeyUpdate({ set: { setupCooldownMinutes: minutes } });
+}
+
+export async function createStrategyDecision(input: typeof strategyDecisionLedger.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(strategyDecisionLedger).values(input);
+  return { id: Number(result[0].insertId), ...input };
+}
+
+export async function listStrategyDecisions(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(strategyDecisionLedger).where(eq(strategyDecisionLedger.userId, userId)).orderBy(desc(strategyDecisionLedger.createdAt)).limit(100);
+}
+
+export async function hasRecentStrategyDecision(userId: number, cooldownKey: string, since: Date) {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.select({ id: strategyDecisionLedger.id }).from(strategyDecisionLedger).where(and(eq(strategyDecisionLedger.userId, userId), eq(strategyDecisionLedger.cooldownKey, cooldownKey), gte(strategyDecisionLedger.createdAt, since))).limit(1);
+  return rows.length > 0;
 }
 
 export async function markOnboardingComplete(userId: number) {

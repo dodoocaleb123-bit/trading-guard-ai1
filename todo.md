@@ -129,3 +129,10 @@
 - [x] Clarify that the scanner collects and dispatches raw market data while the strategy-rules algorithm makes judgments and generates possible outcomes
 - [x] Add terminology regression coverage and verify the revised dashboard and scanner interface
 
+
+- [x] Add a persistent strategy-engine decision ledger with rule evidence, confluence, verdict, and generated outcome details
+- [x] Add model-service availability status that distinguishes market-data collection from strategy judgment availability
+- [x] Add a configurable setup cooldown to reduce repeated analysis of unchanged market conditions
+- [x] Add backend, UI, database, and regression-test coverage for the three improvements
+- [x] Run migration, full validation, visual verification, and publish the completed release
+

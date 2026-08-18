@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, insert, db } = vi.hoisted(() => {
+const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, insert, db } = vi.hoisted(() => {
   const fetchMarketSeriesBatch = vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); });
   const generateScannerDecisions = vi.fn();
+  const createStrategyDecision = vi.fn(async (input: any) => ({ id: 99, ...input }));
+  const getSettings = vi.fn(async () => ({ setupCooldownMinutes: 30 }));
+  const hasRecentStrategyDecision = vi.fn(async () => false);
+  const updateStrategyEngineStatus = vi.fn();
   const sendTelegramMessage = vi.fn();
   const recordTelegramDelivery = vi.fn();
   const insert = vi.fn();
@@ -12,13 +16,17 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
     })),
   }));
   const db = { select, insert, update: vi.fn() };
-  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, insert, db };
+  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, insert, db };
 });
 
 vi.mock("./db", () => ({
   getDb: vi.fn(async () => db),
   listStrategyRules: vi.fn(async () => [{ id: 1, title: "Rules", content: "Use confirmation." }]),
   getAllRulesText: vi.fn(async () => "Use confirmation."),
+  createStrategyDecision,
+  getSettings,
+  hasRecentStrategyDecision,
+  updateStrategyEngineStatus,
   getRelevantRulesText: vi.fn(async () => "## Rules\nUse confirmation."),
   createStrategyRule: vi.fn(),
   recordTelegramDelivery,
@@ -92,10 +100,26 @@ describe("scanner approval gate", () => {
     expect(insert).toHaveBeenCalled();
     expect(sendTelegramMessage).toHaveBeenCalled();
     expect(recordTelegramDelivery).toHaveBeenCalled();
+    expect(createStrategyDecision).toHaveBeenCalled();
+    expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "AVAILABLE" });
     expect(generateScannerDecisions).toHaveBeenCalledTimes(1);
     const firstBatch = generateScannerDecisions.mock.calls[0][0];
     expect(firstBatch.candidates[0].market).toMatchObject({ interval: "15min", trend: "UP", values: expect.any(Array) });
     expect(firstBatch.candidates[0].asset).toBe("EUR/USD");
+  });
+
+  it("skips a recently analyzed setup during the configured cooldown", async () => {
+    fetchMarketSeriesBatch.mockResolvedValue(allSeries());
+    hasRecentStrategyDecision.mockResolvedValue(true);
+    generateScannerDecisions.mockClear();
+    insert.mockClear();
+
+    const result = await scanUser(1);
+
+    expect(result.created).toBe(0);
+    expect(generateScannerDecisions).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
+    hasRecentStrategyDecision.mockResolvedValue(false);
   });
 
   it("fails closed when the strategy engine is unavailable", async () => {

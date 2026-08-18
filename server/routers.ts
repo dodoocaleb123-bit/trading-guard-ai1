@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { createStrategyRule, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, listAuditMessages, listAuditTrades, listGeneratedSignals, listStrategyRules, markOnboardingComplete, recordTelegramDelivery } from "./db";
+import { createStrategyRule, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, listAuditMessages, listAuditTrades, listGeneratedSignals, listStrategyDecisions, listStrategyRules, markOnboardingComplete, recordTelegramDelivery, updateSetupCooldown } from "./db";
 import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage } from "./integrations";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
@@ -106,6 +106,11 @@ export const appRouter = router({
   }),
   scanner: router({
     status: protectedProcedure.query(({ ctx }) => getSettings(ctx.user.id)),
+    decisions: protectedProcedure.query(({ ctx }) => listStrategyDecisions(ctx.user.id)),
+    updateCooldown: protectedProcedure.input(z.object({ minutes: z.number().int().min(0).max(1440) })).mutation(async ({ ctx, input }) => {
+      await updateSetupCooldown(ctx.user.id, input.minutes);
+      return { minutes: input.minutes };
+    }),
     toggle: protectedProcedure.input(z.object({ enabled: z.boolean() })).mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { createStrategyRule, getAllRulesText, getDb, getRelevantRulesText, listStrategyRules, recordTelegramDelivery } from "./db";
+import { createStrategyDecision, createStrategyRule, getAllRulesText, getDb, getRelevantRulesText, getSettings, hasRecentStrategyDecision, listStrategyRules, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -61,20 +61,53 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
   const mirroredRules = await fetchStrategyRulesFromSupabase();
   const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 40_000);
-  const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate) => candidate.series && shouldCreateCandidate(rules.length, candidate.series));
+  const settings = await getSettings(userId);
+  const cooldownSince = new Date(Date.now() - Math.max(0, settings.setupCooldownMinutes ?? 30) * 60_000);
+  const rawCandidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series && shouldCreateCandidate(rules.length, candidate.series)));
+  const candidates = (await Promise.all(rawCandidates.map(async (candidate) => {
+    const series = candidate.series!;
+    const cooldownKey = `${candidate.asset}:${candidate.timeframe}:${series.trend}:${series.close.toFixed(4)}`;
+    return await hasRecentStrategyDecision(userId, cooldownKey, cooldownSince) ? null : { ...candidate, cooldownKey };
+  }))).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries; cooldownKey: string } => candidate !== null);
+  if (!candidates.length) {
+    console.info("[Scanner] All eligible setups are inside the configured cooldown; no strategy judgment requested.");
+    return { created: 0, tracked: await trackOpenSignals(userId, seriesCache), marketData: "available" };
+  }
   let decisions: Awaited<ReturnType<typeof generateScannerDecisions>>;
   try {
     const localRules = await getRelevantRulesText(userId, "Generate best-supported outcomes for all watched forex and crypto markets using raw OHLCV trend, timeframe, entry, stop loss, take profit, and confluence evidence.", 100_000);
     decisions = await generateScannerDecisions({
       rules: [localRules, mirroredText].filter(Boolean).join("\n\n"),
-      candidates: candidates.map(({ asset, timeframe, series }) => ({ asset, timeframe, market: { symbol: asset, price: series!.close, close: series!.close, interval: series!.interval, trend: series!.trend, values: series!.values, fetchedAt: series!.fetchedAt } })),
+      candidates: candidates.map(({ asset, timeframe, series }) => ({ asset, timeframe, market: { symbol: asset, price: series.close, close: series.close, interval: series.interval, trend: series.trend, values: series.values, fetchedAt: series.fetchedAt } })),
     });
+    await updateStrategyEngineStatus(userId, { status: "AVAILABLE" });
   } catch (error) {
-    console.warn("[Scanner] Strategy engine unavailable; no new signals created:", error instanceof Error ? error.message : error);
+    const message = error instanceof Error ? error.message : String(error);
+    await updateStrategyEngineStatus(userId, { status: "UNAVAILABLE", error: message });
+    console.warn("[Scanner] Strategy engine unavailable; no new signals created:", message);
     return { created: 0, tracked: await trackOpenSignals(userId, seriesCache), marketData: "available" };
   }
   for (const gated of decisions) {
     const { asset, timeframe, market } = gated;
+    const sourceCandidate = candidates.find((candidate) => candidate.asset === asset && candidate.timeframe === timeframe);
+    const cooldownKey = sourceCandidate?.cooldownKey ?? `${asset}:${timeframe}:unknown:${market.close.toFixed(4)}`;
+    await createStrategyDecision({
+      userId,
+      asset,
+      timeframe,
+      verdict: gated.verdict,
+      confidence: String(gated.confidence),
+      confluenceScore: String(gated.confluenceScore ?? 0),
+      ruleEvidence: JSON.stringify(gated.ruleEvidence ?? []),
+      ruleFindings: JSON.stringify(gated.ruleFindings ?? []),
+      marketSnapshot: JSON.stringify(market),
+      generatedDirection: gated.direction,
+      generatedEntry: gated.entry == null ? null : String(gated.entry),
+      generatedStopLoss: gated.stopLoss == null ? null : String(gated.stopLoss),
+      generatedTakeProfit: gated.takeProfit == null ? null : String(gated.takeProfit),
+      decisionReason: gated.adjustments,
+      cooldownKey,
+    });
     try {
       if (!shouldNotifyScannerSignal(gated.verdict)) {
         console.info(`[Scanner] ${asset} ${timeframe} candidate rejected by strategy gate: ${gated.adjustments}`);

@@ -122,5 +122,5 @@
 - [x] Revise autonomous scanning so raw market data is sent to the strategy engine to generate the best-supported possible trade outcome and signal
 - [x] Preserve explainable rule citations, learning context, UNVALIDATED status, directional risk checks, and Telegram delivery reconciliation in the revised workflow
 - [x] Add regression coverage for strategy-generated scanner signals, denied outcomes, and delivery behavior
-- [ ] Verify the five-minute scheduler, production logs, and live Telegram workflow after deployment
+- [x] Verify the five-minute scheduler, production logs, and live Telegram workflow after deployment; the enabled job reached the deployed callback, and when the strategy model service reported exhausted usage the scanner failed closed with no signal persistence or Telegram attempt
 

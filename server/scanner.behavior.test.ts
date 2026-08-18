@@ -98,6 +98,22 @@ describe("scanner approval gate", () => {
     expect(firstBatch.candidates[0].asset).toBe("EUR/USD");
   });
 
+  it("fails closed when the strategy engine is unavailable", async () => {
+    fetchMarketSeriesBatch.mockResolvedValue(allSeries());
+    generateScannerDecisions.mockRejectedValue(new Error("LLM usage exhausted"));
+    insert.mockClear();
+    sendTelegramMessage.mockClear();
+    recordTelegramDelivery.mockClear();
+
+    const result = await scanUser(1);
+
+    expect(result.created).toBe(0);
+    expect(result.marketData).toBe("available");
+    expect(insert).not.toHaveBeenCalled();
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(recordTelegramDelivery).not.toHaveBeenCalled();
+  });
+
   it("never persists or sends a candidate rejected by the strategy engine", async () => {
     fetchMarketSeriesBatch.mockResolvedValue(allSeries());
     generateScannerDecisions.mockResolvedValue([{ asset: "EUR/USD", timeframe: "15MIN", verdict: "DENIED", confidence: 40, adjustments: "Insufficient rule evidence", ruleEvidence: [], ruleFindings: [], market: series("EUR/USD", "15min") }]);

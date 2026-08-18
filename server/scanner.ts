@@ -62,11 +62,17 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   const mirroredRules = await fetchStrategyRulesFromSupabase();
   const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 40_000);
   const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate) => candidate.series && shouldCreateCandidate(rules.length, candidate.series));
-  const localRules = await getRelevantRulesText(userId, "Generate best-supported outcomes for all watched forex and crypto markets using raw OHLCV trend, timeframe, entry, stop loss, take profit, and confluence evidence.", 100_000);
-  const decisions = await generateScannerDecisions({
-    rules: [localRules, mirroredText].filter(Boolean).join("\n\n"),
-    candidates: candidates.map(({ asset, timeframe, series }) => ({ asset, timeframe, market: { symbol: asset, price: series!.close, close: series!.close, interval: series!.interval, trend: series!.trend, values: series!.values, fetchedAt: series!.fetchedAt } })),
-  });
+  let decisions: Awaited<ReturnType<typeof generateScannerDecisions>>;
+  try {
+    const localRules = await getRelevantRulesText(userId, "Generate best-supported outcomes for all watched forex and crypto markets using raw OHLCV trend, timeframe, entry, stop loss, take profit, and confluence evidence.", 100_000);
+    decisions = await generateScannerDecisions({
+      rules: [localRules, mirroredText].filter(Boolean).join("\n\n"),
+      candidates: candidates.map(({ asset, timeframe, series }) => ({ asset, timeframe, market: { symbol: asset, price: series!.close, close: series!.close, interval: series!.interval, trend: series!.trend, values: series!.values, fetchedAt: series!.fetchedAt } })),
+    });
+  } catch (error) {
+    console.warn("[Scanner] Strategy engine unavailable; no new signals created:", error instanceof Error ? error.message : error);
+    return { created: 0, tracked: await trackOpenSignals(userId, seriesCache), marketData: "available" };
+  }
   for (const gated of decisions) {
     const { asset, timeframe, market } = gated;
     try {

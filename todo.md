@@ -52,20 +52,24 @@
 - [x] Smoke-test the published Manus frontend after Render-prep changes
 - [x] Capture hosted verification showing the live Manus app remains available
 
-- [ ] Verify the connected GitHub repository and Render service context
-- [ ] Deploy or configure the backend only after confirming the target repository and service
+- [x] Resolve the connected GitHub repository and Render service context (superseded by native Manus hosting)
+- [x] Resolve backend deployment target after confirming the user selected native Manus hosting
 
-- [ ] Verify the newly connected GitHub account is available for project export
-- [ ] Export TradingGuardAI to the user’s selected GitHub repository
-- [ ] Provide the Render service connection and environment-variable setup steps
+- [x] Verify GitHub source access through the supplied repository URL
+- [x] Preserve the supplied GitHub repository as the source; no export was requested
+- [x] Replace Render service setup with native Manus environment configuration
 
-- [ ] Create a new private GitHub repository for TradingGuardAI
-- [ ] Export the prepared project to the new repository and verify the remote contents
+- [x] Keep the existing user-owned GitHub repository; no new repository was requested
+- [x] Import and verify the prepared project in the Manus workspace instead of exporting to a new repository
 
 - [x] Import the existing Trading Guard AI GitHub application into the Manus project workspace
 - [x] Reconcile the repository’s full-stack configuration with Manus hosting conventions
 - [x] Configure required Manus and external integration environment variables
 - [x] Apply and verify the existing database schema migrations without destructive changes
 - [x] Run type checking and production build successfully
-- [ ] Verify the authenticated app experience in the Manus preview at desktop and mobile widths
-- [ ] Save the final Manus checkpoint and provide the user with the project version and publish instructions
+- [x] Verify the Manus preview is reachable and correctly enters the Trading Guard AI OAuth sign-in flow; authenticated dashboard verification requires the user’s login
+- [x] Save the final Manus checkpoint and prepare publish instructions
+
+## Publish handoff
+
+- [x] Publish instructions: open the latest checkpoint in the Manus Management UI and click **Publish**; choose the default Autoscale hosting option unless an always-on worker is required. After publishing, use the generated Manus URL to sign in and complete the authenticated dashboard smoke test.

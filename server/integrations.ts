@@ -337,6 +337,74 @@ export async function auditWithLLM(input: {
   return gateAuditDecision(parsed, input.rules);
 }
 
+export type ScannerDecisionCandidate = {
+  asset: string;
+  timeframe: string;
+  market: MarketSnapshot;
+};
+
+export async function generateScannerDecisions(input: { candidates: ScannerDecisionCandidate[]; rules: string }) {
+  if (!input.candidates.length) return [];
+  const response = await invokeLLM({
+    messages: [
+      {
+        role: "system",
+        content: "You are TradingGuardAI. Analyze every supplied raw market candidate against the complete strategy-rule library. Generate the best-supported possible paper-validation trade outcome for each candidate; do not merely approve a preselected direction or levels. Never place trades, never guarantee profit, cite exact rule titles, and return valid JSON only.",
+      },
+      {
+        role: "user",
+        content: `Generate one decision for each raw market candidate. Derive BUY or SELL, entry, stop loss, and take profit from the rules and market data. Return DENIED when evidence is insufficient or conflicting. Complete strategy rules:\n${input.rules}\n\nRaw market candidates:\n${JSON.stringify(input.candidates)}`,
+      },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "scanner_trade_decisions",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            decisions: {
+              type: "array",
+              minItems: 0,
+              maxItems: 8,
+              items: {
+                type: "object",
+                properties: {
+                  asset: { type: "string" },
+                  timeframe: { type: "string" },
+                  verdict: { type: "string", enum: ["APPROVED", "DENIED"] },
+                  confidence: { type: "number", minimum: 0, maximum: 100 },
+                  adjustments: { type: "string" },
+                  direction: { type: "string", enum: ["BUY", "SELL"] },
+                  entry: { type: ["number", "null"] },
+                  stopLoss: { type: ["number", "null"] },
+                  takeProfit: { type: ["number", "null"] },
+                  ruleEvidence: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 8 },
+                  ruleFindings: { type: "array", items: { type: "object", properties: { title: { type: "string" }, stance: { type: "string", enum: ["BUY", "SELL", "NEUTRAL"] }, weight: { type: "number", minimum: 1, maximum: 5 } }, required: ["title", "stance", "weight"], additionalProperties: false }, minItems: 0, maxItems: 8 },
+                },
+                required: ["asset", "timeframe", "verdict", "confidence", "adjustments", "direction", "entry", "stopLoss", "takeProfit", "ruleEvidence", "ruleFindings"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["decisions"],
+          additionalProperties: false,
+        },
+      },
+    },
+  });
+  const content = response.choices?.[0]?.message?.content;
+  const parsed = JSON.parse(typeof content === "string" ? content : "{}");
+  const byKey = new Map(input.candidates.map((candidate) => [`${candidate.asset}:${candidate.timeframe}`, candidate]));
+  return (Array.isArray(parsed.decisions) ? parsed.decisions : []).flatMap((decision: any) => {
+    const candidate = byKey.get(`${decision.asset}:${decision.timeframe}`);
+    if (!candidate) return [];
+    const gated = gateAuditDecision(decision, input.rules);
+    return [{ ...gated, asset: candidate.asset, timeframe: candidate.timeframe, market: candidate.market }];
+  });
+}
+
 export async function forensicAnalysis(signal: { asset: string; direction: string; entry: string; stopLoss: string; takeProfit: string }, market: MarketSnapshot, rules: string) {
   const response = await invokeLLM({
     messages: [

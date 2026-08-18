@@ -136,3 +136,10 @@
 - [x] Add backend, UI, database, and regression-test coverage for the three improvements
 - [x] Run migration, full validation, visual verification, and publish the completed release
 
+
+- [x] Add expandable decision-ledger rows with full rule citations and market snapshots
+- [x] Add dashboard summaries for approved, denied, skipped, and unavailable strategy judgments
+- [x] Add a persistent audit trail for setup-cooldown configuration changes
+- [x] Add backend, UI, migration, and regression-test coverage for these improvements
+- [x] Run full validation, visual verification, and publish the release
+

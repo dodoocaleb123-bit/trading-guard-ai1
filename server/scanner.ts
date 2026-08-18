@@ -64,11 +64,17 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   const settings = await getSettings(userId);
   const cooldownSince = new Date(Date.now() - Math.max(0, settings.setupCooldownMinutes ?? 30) * 60_000);
   const rawCandidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series && shouldCreateCandidate(rules.length, candidate.series)));
-  const candidates = (await Promise.all(rawCandidates.map(async (candidate) => {
-    const series = candidate.series!;
+  const cooldownEvaluations = await Promise.all(rawCandidates.map(async (candidate) => {
+    const series = candidate.series;
     const cooldownKey = `${candidate.asset}:${candidate.timeframe}:${series.trend}:${series.close.toFixed(4)}`;
-    return await hasRecentStrategyDecision(userId, cooldownKey, cooldownSince) ? null : { ...candidate, cooldownKey };
-  }))).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries; cooldownKey: string } => candidate !== null);
+    const skipped = await hasRecentStrategyDecision(userId, cooldownKey, cooldownSince);
+    return { ...candidate, cooldownKey, skipped };
+  }));
+  const candidates = cooldownEvaluations.filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries; cooldownKey: string; skipped: false } => !candidate.skipped);
+  const skippedCandidates = cooldownEvaluations.filter((candidate) => candidate.skipped);
+  for (const skipped of skippedCandidates) {
+    await createStrategyDecision({ userId, asset: skipped.asset, timeframe: skipped.timeframe, verdict: "SKIPPED", confidence: "0", confluenceScore: "0", ruleEvidence: null, ruleFindings: null, marketSnapshot: JSON.stringify(skipped.series), generatedDirection: null, generatedEntry: null, generatedStopLoss: null, generatedTakeProfit: null, decisionReason: `Suppressed by ${settings.setupCooldownMinutes}-minute setup cooldown.`, cooldownKey: skipped.cooldownKey });
+  }
   if (!candidates.length) {
     console.info("[Scanner] All eligible setups are inside the configured cooldown; no strategy judgment requested.");
     return { created: 0, tracked: await trackOpenSignals(userId, seriesCache), marketData: "available" };
@@ -84,6 +90,9 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await updateStrategyEngineStatus(userId, { status: "UNAVAILABLE", error: message });
+    for (const candidate of candidates) {
+      await createStrategyDecision({ userId, asset: candidate.asset, timeframe: candidate.timeframe, verdict: "UNAVAILABLE", confidence: "0", confluenceScore: "0", ruleEvidence: null, ruleFindings: null, marketSnapshot: JSON.stringify(candidate.series), generatedDirection: null, generatedEntry: null, generatedStopLoss: null, generatedTakeProfit: null, decisionReason: `Strategy engine unavailable: ${message}`, cooldownKey: candidate.cooldownKey });
+    }
     console.warn("[Scanner] Strategy engine unavailable; no new signals created:", message);
     return { created: 0, tracked: await trackOpenSignals(userId, seriesCache), marketData: "available" };
   }

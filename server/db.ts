@@ -1,6 +1,6 @@
 import { and, desc, eq, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, telegramDeliveries, users } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, cooldownChangeLog, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, telegramDeliveries, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -200,6 +200,36 @@ export async function hasRecentStrategyDecision(userId: number, cooldownKey: str
   if (!db) return false;
   const rows = await db.select({ id: strategyDecisionLedger.id }).from(strategyDecisionLedger).where(and(eq(strategyDecisionLedger.userId, userId), eq(strategyDecisionLedger.cooldownKey, cooldownKey), gte(strategyDecisionLedger.createdAt, since))).limit(1);
   return rows.length > 0;
+}
+
+export function summarizeStrategyDecisions(decisions: Array<{ verdict: string }>) {
+  return {
+    total: decisions.length,
+    approved: decisions.filter((decision) => decision.verdict === "APPROVED").length,
+    denied: decisions.filter((decision) => decision.verdict === "DENIED").length,
+    skipped: decisions.filter((decision) => decision.verdict === "SKIPPED").length,
+    unavailable: decisions.filter((decision) => decision.verdict === "UNAVAILABLE").length,
+  };
+}
+
+export async function getStrategyDecisionSummary(userId: number) {
+  const db = await getDb();
+  if (!db) return summarizeStrategyDecisions([]);
+  const decisions = await db.select({ verdict: strategyDecisionLedger.verdict }).from(strategyDecisionLedger).where(eq(strategyDecisionLedger.userId, userId));
+  return summarizeStrategyDecisions(decisions);
+}
+
+export async function recordCooldownChange(input: { userId: number; previousMinutes: number; newMinutes: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(cooldownChangeLog).values(input);
+  return { id: Number(result[0].insertId), ...input };
+}
+
+export async function listCooldownChanges(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(cooldownChangeLog).where(eq(cooldownChangeLog.userId, userId)).orderBy(desc(cooldownChangeLog.changedAt)).limit(20);
 }
 
 export async function markOnboardingComplete(userId: number) {

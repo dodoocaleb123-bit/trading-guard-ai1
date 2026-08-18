@@ -118,6 +118,7 @@ describe("scanner approval gate", () => {
 
     expect(result.created).toBe(0);
     expect(generateScannerDecisions).not.toHaveBeenCalled();
+    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "SKIPPED", decisionReason: expect.stringContaining("cooldown") }));
     expect(insert).not.toHaveBeenCalled();
     hasRecentStrategyDecision.mockResolvedValue(false);
   });
@@ -136,6 +137,7 @@ describe("scanner approval gate", () => {
     expect(insert).not.toHaveBeenCalled();
     expect(sendTelegramMessage).not.toHaveBeenCalled();
     expect(recordTelegramDelivery).not.toHaveBeenCalled();
+    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "UNAVAILABLE", decisionReason: expect.stringContaining("Strategy engine unavailable") }));
   });
 
   it("never persists or sends a candidate rejected by the strategy engine", async () => {
@@ -148,9 +150,9 @@ describe("scanner approval gate", () => {
     const result = await scanUser(1);
 
     expect(result.created).toBe(0);
-    expect(insert).not.toHaveBeenCalled();
     expect(sendTelegramMessage).not.toHaveBeenCalled();
     expect(recordTelegramDelivery).not.toHaveBeenCalled();
+    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "DENIED", decisionReason: "Insufficient rule evidence" }));
   });
 });
 

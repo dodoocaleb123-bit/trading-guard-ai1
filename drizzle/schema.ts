@@ -87,7 +87,7 @@ export const strategyDecisionLedger = mysqlTable("strategy_decision_ledger", {
   userId: int("userId").notNull(),
   asset: varchar("asset", { length: 32 }).notNull(),
   timeframe: varchar("timeframe", { length: 16 }).notNull(),
-  verdict: mysqlEnum("verdict", ["APPROVED", "DENIED"]).notNull(),
+  verdict: mysqlEnum("verdict", ["APPROVED", "DENIED", "SKIPPED", "UNAVAILABLE"]).notNull(),
   confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull(),
   confluenceScore: decimal("confluenceScore", { precision: 5, scale: 2 }).default("0").notNull(),
   ruleEvidence: mediumtext("ruleEvidence"),
@@ -116,6 +116,14 @@ export const telegramDeliveries = mysqlTable("telegram_deliveries", {
   deliveredAt: timestamp("deliveredAt"),
 });
 
+export const cooldownChangeLog = mysqlTable("cooldown_change_log", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  previousMinutes: int("previousMinutes").notNull(),
+  newMinutes: int("newMinutes").notNull(),
+  changedAt: timestamp("changedAt").defaultNow().notNull(),
+});
+
 export const appSettings = mysqlTable("app_settings", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().unique(),
@@ -134,3 +142,4 @@ export type GeneratedSignal = typeof generatedSignals.$inferSelect;
 export type AuditTrade = typeof auditTrades.$inferSelect;
 export type TelegramDelivery = typeof telegramDeliveries.$inferSelect;
 export type StrategyDecision = typeof strategyDecisionLedger.$inferSelect;
+export type CooldownChange = typeof cooldownChangeLog.$inferSelect;

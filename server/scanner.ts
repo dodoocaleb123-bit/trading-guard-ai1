@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { createStrategyDecision, createStrategyRule, getAllRulesText, getDb, getRelevantRulesText, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
+import { createStrategyDecision, createStrategyRule, getAllRulesText, getDb, getRelevantRulesText, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
@@ -91,9 +91,11 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       }),
     });
     await updateStrategyEngineStatus(userId, { status: "AVAILABLE" });
+    await recordStrategyEngineHealth(userId, { snapshots: decisions.metrics?.snapshots ?? candidates.length, completeResponses: decisions.metrics?.completeResponses ?? decisions.length, retries: decisions.metrics?.retries ?? 0 });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await updateStrategyEngineStatus(userId, { status: "UNAVAILABLE", error: message });
+    await recordStrategyEngineHealth(userId, { snapshots: candidates.length, completeResponses: 0, retries: 1, unavailableCycle: true });
     for (const candidate of candidates) {
       await createStrategyDecision({ userId, asset: candidate.asset, timeframe: candidate.timeframe, verdict: "UNAVAILABLE", confidence: "0", confluenceScore: "0", ruleEvidence: null, ruleFindings: null, marketSnapshot: JSON.stringify(candidate.series), generatedDirection: null, generatedEntry: null, generatedStopLoss: null, generatedTakeProfit: null, decisionReason: `Strategy engine unavailable: ${message}`, cooldownKey: candidate.cooldownKey });
     }

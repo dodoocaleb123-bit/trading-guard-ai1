@@ -133,6 +133,10 @@ export const appSettings = mysqlTable("app_settings", {
   strategyEngineStatus: mysqlEnum("strategyEngineStatus", ["AVAILABLE", "UNAVAILABLE", "NOT_RUN"]).default("NOT_RUN").notNull(),
   strategyEngineLastRunAt: timestamp("strategyEngineLastRunAt"),
   strategyEngineLastError: text("strategyEngineLastError"),
+  strategyEngineTotalSnapshots: int("strategyEngineTotalSnapshots").default(0).notNull(),
+  strategyEngineCompleteResponses: int("strategyEngineCompleteResponses").default(0).notNull(),
+  strategyEngineRetryCount: int("strategyEngineRetryCount").default(0).notNull(),
+  strategyEngineUnavailableCycles: int("strategyEngineUnavailableCycles").default(0).notNull(),
   scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

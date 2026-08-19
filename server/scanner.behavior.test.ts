@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, insert, db } = vi.hoisted(() => {
+const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, insert, db } = vi.hoisted(() => {
   const fetchMarketSeriesBatch = vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); });
   const generateScannerDecisions = vi.fn();
   const createStrategyDecision = vi.fn(async (input: any) => ({ id: 99, ...input }));
   const getSettings = vi.fn(async () => ({ setupCooldownMinutes: 30 }));
   const hasRecentStrategyDecision = vi.fn(async () => false);
   const updateStrategyEngineStatus = vi.fn();
+  const recordStrategyEngineHealth = vi.fn();
   const sendTelegramMessage = vi.fn();
   const recordTelegramDelivery = vi.fn();
   const insert = vi.fn();
@@ -16,7 +17,7 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
     })),
   }));
   const db = { select, insert, update: vi.fn() };
-  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, insert, db };
+  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, insert, db };
 });
 
 vi.mock("./db", () => ({
@@ -27,6 +28,7 @@ vi.mock("./db", () => ({
   getSettings,
   hasRecentStrategyDecision,
   updateStrategyEngineStatus,
+  recordStrategyEngineHealth,
   getRelevantRulesText: vi.fn(async () => "## Rules\nUse confirmation."),
   createStrategyRule: vi.fn(),
   recordTelegramDelivery,

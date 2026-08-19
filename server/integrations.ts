@@ -347,11 +347,17 @@ export type ScannerDecisionCandidate = {
 };
 
 export async function generateScannerDecisions(input: { candidates: ScannerDecisionCandidate[]; rules: string }) {
-  if (!input.candidates.length) return [];
+  if (!input.candidates.length) return Object.assign([], { metrics: { snapshots: 0, completeResponses: 0, retries: 0 } });
   const batchSize = 2;
   const batches = Array.from({ length: Math.ceil(input.candidates.length / batchSize) }, (_, index) => input.candidates.slice(index * batchSize, index * batchSize + batchSize));
   const results = await Promise.all(batches.map((candidates) => generateScannerDecisionBatch({ candidates, rules: input.rules })));
-  return results.flat();
+  return Object.assign(results.flatMap((result) => result.decisions), {
+    metrics: {
+      snapshots: input.candidates.length,
+      completeResponses: input.candidates.length,
+      retries: results.reduce((total, result) => total + result.retries, 0),
+    },
+  });
 }
 
 async function generateScannerDecisionBatch(input: { candidates: ScannerDecisionCandidate[]; rules: string }) {
@@ -418,12 +424,15 @@ async function generateScannerDecisionBatch(input: { candidates: ScannerDecision
         throw new Error(`Strategy engine returned incomplete structured decisions (expected ${input.candidates.length}, received ${modelDecisions.length}, missing ${missing.join(", ") || "none"}).`);
       }
       const byDecisionKey = new Map<string, any>(modelDecisions.map((decision: any) => [`${decision.asset}:${decision.timeframe}`, decision] as [string, any]));
-      return input.candidates.map((candidate) => {
-        const decision = byDecisionKey.get(`${candidate.asset}:${candidate.timeframe}`);
-        if (!decision) throw new Error(`Strategy engine omitted ${candidate.asset} ${candidate.timeframe}.`);
-        const gated = gateAuditDecision(decision, input.rules);
-        return { ...gated, asset: candidate.asset, timeframe: candidate.timeframe, market: candidate.market };
-      });
+      return {
+        decisions: input.candidates.map((candidate) => {
+          const decision = byDecisionKey.get(`${candidate.asset}:${candidate.timeframe}`);
+          if (!decision) throw new Error(`Strategy engine omitted ${candidate.asset} ${candidate.timeframe}.`);
+          const gated = gateAuditDecision(decision, input.rules);
+          return { ...gated, asset: candidate.asset, timeframe: candidate.timeframe, market: candidate.market };
+        }),
+        retries: attempt - 1,
+      };
     } catch (error) {
       lastError = error;
       if (attempt === 2) break;

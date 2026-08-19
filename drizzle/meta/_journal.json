@@ -50,6 +50,13 @@
       "when": 1787094134325,
       "tag": "0006_glamorous_purple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1787105082116,
+      "tag": "0007_motionless_scarlet_spider",
+      "breakpoints": true
     }
   ]
 }

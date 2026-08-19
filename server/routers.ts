@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { createStrategyRule, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listStrategyDecisions, listStrategyRules, markOnboardingComplete, recordCooldownChange, recordTelegramDelivery, updateSetupCooldown } from "./db";
+import { createStrategyRule, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listStrategyDecisions, listStrategyRules, markOnboardingComplete, recordCooldownChange, recordTelegramDelivery, updateSetupCooldown } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage } from "./integrations";
 import { storagePut } from "./storage";
@@ -113,6 +113,7 @@ export const appRouter = router({
       return { format: input.format, filename: `strategy-decisions-${new Date().toISOString().slice(0, 10)}.${input.format}`, content: input.format === "csv" ? serializeDecisionLedgerCsv(rows) : serializeDecisionLedgerJson(rows) };
     }),
     summary: protectedProcedure.query(({ ctx }) => getStrategyDecisionSummary(ctx.user.id)),
+    health: protectedProcedure.query(({ ctx }) => getStrategyEngineHealth(ctx.user.id)),
     cooldownHistory: protectedProcedure.query(({ ctx }) => listCooldownChanges(ctx.user.id)),
     updateCooldown: protectedProcedure.input(z.object({ minutes: z.number().int().min(0).max(1440) })).mutation(async ({ ctx, input }) => {
       const current = await getSettings(ctx.user.id);

@@ -171,17 +171,25 @@ export async function getSignalDeliverySummary(userId: number) {
 
 export async function getSettings(userId: number) {
   const db = await getDb();
-  if (!db) return { onboardingComplete: false, scannerEnabled: true, setupCooldownMinutes: 30, strategyEngineStatus: "NOT_RUN" as const, strategyEngineLastRunAt: null, strategyEngineLastError: null, scheduleCronTaskUid: null };
+  if (!db) return { onboardingComplete: false, scannerEnabled: true, setupCooldownMinutes: 30, strategyEngineStatus: "NOT_RUN" as const, strategyEngineLastRunAt: null, strategyEngineLastError: null, strategyEngineTotalSnapshots: 0, strategyEngineCompleteResponses: 0, strategyEngineRetryCount: 0, strategyEngineUnavailableCycles: 0, scheduleCronTaskUid: null };
   const rows = await db.select().from(appSettings).where(eq(appSettings.userId, userId)).limit(1);
   if (rows[0]) return rows[0];
   await db.insert(appSettings).values({ userId });
-  return { onboardingComplete: false, scannerEnabled: true, setupCooldownMinutes: 30, strategyEngineStatus: "NOT_RUN" as const, strategyEngineLastRunAt: null, strategyEngineLastError: null, scheduleCronTaskUid: null };
+  return { onboardingComplete: false, scannerEnabled: true, setupCooldownMinutes: 30, strategyEngineStatus: "NOT_RUN" as const, strategyEngineLastRunAt: null, strategyEngineLastError: null, strategyEngineTotalSnapshots: 0, strategyEngineCompleteResponses: 0, strategyEngineRetryCount: 0, strategyEngineUnavailableCycles: 0, scheduleCronTaskUid: null };
 }
 
 export async function updateStrategyEngineStatus(userId: number, input: { status: "AVAILABLE" | "UNAVAILABLE" | "NOT_RUN"; error?: string | null }) {
   const db = await getDb();
   if (!db) return;
   await db.insert(appSettings).values({ userId, strategyEngineStatus: input.status, strategyEngineLastRunAt: new Date(), strategyEngineLastError: input.error ?? null }).onDuplicateKeyUpdate({ set: { strategyEngineStatus: input.status, strategyEngineLastRunAt: new Date(), strategyEngineLastError: input.error ?? null } });
+}
+
+export async function recordStrategyEngineHealth(userId: number, input: { snapshots: number; completeResponses: number; retries: number; unavailableCycle?: boolean }) {
+  const db = await getDb();
+  if (!db) return;
+  const current = await db.select({ total: appSettings.strategyEngineTotalSnapshots, complete: appSettings.strategyEngineCompleteResponses, retries: appSettings.strategyEngineRetryCount, unavailable: appSettings.strategyEngineUnavailableCycles }).from(appSettings).where(eq(appSettings.userId, userId)).limit(1);
+  const row = current[0] ?? { total: 0, complete: 0, retries: 0, unavailable: 0 };
+  await db.insert(appSettings).values({ userId, strategyEngineTotalSnapshots: row.total + input.snapshots, strategyEngineCompleteResponses: row.complete + input.completeResponses, strategyEngineRetryCount: row.retries + input.retries, strategyEngineUnavailableCycles: row.unavailable + (input.unavailableCycle ? 1 : 0) }).onDuplicateKeyUpdate({ set: { strategyEngineTotalSnapshots: row.total + input.snapshots, strategyEngineCompleteResponses: row.complete + input.completeResponses, strategyEngineRetryCount: row.retries + input.retries, strategyEngineUnavailableCycles: row.unavailable + (input.unavailableCycle ? 1 : 0) } });
 }
 
 export async function updateSetupCooldown(userId: number, minutes: number) {
@@ -217,6 +225,21 @@ export async function hasRecentStrategyDecision(userId: number, cooldownKey: str
   return rows.length > 0;
 }
 
+export function summarizeStrategyEngineHealth(input: { strategyEngineTotalSnapshots?: number | null; strategyEngineCompleteResponses?: number | null; strategyEngineRetryCount?: number | null; strategyEngineUnavailableCycles?: number | null; strategyEngineStatus?: string | null; strategyEngineLastRunAt?: Date | null; strategyEngineLastError?: string | null }) {
+  const snapshots = Number(input.strategyEngineTotalSnapshots ?? 0);
+  const completeResponses = Number(input.strategyEngineCompleteResponses ?? 0);
+  return {
+    status: input.strategyEngineStatus ?? "NOT_RUN",
+    totalSnapshots: snapshots,
+    completeResponses,
+    completenessPercent: snapshots ? Math.round((completeResponses / snapshots) * 100) : 0,
+    retryCount: Number(input.strategyEngineRetryCount ?? 0),
+    unavailableCycles: Number(input.strategyEngineUnavailableCycles ?? 0),
+    lastRunAt: input.strategyEngineLastRunAt ?? null,
+    lastError: input.strategyEngineLastError ?? null,
+  };
+}
+
 export function summarizeStrategyDecisions(decisions: Array<{ verdict: string }>) {
   return {
     total: decisions.length,
@@ -233,6 +256,10 @@ export function summarizeJudgmentAlertBridge(judgment: { total: number; approved
     approvedJudgments: judgment.approved,
     telegramDelivered: delivery.signalDelivered,
   };
+}
+
+export async function getStrategyEngineHealth(userId: number) {
+  return summarizeStrategyEngineHealth(await getSettings(userId));
 }
 
 export async function getStrategyDecisionSummary(userId: number) {

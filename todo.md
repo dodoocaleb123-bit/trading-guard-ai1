@@ -320,10 +320,15 @@
 - [x] Reconcile signal, outcome, and Telegram delivery records by asset and status; v2 has 8 SIGNAL deliveries, all PENDING, with no OUTCOME yet; historical totals reconcile with 150 WIN, 234 LOSS, and 117 PENDING
 - [x] Fix any tracking discrepancy, add regression coverage, and document the result; no tracking-code discrepancy found, and existing intrabar/resolution/delivery regressions cover the behavior
 
-- [ ] Diagnose why recent paper signals are not visible in private asset Telegram groups
-- [ ] Verify group chat IDs, bot membership/permissions, delivery statuses, and Heartbeat execution
-- [ ] Fix any group-routing or delivery issue, add regression coverage, and publish if code changes are needed
+- [x] Diagnose why recent paper signals are not visible in private asset Telegram groups; delivery was delayed by Heartbeat timing, and the user later confirmed receipt
+- [x] Verify group chat IDs, bot membership/permissions, delivery statuses, and Heartbeat execution; group IDs validated, delivery ledger recorded successful sends, and Heartbeat timeouts explained the delay
+- [x] Fix any group-routing or delivery issue, add regression coverage, and publish if code changes are needed; no routing code change was required after successful delivery confirmation
 
 - [x] Keep manual Chat Audit responses in the audit chat area only
 - [x] Stop manual-audit Telegram delivery without changing autonomous signal/outcome routing
 - [x] Add regression coverage, run validation, and publish the audit-channel correction
+
+- [x] Audit the replacement-forex-v2 BUY versus SELL distribution and recent paper outcomes; current sample is 45 BUY and 3 SELL, with 8 losses and 40 pending
+- [x] Inspect v2 score symmetry, fallback direction, component weights, and source-linked traces for directional bias; BUY examples contain bullish structure/indicator/HTF evidence, and SELL examples contain bearish evidence, but unconditional tie fallback was a real bias risk
+- [x] Add a source-grounded structure/momentum tie-break, correct v2 provenance wording, and add bearish-direction regression coverage
+- [x] Document whether recent signals are intelligence-driven, generic, or biased; they are source-linked and context-driven, but the small BUY-heavy sample does not prove accuracy

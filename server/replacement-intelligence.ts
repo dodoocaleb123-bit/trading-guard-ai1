@@ -110,7 +110,9 @@ export function evaluateReplacementIntelligence(market: { close: number; interva
   if (alignment?.structure === "OPPOSED" || alignment?.momentum === "OPPOSED") add("higher-timeframe-alignment", "Higher-timeframe context opposes the local structure or momentum.", context.marketStructure === "RISING" ? -2 : context.marketStructure === "FALLING" ? 2 : 0);
   const buy = matched.reduce((sum, node) => sum + Math.max(0, node.contribution), 0);
   const sell = matched.reduce((sum, node) => sum + Math.max(0, -node.contribution), 0);
-  const direction: "BUY" | "SELL" = buy >= sell ? "BUY" : "SELL";
+  const tieBreakDirection: "BUY" | "SELL" = context.marketStructure === "FALLING" || (context.marketStructure === "RANGE_BOUND" && context.momentum.direction === "BEARISH") || (context.marketStructure === "RANGE_BOUND" && context.latestCandle.direction === "BEARISH") ? "SELL" : "BUY";
+  const direction: "BUY" | "SELL" = buy === sell ? tieBreakDirection : buy > sell ? "BUY" : "SELL";
+  const tieBreakNote = buy === sell ? `Directional scores tied at ${buy}-${sell}; source-grounded tie-break selected ${direction} from ${context.marketStructure} structure and ${context.momentum.direction} momentum.` : "";
   const conflicts = matched.filter((node) => node.contribution > 0 && direction === "SELL" || node.contribution < 0 && direction === "BUY").map((node) => node.concept);
   const entry = Number(market.close.toFixed(5));
   const risk = Math.max(context.volatility.atr, Math.abs(entry * 0.0012));
@@ -126,7 +128,7 @@ export function evaluateReplacementIntelligence(market: { close: number; interva
   const ruleFindings = matched.slice(0, 8).map((node) => ({ title: node.concept, stance: node.contribution >= 0 ? "BUY" as const : "SELL" as const, weight: Math.max(1, Math.abs(node.contribution)) }));
   const familyToTrigger = (family: KnowledgeNode["family"]): IntelligenceTrigger => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : "CANDLE";
   const matchedComponents = matched.slice(0, 8).map((node) => ({ title: node.concept, sourceRuleIds: [], sourceConcept: node.source.passage, trigger: familyToTrigger(node.family), stance: node.contribution >= 0 ? "BUY" as const : "SELL" as const, weight: Math.max(1, Math.abs(node.contribution)), match: node.observation }));
-  const explanation = `Replacement PDF-derived intelligence selected ${direction} from ${matched.length} source-linked observations: ${matched.map((node) => `${node.concept} (${node.observation})`).join("; ") || "no matched directional observations"}.`;
+  const explanation = `Replacement PDF-derived intelligence selected ${direction} from ${matched.length} source-linked observations: ${matched.map((node) => `${node.concept} (${node.observation})`).join("; ") || "no matched directional observations"}.${tieBreakNote ? ` ${tieBreakNote}` : ""}`;
   const decisionTrace: IntelligenceDecisionTrace = {
     matchedComponents,
     supportingComponents: matched.filter((node) => Math.sign(node.contribution) === (direction === "BUY" ? 1 : -1)).map((node) => node.concept),
@@ -135,6 +137,6 @@ export function evaluateReplacementIntelligence(market: { close: number; interva
     levelDerivation: { entry: "Latest enriched raw close rounded to provider precision.", stopLoss: `One ATR or 0.12% volatility floor from the replacement risk geometry (${risk}).`, takeProfit: "Two risk distances for 1:2 paper geometry.", riskDistance: risk, riskReward: 2 },
   };
   const marketRegime = `${context.marketStructure}/${context.volatility.regime}/${context.breakoutState}/${alignment?.structure ?? "UNAVAILABLE"}`;
-  const adjustments = `${explanation} Regime-aware confluence used ${context.marketStructure} structure, ${context.volatility.regime} volatility, ${context.breakoutState} breakout state, EMA/oscillator alignment, and ${alignment?.structure ?? "UNAVAILABLE"} higher-timeframe context. ${conflicts.length ? `Conflicts were retained for audit: ${conflicts.join("; ")}.` : "No opposing source-linked components were matched."} Source-linked replacement v1 is authoritative for this paper outcome; validation remains UNVALIDATED.`;
+  const adjustments = `${explanation} Regime-aware confluence used ${context.marketStructure} structure, ${context.volatility.regime} volatility, ${context.breakoutState} breakout state, EMA/oscillator alignment, and ${alignment?.structure ?? "UNAVAILABLE"} higher-timeframe context. ${conflicts.length ? `Conflicts were retained for audit: ${conflicts.join("; ")}.` : "No opposing source-linked components were matched."} Source-linked replacement v2 is authoritative for this paper outcome; validation remains UNVALIDATED.`;
   return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: 2, marketRegime, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace };
 }

@@ -238,3 +238,15 @@
 - [x] Replace model-only explanation fallback with source-linked deterministic explanations in Telegram and the decision ledger
 - [x] Show matched components, support/conflict reasoning, score totals, and level derivation without relying on model availability
 - [x] Add regression coverage and full validation; visual verification passed, publish the deterministic explanation release
+
+- [x] Audit whether all ingested PDF text and visual content are extractable and available for intelligence compilation; combined document extracted to 7,000+ searchable paragraphs, with visual chart content requiring source-image review
+- [x] Build a comprehensive source-linked knowledge representation from the complete PDF contents, including conditions, exceptions, chart patterns, timeframes, risk rules, and cross-document relationships; parallel v1 model created from the document’s actual technical-analysis concepts
+- [ ] Make the compiled PDF-derived trading intelligence the authoritative paper-decision layer for scanner snapshots
+- [ ] Add validation and provenance checks proving decisions and explanations trace back to the compiled PDF knowledge representation
+- [ ] Run regression, paper-validation, build, visual verification, and publish the complete-content intelligence release
+
+- [x] Preserve the current PDF-derived intelligence and do not remove or cut over until the replacement is reviewed and validated
+- [x] Receive and audit the user-provided combined document containing the 40+ PDF contents
+- [x] Build a complete knowledge representation and replacement trading-intelligence algorithm from that document
+- [x] Implement the replacement in a parallel version with source provenance and paper-only decision outputs
+- [ ] Validate the replacement against paper outcomes and present it for user approval before any cutover

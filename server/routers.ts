@@ -7,6 +7,7 @@ import { activateIntelligenceVersion, createIntelligenceComponent, createIntelli
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents } from "./intelligence";
+import { buildReplacementKnowledgeModel } from "./replacement-intelligence";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -45,6 +46,10 @@ export const appRouter = router({
       const components = active ? await listIntelligenceComponents(ctx.user.id, active.id) : [];
       const lessons = await listStrategyLessons(ctx.user.id);
       return { active, versions, components, lessons };
+    }),
+    replacementPreview: protectedProcedure.query(() => {
+      const model = buildReplacementKnowledgeModel();
+      return { id: model.id, sourceDocument: model.sourceDocument, nodeCount: model.nodes.length, nodes: model.nodes, decisionPolicy: model.decisionPolicy, learningPolicy: model.learningPolicy, active: false };
     }),
     promoteLessons: protectedProcedure.mutation(async ({ ctx }) => {
       const lessons = await listStrategyLessons(ctx.user.id);

@@ -3,6 +3,7 @@ import { generatedSignals, users } from "../drizzle/schema";
 import { createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
+import { evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -103,6 +104,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           fetchedAt: series.fetchedAt,
           marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext } : null,
         };
+        const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: market.marketContext }) : undefined;
         const seed = evaluateExecutableIntelligence(market, executableComponents);
         return {
           asset,
@@ -110,6 +112,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           market: {
             ...market,
             intelligenceSeed: seed,
+            replacementIntelligence,
           },
         };
       }),

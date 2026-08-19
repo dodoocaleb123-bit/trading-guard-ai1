@@ -5,6 +5,7 @@ import { invokeLLM } from "./_core/llm";
 import { ENV } from "./_core/env";
 import { calculateMarketContext, type MarketContext } from "./market-context";
 import type { IntelligenceDecisionTrace } from "./intelligence";
+import type { ReplacementDecision } from "./replacement-intelligence";
 
 export type MarketSnapshot = {
   symbol: string;
@@ -31,6 +32,7 @@ export type MarketSnapshot = {
     adjustments: string;
     decisionTrace: IntelligenceDecisionTrace;
   };
+  replacementIntelligence?: ReplacementDecision;
 };
 
 const supabaseHeaders = () => ({

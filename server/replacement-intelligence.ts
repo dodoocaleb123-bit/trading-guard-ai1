@@ -1,0 +1,84 @@
+import type { MarketContext } from "./market-context";
+
+export type KnowledgeSource = { document: "Forex trading.docx"; section: string; passage: string };
+export type KnowledgeNode = {
+  id: string;
+  concept: string;
+  family: "STRUCTURE" | "LEVELS" | "PATTERN" | "INDICATOR" | "VOLUME" | "TIMEFRAME" | "INTERMARKET" | "RISK";
+  rule: string;
+  prerequisites: string[];
+  conflictsWith: string[];
+  source: KnowledgeSource;
+};
+
+export type ReplacementKnowledgeModel = {
+  id: "forex-trading-combined-document-v1";
+  sourceDocument: string;
+  nodes: KnowledgeNode[];
+  decisionPolicy: string;
+  learningPolicy: string;
+};
+
+export type ReplacementDecision = {
+  direction: "BUY" | "SELL";
+  score: { buy: number; sell: number; net: number };
+  matchedNodes: Array<KnowledgeNode & { observation: string; contribution: number }>;
+  conflicts: string[];
+  explanation: string;
+  sourceTrace: KnowledgeSource[];
+};
+
+const source = (section: string, passage: string): KnowledgeSource => ({ document: "Forex trading.docx", section, passage });
+
+export const FOREX_KNOWLEDGE_NODES: KnowledgeNode[] = [
+  { id: "structure-uptrend", concept: "Uptrend is higher peaks and higher troughs", family: "STRUCTURE", rule: "RISING market structure supports BUY", prerequisites: ["marketStructure=RISING"], conflictsWith: ["structure-downtrend"], source: source("Chapter II, 2.2 Types of Trends", "An uptrend is defined as a series of higher peaks and higher troughs.") },
+  { id: "structure-downtrend", concept: "Downtrend is lower peaks and lower troughs", family: "STRUCTURE", rule: "FALLING market structure supports SELL", prerequisites: ["marketStructure=FALLING"], conflictsWith: ["structure-uptrend"], source: source("Chapter II, 2.2 Types of Trends", "A downtrend is formed of lower peaks and lower troughs.") },
+  { id: "structure-sideways", concept: "Sideways trend has horizontal peaks and troughs", family: "STRUCTURE", rule: "Range-bound structure reduces directional conviction and requires level context", prerequisites: ["marketStructure=RANGE_BOUND"], conflictsWith: [], source: source("Chapter II, 2.2 Types of Trends", "A sideways trend is constituted of many horizontal peaks and troughs, and there is no obvious indication of trend.") },
+  { id: "reversal-prior-trend", concept: "Reversal patterns require a prior trend", family: "PATTERN", rule: "Do not treat a reversal pattern as valid without a preceding trend", prerequisites: ["priorTrend"], conflictsWith: [], source: source("Chapter III, 3.3 Chart Patterns", "There must be a prior trend for the formation of a reversal pattern; if it is not preceded by a trend, there can be nothing to reverse.") },
+  { id: "reversal-confirmation", concept: "Reversal requires a level violation", family: "PATTERN", rule: "A reversal is stronger after support or resistance breaks", prerequisites: ["breakoutState"], conflictsWith: [], source: source("Chapter III, Reversal Chart Patterns", "The pattern is not complete unless the security breaks the relevant support or resistance level.") },
+  { id: "volume-confirmation", concept: "Volume confirms pattern completion", family: "VOLUME", rule: "Pattern and breakout evidence is stronger when volume expands", prerequisites: ["volume.available", "volume.trendConfirmation=CONFIRMED"], conflictsWith: [], source: source("Chapter III, 3.4 Importance of Volume", "The completion of each pattern should be accompanied by certain increase in volume.") },
+  { id: "higher-timeframe-first", concept: "Review larger timeframes before a session", family: "TIMEFRAME", rule: "Use opposing timeframe context to qualify lower-timeframe direction", prerequisites: ["multiTimeframeContext"], conflictsWith: [], source: source("Bigger Perspectives", "It is important to start off each trading session by reviewing the larger time frame charts.") },
+  { id: "support-resistance", concept: "Support and resistance are decision levels", family: "LEVELS", rule: "Near support favors a BUY reaction; near resistance favors a SELL reaction unless broken", prerequisites: ["supportResistance"], conflictsWith: [], source: source("Chapter II, 2.3 Support and Resistance Levels", "Support and resistance levels define areas where price movement may pause or reverse.") },
+  { id: "bollinger-breakout", concept: "Bollinger bands can act as breakout boundaries", family: "INDICATOR", rule: "Band expansion and price outside a band support continuation, not automatic mean reversion", prerequisites: ["indicators.bollinger"], conflictsWith: [], source: source("Bollinger Bandit Trading Strategy", "Bollinger Bands worked better as a breakout indicator than simply as a resistance point.") },
+  { id: "momentum-confirmation", concept: "Momentum should agree with direction", family: "INDICATOR", rule: "Aligned momentum and MACD support the corresponding direction", prerequisites: ["momentum", "indicators.macd"], conflictsWith: [], source: source("Chapter IV, Major Technical Indicators", "Indicators are used to help identify and confirm market trend and momentum.") },
+  { id: "session-activity", concept: "Higher activity sessions offer more opportunity", family: "TIMEFRAME", rule: "Session activity is context, not a direction by itself", prerequisites: ["timestamp"], conflictsWith: [], source: source("Chapter 1, When?", "The European session is the most active, followed by the American session, while the Asian session is least active.") },
+  { id: "currency-relativity", concept: "Common-currency pairs can provide advance context", family: "INTERMARKET", rule: "Related pair movement can qualify a currency direction when synchronized", prerequisites: ["relatedPairs"], conflictsWith: [], source: source("Relativity", "Multiple chart views can show an added dimension of market activity and provide warning of potential movement.") },
+  { id: "risk-geometry", concept: "Risk must be defined before a position", family: "RISK", rule: "Every paper outcome requires a finite stop and target derived from observed range/volatility", prerequisites: ["atr"], conflictsWith: [], source: source("Chapter 1, Trading in Action", "Trading decisions must account for the cost and risk of the position before entry.") },
+];
+
+export function buildReplacementKnowledgeModel(): ReplacementKnowledgeModel {
+  return {
+    id: "forex-trading-combined-document-v1",
+    sourceDocument: "Forex trading.docx",
+    nodes: FOREX_KNOWLEDGE_NODES,
+    decisionPolicy: "Evaluate source-linked structure, levels, patterns, indicators, volume, timeframe, intermarket, and risk concepts; record conflicts; choose the stronger paper direction; never claim validated profitability from a single outcome.",
+    learningPolicy: "WIN/LOSS observations are proposed lessons and may only create a new version after repeated comparable paper evidence and user review.",
+  };
+}
+
+export function evaluateReplacementIntelligence(market: { close: number; interval?: string; marketContext: MarketContext }, model = buildReplacementKnowledgeModel()): ReplacementDecision {
+  const context = market.marketContext;
+  const matched: Array<KnowledgeNode & { observation: string; contribution: number }> = [];
+  const add = (id: string, observation: string, contribution: number) => {
+    const node = model.nodes.find((candidate) => candidate.id === id);
+    if (node) matched.push({ ...node, observation, contribution });
+  };
+  if (context.marketStructure === "RISING") add("structure-uptrend", "Calculated structure is RISING.", 3);
+  if (context.marketStructure === "FALLING") add("structure-downtrend", "Calculated structure is FALLING.", -3);
+  if (context.marketStructure === "RANGE_BOUND") add("structure-sideways", "Calculated structure is RANGE_BOUND.", 0);
+  const nearSupport = Math.abs(market.close - context.supportResistance.support) <= context.volatility.atr;
+  const nearResistance = Math.abs(market.close - context.supportResistance.resistance) <= context.volatility.atr;
+  if (nearSupport) add("support-resistance", "Price is within one ATR of calculated support.", 2);
+  if (nearResistance) add("support-resistance", "Price is within one ATR of calculated resistance.", -2);
+  if (context.momentum.direction === "BULLISH" && context.indicators.macd.histogram > 0) add("momentum-confirmation", "Momentum and MACD histogram are bullish.", 2);
+  if (context.momentum.direction === "BEARISH" && context.indicators.macd.histogram < 0) add("momentum-confirmation", "Momentum and MACD histogram are bearish.", -2);
+  if (context.volume.trendConfirmation === "CONFIRMED") add("volume-confirmation", "Latest volume is at least 1.1x its recent average.", context.latestCandle.direction === "BULLISH" ? 1 : -1);
+  if (context.breakoutState !== "WITHIN_RANGE") add("reversal-confirmation", `${context.breakoutState} confirms a level event.`, context.breakoutState === "ABOVE_RESISTANCE" ? 2 : -2);
+  if (context.priceAction.breakoutOrFakeout === "BREAKOUT") add("bollinger-breakout", "Price-action breakout state is confirmed by the snapshot.", context.priceAction.trendDirection === "UP" ? 1 : -1);
+  const buy = matched.reduce((sum, node) => sum + Math.max(0, node.contribution), 0);
+  const sell = matched.reduce((sum, node) => sum + Math.max(0, -node.contribution), 0);
+  const direction: "BUY" | "SELL" = buy >= sell ? "BUY" : "SELL";
+  const conflicts = matched.filter((node) => node.contribution > 0 && direction === "SELL" || node.contribution < 0 && direction === "BUY").map((node) => node.concept);
+  const explanation = `Replacement PDF-derived intelligence selected ${direction} from ${matched.length} source-linked observations: ${matched.map((node) => `${node.concept} (${node.observation})`).join("; ") || "no matched directional observations"}.`;
+  return { direction, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source) };
+}

@@ -8,6 +8,10 @@ export type MarketCandle = {
 };
 
 export type MarketContext = {
+  chartDetails: { chartType: "JAPANESE_CANDLESTICK"; currentCandleStructure: string; previousCandles: string; visiblePatterns: string[] };
+  priceAction: { trendDirection: "UP" | "DOWN" | "NEUTRAL_RANGE"; breakoutOrFakeout: "BREAKOUT" | "FAKEOUT" | "NONE"; wickActivity: "LOW" | "MODERATE" | "HIGH" };
+  indicators: { ema20: number; ema50: number; rsi14: number; macd: { line: number; signal: number; histogram: number }; stochastic: { k: number; d: number }; bollinger: { middle: number; upper: number; lower: number; bandwidthPercent: number } };
+  volume: { available: boolean; latest: number | null; average20: number | null; relativeToAverage: number | null; trendConfirmation: "CONFIRMED" | "NOT_CONFIRMED" | "UNAVAILABLE" };
   sampleSize: number;
   latestCandle: {
     direction: "BULLISH" | "BEARISH" | "DOJI";
@@ -58,6 +62,22 @@ function round(value: number, digits = 6) {
 
 function percent(value: number, base: number) {
   return base === 0 ? 0 : round((value / base) * 100, 3);
+}
+
+function average(values: number[]) { return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0; }
+function ema(values: number[], length: number) {
+  if (!values.length) return 0;
+  const alpha = 2 / (length + 1);
+  return values.reduce((current, value, index) => index === 0 ? value : (value * alpha) + (current * (1 - alpha)), values[0]);
+}
+function rsi(values: number[], length = 14) {
+  if (values.length < 2) return 50;
+  const changes = values.slice(1).map((value, index) => value - values[index]);
+  const recent = changes.slice(-length);
+  const gains = average(recent.filter((value) => value > 0));
+  const losses = average(recent.filter((value) => value < 0).map(Math.abs));
+  if (losses === 0) return gains === 0 ? 50 : 100;
+  return 100 - (100 / (1 + gains / losses));
 }
 
 export function parseMarketCandles(values: Array<Record<string, unknown>>): MarketCandle[] {
@@ -118,6 +138,34 @@ export function calculateMarketContext(values: Array<Record<string, unknown>>): 
   const momentumDirection = change5 > 0.05 && change10 > 0.05 ? "BULLISH" : change5 < -0.05 && change10 < -0.05 ? "BEARISH" : "MIXED";
   const breakoutState: MarketContext["breakoutState"] = latest.close > resistanceZone[1] ? "ABOVE_RESISTANCE" : latest.close < supportZone[0] ? "BELOW_SUPPORT" : "WITHIN_RANGE";
   const volatilityRegime = atr > priorAtr * 1.15 ? "EXPANDING" : atr < priorAtr * 0.85 ? "CONTRACTING" : "STABLE";
+  const closes = candles.map((candle) => candle.close);
+  const ema20 = ema(closes, 20);
+  const ema50 = ema(closes, 50);
+  const ema12 = ema(closes, 12);
+  const ema26 = ema(closes, 26);
+  const macdLine = ema12 - ema26;
+  const macdHistory = closes.slice(0, -1).map((_, index) => ema(closes.slice(0, index + 1), 12) - ema(closes.slice(0, index + 1), 26)).slice(-9);
+  const macdSignal = ema([...macdHistory, macdLine], 9);
+  const lowest14 = Math.min(...candles.slice(-14).map((candle) => candle.low));
+  const highest14 = Math.max(...candles.slice(-14).map((candle) => candle.high));
+  const stochasticK = highest14 === lowest14 ? 50 : ((latest.close - lowest14) / (highest14 - lowest14)) * 100;
+  const stochasticD = average(candles.slice(-3).map((candle) => highest14 === lowest14 ? 50 : ((candle.close - lowest14) / (highest14 - lowest14)) * 100));
+  const bollingerWindow = closes.slice(-20);
+  const bollingerMiddle = average(bollingerWindow);
+  const standardDeviation = Math.sqrt(average(bollingerWindow.map((value) => (value - bollingerMiddle) ** 2)));
+  const bollingerUpper = bollingerMiddle + standardDeviation * 2;
+  const bollingerLower = bollingerMiddle - standardDeviation * 2;
+  const volumeValues = recent.map((candle) => candle.volume).filter((value): value is number => value != null);
+  const averageVolume = volumeValues.length ? average(volumeValues) : null;
+  const latestVolume = latest.volume ?? null;
+  const relativeVolume = latestVolume != null && averageVolume ? latestVolume / averageVolume : null;
+  const volumeTrendConfirmation = relativeVolume == null ? "UNAVAILABLE" : relativeVolume >= 1.1 ? "CONFIRMED" : "NOT_CONFIRMED";
+  const wickRatio = latestRange === 0 ? 0 : (upperWick + lowerWick) / latestRange;
+  const wickActivity = wickRatio > 0.65 ? "HIGH" : wickRatio > 0.3 ? "MODERATE" : "LOW";
+  const breakoutOrFakeout = breakoutState === "WITHIN_RANGE" ? "NONE" : (latestDirection === "BULLISH" && breakoutState === "ABOVE_RESISTANCE") || (latestDirection === "BEARISH" && breakoutState === "BELOW_SUPPORT") ? "BREAKOUT" : "FAKEOUT";
+  const previousCandles = `${candleStats.bullish} bullish, ${candleStats.bearish} bearish, ${candleStats.doji} doji across the previous ${short.length} candles`;
+  const currentCandleStructure = `${latestDirection.toLowerCase()} candle with ${round(percent(body, latestRange), 1)}% body-to-range and upper/lower wicks ${round(upperWick)} / ${round(lowerWick)}`;
+  const visiblePatterns = [marketStructure === "RANGE_BOUND" ? "RANGE_CONSOLIDATION" : null, breakoutOrFakeout === "BREAKOUT" ? "BREAKOUT" : null, latestDirection === "DOJI" ? "DOJI" : null, lowerWick > body * 1.5 ? "LOWER_WICK_REJECTION" : null, upperWick > body * 1.5 ? "UPPER_WICK_REJECTION" : null].filter((value): value is string => value != null);
   const summary = [
     `Market structure: ${marketStructure.toLowerCase().replace("_", " ")}.`,
     `Volatility: ${volatilityRegime.toLowerCase()} with ATR ${round(atr)} (${round(percent(atr, latest.close), 3)}% of price).`,
@@ -125,8 +173,14 @@ export function calculateMarketContext(values: Array<Record<string, unknown>>): 
     `Latest candle: ${latestDirection.toLowerCase()} with ${round(percent(body, latestRange), 1)}% body-to-range and upper/lower wicks ${round(upperWick)} / ${round(lowerWick)}.`,
     `Recent candles: ${candleStats.bullish} bullish, ${candleStats.bearish} bearish, ${candleStats.doji} doji across ${short.length}.`,
     `Momentum: ${momentumDirection.toLowerCase()} (${round(change5, 3)}% over 5 candles; ${round(change10, 3)}% over 10). Breakout state: ${breakoutState.toLowerCase().replaceAll("_", " ")}.`,
+    `EMA20/EMA50: ${round(ema20)} / ${round(ema50)}; RSI14: ${round(rsi(closes), 2)}; MACD histogram: ${round(macdLine - macdSignal)}; Bollinger bandwidth: ${round(percent(bollingerUpper - bollingerLower, bollingerMiddle), 2)}%.`,
+    `Volume: ${volumeTrendConfirmation.toLowerCase()}${relativeVolume == null ? "" : ` at ${round(relativeVolume, 2)}x average`}. Wick activity: ${wickActivity.toLowerCase()}.`,
   ].join(" ");
   return {
+    chartDetails: { chartType: "JAPANESE_CANDLESTICK", currentCandleStructure, previousCandles, visiblePatterns },
+    priceAction: { trendDirection: marketStructure === "RISING" ? "UP" : marketStructure === "FALLING" ? "DOWN" : "NEUTRAL_RANGE", breakoutOrFakeout, wickActivity },
+    indicators: { ema20: round(ema20), ema50: round(ema50), rsi14: round(rsi(closes), 2), macd: { line: round(macdLine), signal: round(macdSignal), histogram: round(macdLine - macdSignal) }, stochastic: { k: round(stochasticK, 2), d: round(stochasticD, 2) }, bollinger: { middle: round(bollingerMiddle), upper: round(bollingerUpper), lower: round(bollingerLower), bandwidthPercent: round(percent(bollingerUpper - bollingerLower, bollingerMiddle), 3) } },
+    volume: { available: volumeValues.length > 0, latest: latestVolume == null ? null : round(latestVolume), average20: averageVolume == null ? null : round(averageVolume), relativeToAverage: relativeVolume == null ? null : round(relativeVolume, 3), trendConfirmation: volumeTrendConfirmation },
     sampleSize: candles.length,
     latestCandle: { direction: latestDirection, body: round(body), range: round(latestRange), upperWick: round(upperWick), lowerWick: round(lowerWick), bodyPercentOfRange: round(percent(body, latestRange), 2) },
     recentCandles: { lookback: short.length, bullish: candleStats.bullish, bearish: candleStats.bearish, doji: candleStats.doji, averageBodyPercentOfRange: round((candleStats.bodyPercent / short.length) * 100, 2) },

@@ -9,7 +9,7 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
   const hasRecentStrategyDecision = vi.fn(async () => false);
   const updateStrategyEngineStatus = vi.fn();
   const recordStrategyEngineHealth = vi.fn();
-  const getActiveIntelligenceVersion = vi.fn(async () => ({ id: 1, versionLabel: "replacement-forex-v1" }));
+  const getActiveIntelligenceVersion = vi.fn(async () => ({ id: 1, versionLabel: "forex-trading-combined-document-v2" }));
   const activateIntelligenceVersion = vi.fn();
   const listIntelligenceComponents = vi.fn(async () => []);
   const listStrategyRules = vi.fn(async () => [{ id: 1, title: "Rules", content: "Use confirmation." }]);

@@ -400,12 +400,12 @@ export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[]) {
   const withRate = (bucket: ReplacementOutcomeBucket) => ({ ...bucket, resolved: bucket.wins + bucket.losses, winRate: bucket.wins + bucket.losses ? Math.round((bucket.wins / (bucket.wins + bucket.losses)) * 100) : null });
   const wins = rows.filter((row) => row.status === "WIN").length;
   const losses = rows.filter((row) => row.status === "LOSS").length;
-  return { version: "replacement-forex-v1", total: rows.length, components: Array.from(componentMap.values()).map(withRate).sort((a, b) => b.total - a.total), regimes: Array.from(regimeMap.values()).map(withRate).sort((a, b) => b.total - a.total), validation: { resolved: wins + losses, wins, losses, pending: rows.filter((row) => row.status === "PENDING").length, invalidated: rows.filter((row) => row.status === "INVALIDATED").length, winRate: wins + losses ? Math.round((wins / (wins + losses)) * 100) : null } };
+  return { version: "replacement-forex-v2", total: rows.length, components: Array.from(componentMap.values()).map(withRate).sort((a, b) => b.total - a.total), regimes: Array.from(regimeMap.values()).map(withRate).sort((a, b) => b.total - a.total), validation: { resolved: wins + losses, wins, losses, pending: rows.filter((row) => row.status === "PENDING").length, invalidated: rows.filter((row) => row.status === "INVALIDATED").length, winRate: wins + losses ? Math.round((wins / (wins + losses)) * 100) : null } };
 }
 
 export async function getReplacementOutcomeStats(userId: number) {
   const db = await getDb();
   if (!db) return summarizeReplacementOutcomes([]);
-  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "replacement-forex-v1")));
+  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2")));
   return summarizeReplacementOutcomes(rows);
 }

@@ -303,3 +303,9 @@
 - [x] Configure one private Telegram group chat ID for BTC/USD, EUR/USD, XAU/USD, and GBP/USD
 - [x] Route each asset’s signal and outcome messages to its shared asset group
 - [x] Verify group delivery and publish the shared-group routing release
+
+- [x] Audit Replacement Intelligence v1 limitations and source-derived components
+- [x] Upgrade source-grounded context reasoning, regime awareness, conflict resolution, and confidence calibration
+- [x] Strengthen reviewed WIN/LOSS lesson promotion without self-modifying active intelligence
+- [x] Add comprehensive regression coverage and forward-paper-validation reporting
+- [x] Run validation and publish the upgraded intelligence release with evidence limitations documented

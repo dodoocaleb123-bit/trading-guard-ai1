@@ -50,9 +50,9 @@ type ScanUserResult = { created: number; tracked: number; marketData: ScanMarket
 
 async function ensureReplacementIntelligenceVersion(userId: number) {
   const active = await getActiveIntelligenceVersion(userId);
-  if (active?.versionLabel === "replacement-forex-v1") return active;
+  if (active?.versionLabel === "forex-trading-combined-document-v2") return active;
   const model = buildReplacementKnowledgeModel();
-  const version = await createIntelligenceVersion({ userId, versionLabel: model.id, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: 0, algorithmJson: JSON.stringify(model), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Replacement intelligence v1 is newly activated and requires forward paper validation." }), activatedAt: new Date() });
+  const version = await createIntelligenceVersion({ userId, versionLabel: model.id, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: 0, algorithmJson: JSON.stringify(model), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Replacement intelligence v2 is newly activated and requires forward paper validation." }), activatedAt: new Date() });
   const triggerFor = (family: string) => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : "CANDLE";
   for (const node of model.nodes) await createIntelligenceComponent({ userId, versionId: version.id, title: node.concept, sourceRuleIds: JSON.stringify([]), trigger: triggerFor(node.family) as any, stance: "NEUTRAL", conditionJson: JSON.stringify({ values: node.prerequisites, description: node.rule }), weight: "1", enabled: true });
   await activateIntelligenceVersion(userId, version.id);
@@ -104,6 +104,18 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           { interval: series.interval, context: series.marketContext },
           { interval: companion?.interval ?? "companion", context: companion?.marketContext ?? null },
         ], series.interval);
+        const companionContext = companion?.marketContext;
+        const directional = (value: string) => value === "RISING" || value === "BULLISH" ? "UP" : value === "FALLING" || value === "BEARISH" ? "DOWN" : "NEUTRAL";
+        const localDirection = series.marketContext ? directional(series.marketContext.marketStructure) : "NEUTRAL";
+        const companionDirection = companionContext ? directional(companionContext.marketStructure) : "NEUTRAL";
+        const localMomentum = series.marketContext ? directional(series.marketContext.momentum.direction) : "NEUTRAL";
+        const companionMomentum = companionContext ? directional(companionContext.momentum.direction) : "NEUTRAL";
+        const multiTimeframeAlignment = series.marketContext && companionContext ? {
+          companionInterval: companion.interval,
+          structure: localDirection === "NEUTRAL" || companionDirection === "NEUTRAL" ? "MIXED" as const : localDirection === companionDirection ? "ALIGNED" as const : "OPPOSED" as const,
+          momentum: localMomentum === "NEUTRAL" || companionMomentum === "NEUTRAL" ? "MIXED" as const : localMomentum === companionMomentum ? "ALIGNED" as const : "OPPOSED" as const,
+          breakout: series.marketContext.breakoutState === "WITHIN_RANGE" || companionContext.breakoutState === "WITHIN_RANGE" ? "MIXED" as const : localDirection === companionDirection ? "ALIGNED" as const : "OPPOSED" as const,
+        } : undefined;
         const market = {
           symbol: asset,
           price: series.close,
@@ -112,7 +124,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           trend: series.trend,
           values: series.values,
           fetchedAt: series.fetchedAt,
-          marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext } : null,
+          marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext, multiTimeframeAlignment } : null,
         };
         const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: market.marketContext }) : undefined;
         if (!replacementIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
@@ -179,7 +191,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       }
       const approvedLevels = { asset, timeframe, direction: gated.direction, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: 2, confidence: gated.confidence };
       const rationale = formatAuditResult(gated, market);
-      const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), rationale, intelligenceVersion: "replacement-forex-v1", intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
+      const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), rationale, intelligenceVersion: replacementModel.id, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
       const signal = { id: Number(result.insertId), ...approvedLevels };
       await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
       const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace }), asset);

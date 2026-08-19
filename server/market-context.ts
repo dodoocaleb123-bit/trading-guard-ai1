@@ -47,6 +47,7 @@ export type MarketContext = {
     direction: "BULLISH" | "BEARISH" | "MIXED";
   };
   breakoutState: "ABOVE_RESISTANCE" | "BELOW_SUPPORT" | "WITHIN_RANGE";
+  multiTimeframeAlignment?: { companionInterval: string; structure: "ALIGNED" | "OPPOSED" | "MIXED" | "UNAVAILABLE"; momentum: "ALIGNED" | "OPPOSED" | "MIXED" | "UNAVAILABLE"; breakout: "ALIGNED" | "OPPOSED" | "MIXED" | "UNAVAILABLE" };
   summary: string;
 };
 

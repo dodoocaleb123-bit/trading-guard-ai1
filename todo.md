@@ -233,3 +233,8 @@
 - [x] Route signals and explanations from the active intelligence version without requiring the removed evidence gate
 - [x] Add regression coverage and dashboard transparency for gate-free routing and intelligence composition
 - [x] Run full validation and visual verification; publish the changed behavior with remaining controls documented
+
+- [x] Generate a deterministic decision trace from the same PDF-derived components that create each BUY/SELL paper outcome
+- [x] Replace model-only explanation fallback with source-linked deterministic explanations in Telegram and the decision ledger
+- [x] Show matched components, support/conflict reasoning, score totals, and level derivation without relying on model availability
+- [x] Add regression coverage and full validation; visual verification passed, publish the deterministic explanation release

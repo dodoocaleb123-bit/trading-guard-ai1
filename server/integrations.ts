@@ -4,6 +4,7 @@ import { PDFParse } from "pdf-parse";
 import { invokeLLM } from "./_core/llm";
 import { ENV } from "./_core/env";
 import { calculateMarketContext, type MarketContext } from "./market-context";
+import type { IntelligenceDecisionTrace } from "./intelligence";
 
 export type MarketSnapshot = {
   symbol: string;
@@ -28,6 +29,7 @@ export type MarketSnapshot = {
     ruleEvidence: string[];
     ruleFindings: Array<{ title: string; stance: "BUY" | "SELL" | "NEUTRAL"; weight: number }>;
     adjustments: string;
+    decisionTrace: IntelligenceDecisionTrace;
   };
 };
 
@@ -207,10 +209,12 @@ export function formatApprovedTelegramMessage(input: {
   adjustments: string;
   ruleEvidence?: string[];
   confluenceScore?: number;
+  decisionTrace?: IntelligenceDecisionTrace;
 }) {
   const optional = (value: number | null | undefined) => value == null ? "—" : String(value);
   const evidence = input.ruleEvidence?.length ? `\nRules applied: ${input.ruleEvidence.slice(0, 3).join("; ")}` : "";
-  const confluence = typeof input.confluenceScore === "number" ? `\nConfluence: ${input.confluenceScore}%` : "";
+  const confluence = input.decisionTrace ? `\nConfluence: ${input.decisionTrace.scoreSummary.confluenceScore}%` : typeof input.confluenceScore === "number" ? `\nConfluence: ${input.confluenceScore}%` : "";
+  const trace = input.decisionTrace ? `\n\nDeterministic intelligence explanation:\nSupporting PDF components: ${input.decisionTrace.supportingComponents.join("; ") || "None"}\nConflicting components: ${input.decisionTrace.conflictingComponents.join("; ") || "None"}\nScore: BUY ${input.decisionTrace.scoreSummary.buyScore} vs SELL ${input.decisionTrace.scoreSummary.sellScore}\nLevel derivation: ${input.decisionTrace.levelDerivation.stopLoss} ${input.decisionTrace.levelDerivation.takeProfit}` : "";
   const message = [
     "<b>TradingGuardAI approved trade</b>",
     "",
@@ -222,7 +226,7 @@ export function formatApprovedTelegramMessage(input: {
     `Take Profit: ${optional(input.takeProfit)}`,
     `Confidence: ${input.confidence}%`,
     "Validation: UNVALIDATED",
-    `Adjustments: ${input.adjustments}${confluence}${evidence}`,
+    `Adjustments: ${input.adjustments}${confluence}${evidence}${trace}`,
   ];
   return message.join("\\n");
 }
@@ -447,6 +451,7 @@ async function generateScannerDecisionBatch(input: { candidates: ScannerDecision
           takeProfit: candidate.market.intelligenceSeed!.takeProfit,
           ruleEvidence: candidate.market.intelligenceSeed!.ruleEvidence,
           ruleFindings: candidate.market.intelligenceSeed!.ruleFindings,
+          decisionTrace: candidate.market.intelligenceSeed!.decisionTrace,
         }));
       }
       const expectedKeys = new Set(input.candidates.map((candidate) => `${candidate.asset}:${candidate.timeframe}`));
@@ -471,6 +476,7 @@ async function generateScannerDecisionBatch(input: { candidates: ScannerDecision
             confidence: Math.max(Number(decision.confidence) || 0, seed.confidence),
             ruleEvidence: Array.isArray(decision.ruleEvidence) && decision.ruleEvidence.length >= 3 ? decision.ruleEvidence : seed.ruleEvidence,
             ruleFindings: Array.isArray(decision.ruleFindings) && decision.ruleFindings.length >= 3 ? decision.ruleFindings : seed.ruleFindings,
+            decisionTrace: seed.decisionTrace,
             adjustments: `${seed.adjustments} ${decision.adjustments ?? ""}`.trim(),
           } : decision;
           const gated = gateAuditDecision(seededDecision, input.rules);

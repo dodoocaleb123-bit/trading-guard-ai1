@@ -22,6 +22,14 @@ export type IntelligenceMarket = {
   marketContext?: MarketContext | null;
 };
 
+export type IntelligenceDecisionTrace = {
+  matchedComponents: Array<{ title: string; sourceRuleIds: number[]; sourceConcept: string; trigger: IntelligenceTrigger; stance: IntelligenceStance; weight: number; match: string }>;
+  supportingComponents: string[];
+  conflictingComponents: string[];
+  scoreSummary: { buyScore: number; sellScore: number; dominantDirection: "BUY" | "SELL"; confluenceScore: number };
+  levelDerivation: { entry: string; stopLoss: string; takeProfit: string; riskDistance: number; riskReward: number };
+};
+
 export type ExecutableJudgment = {
   direction: "BUY" | "SELL";
   entry: number;
@@ -34,6 +42,7 @@ export type ExecutableJudgment = {
   adjustments: string;
   buyScore: number;
   sellScore: number;
+  decisionTrace: IntelligenceDecisionTrace;
 };
 
 function normalize(text: string) {
@@ -140,9 +149,17 @@ export function evaluateExecutableIntelligence(market: IntelligenceMarket, compo
   const stopLoss = Number((direction === "BUY" ? entry - risk : entry + risk).toFixed(5));
   const takeProfit = Number((direction === "BUY" ? entry + risk * 2 : entry - risk * 2).toFixed(5));
   const evidence = active.filter((component) => component.stance === direction).slice(0, 8);
+  const conflicting = active.filter((component) => component.stance !== direction).slice(0, 8);
   const findings = active.slice(0, 8).map((component) => ({ title: component.title, stance: component.stance, weight: component.weight }));
+  const decisionTrace: IntelligenceDecisionTrace = {
+    matchedComponents: active.slice(0, 8).map((component) => ({ title: component.title, sourceRuleIds: component.sourceRuleIds, sourceConcept: component.sourceConcept, trigger: component.trigger, stance: component.stance, weight: component.weight, match: component.condition.description })),
+    supportingComponents: evidence.map((component) => component.title),
+    conflictingComponents: conflicting.map((component) => component.title),
+    scoreSummary: { buyScore, sellScore, dominantDirection: direction, confluenceScore },
+    levelDerivation: { entry: "Latest raw close rounded to provider precision.", stopLoss: `${direction} stop at one volatility risk distance (${risk}).`, takeProfit: `${direction} target at two volatility risk distances for 1:2 paper geometry.`, riskDistance: risk, riskReward: 2 },
+  };
   const adjustments = total === 0
     ? "Executable intelligence selected the better-supported direction from the compiled strategy components, but no component matched the current context; paper validation required."
     : `Executable intelligence selected ${direction} from ${evidence.length} matching source-linked components. Confluence ${confluenceScore}%; paper validation required.`;
-  return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, ruleEvidence: evidence.map((component) => component.title), ruleFindings: findings, adjustments, buyScore, sellScore };
+  return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, ruleEvidence: evidence.map((component) => component.title), ruleFindings: findings, adjustments, buyScore, sellScore, decisionTrace };
 }

@@ -255,4 +255,4 @@
 - [x] Switch the scanner’s authoritative BUY/SELL decision path to replacement intelligence v1
 - [x] Persist replacement intelligence version and source-linked decision traces as the active production model
 - [x] Verify Telegram paper routing, UNVALIDATED labeling, risk geometry, and no-live-execution controls after cutover
-- [ ] Run full regression, production build, and visual verification; publish the replacement cutover after the release checkpoint
+- [x] Run full regression, production build, and visual verification; publish the replacement cutover after the release checkpoint

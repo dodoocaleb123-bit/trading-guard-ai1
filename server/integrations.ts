@@ -255,6 +255,26 @@ export function formatApprovedTelegramMessage(input: {
   return lines.join("\\n");
 }
 
+export function formatOutcomeTelegramMessage(input: { asset: string; timeframe: string; direction: string; status: "WIN" | "LOSS"; entry: number | string; stopLoss: number | string; takeProfit: number | string; closePrice: number; signalId: number; note?: string }) {
+  const text = (value: string | number) => escapeTelegramHtml(String(value));
+  const outcomeLabel = input.status === "WIN" ? "TARGET REACHED" : "STOP LOSS REACHED";
+  return [
+    "<b>TradingGuardAI · PAPER OUTCOME</b>",
+    `<b>${text(input.status)} · ${text(input.asset)}</b> · ${text(input.timeframe)}`,
+    `<b>Original signal:</b> ${text(input.direction)} · Signal #${text(input.signalId)}`,
+    "",
+    "<b>Outcome</b>",
+    `<b>Result:</b> ${text(outcomeLabel)}`,
+    `<b>Close price:</b> ${text(input.closePrice)}`,
+    `<b>Entry:</b> ${text(input.entry)}`,
+    `<b>Stop loss:</b> ${text(input.stopLoss)}`,
+    `<b>Take profit:</b> ${text(input.takeProfit)}`,
+    "",
+    `<b>Paper record:</b> ${text(input.note ?? "Outcome recorded for paper validation.")}`,
+    "<i>No live trade was executed. This outcome is available for validation and lesson review.</i>",
+  ].join("\\n");
+}
+
 export async function sendTelegramMessage(text: string): Promise<{ delivered: boolean; telegramMessageId?: string; error?: string }> {
   if (!ENV.telegramBotToken || !ENV.telegramChatId) return { delivered: false, error: "Telegram credentials are not configured" };
   try {

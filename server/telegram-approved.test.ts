@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatApprovedTelegramMessage, shouldNotifyApprovedAudit } from "./integrations";
+import { formatApprovedTelegramMessage, formatOutcomeTelegramMessage, shouldNotifyApprovedAudit } from "./integrations";
 import { isAuthorizedScannerCron } from "./scheduled";
 
 describe("approved Telegram signal formatting", () => {
@@ -57,6 +57,21 @@ describe("approved Telegram signal formatting", () => {
     expect(message).toContain("Use &lt;confirmation&gt; &amp; review.");
     expect(message).toContain("Rule &lt;A&gt; &amp; context");
     expect(message).not.toContain("Use <confirmation>");
+  });
+
+  it("formats linked WIN and LOSS paper outcomes", () => {
+    const win = formatOutcomeTelegramMessage({ asset: "BTC/USD", timeframe: "15MIN", direction: "BUY", status: "WIN", entry: 65382.36, stopLoss: 65250.0715, takeProfit: 65646.937, closePrice: 65646.937, signalId: 1200010, note: "Closed from live BTC/USD price 65646.937." });
+    expect(win).toContain("TradingGuardAI · PAPER OUTCOME");
+    expect(win).toContain("<b>WIN · BTC/USD</b> · 15MIN");
+    expect(win).toContain("<b>Original signal:</b> BUY · Signal #1200010");
+    expect(win).toContain("<b>Result:</b> TARGET REACHED");
+    expect(win).toContain("<b>Take profit:</b> 65646.937");
+    expect(win).toContain("No live trade was executed");
+
+    const loss = formatOutcomeTelegramMessage({ asset: "EUR/USD", timeframe: "1H", direction: "SELL", status: "LOSS", entry: "1.16000", stopLoss: "1.16140", takeProfit: "1.15720", closePrice: 1.1614, signalId: 1200011, note: "Closed from live EUR/USD price 1.1614." });
+    expect(loss).toContain("<b>LOSS · EUR/USD</b> · 1H");
+    expect(loss).toContain("<b>Result:</b> STOP LOSS REACHED");
+    expect(loss).toContain("Signal #1200011");
   });
 
   it("renders missing levels safely", () => {

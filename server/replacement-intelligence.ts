@@ -28,6 +28,7 @@ export type ReplacementDecision = {
   confidence: number;
   confluenceScore: number;
   riskReward: number;
+  marketRegime: string;
   ruleEvidence: string[];
   ruleFindings: Array<{ title: string; stance: IntelligenceStance; weight: number }>;
   adjustments: string;
@@ -112,6 +113,7 @@ export function evaluateReplacementIntelligence(market: { close: number; interva
     scoreSummary: { buyScore: buy, sellScore: sell, dominantDirection: direction, confluenceScore },
     levelDerivation: { entry: "Latest enriched raw close rounded to provider precision.", stopLoss: `One ATR or 0.12% volatility floor from the replacement risk geometry (${risk}).`, takeProfit: "Two risk distances for 1:2 paper geometry.", riskDistance: risk, riskReward: 2 },
   };
+  const marketRegime = `${context.marketStructure}/${context.volatility.regime}/${context.breakoutState}`;
   const adjustments = `${explanation} Source-linked replacement v1 is authoritative for this paper outcome; validation remains UNVALIDATED.`;
-  return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: 2, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace };
+  return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: 2, marketRegime, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace };
 }

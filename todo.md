@@ -256,3 +256,9 @@
 - [x] Persist replacement intelligence version and source-linked decision traces as the active production model
 - [x] Verify Telegram paper routing, UNVALIDATED labeling, risk geometry, and no-live-execution controls after cutover
 - [x] Run full regression, production build, and visual verification; publish the replacement cutover after the release checkpoint
+
+- [x] Monitor the first replacement-intelligence Heartbeat cycles and inspect production Telegram delivery traces; the latest successful run returned HTTP 200, marketData=available, and created 8 paper signals, with complete risk levels confirmed in the production database
+- [x] Guarantee every complete replacement BUY/SELL outcome with entry, stop loss, and take profit is persisted and sent to Telegram; scanner regression now asserts eight complete outcomes produce eight delivery-ledger entries
+- [x] Add outcome statistics by replacement-intelligence component and market regime through a protected tRPC endpoint and tested pure aggregator
+- [x] Add a first paper-validation sample review that blocks lesson promotion until the sample is sufficient; dashboard explicitly remains in collecting-evidence state and does not claim profitability
+- [x] Add dashboard visibility, regression coverage, full validation, visual verification, and publish the monitoring/statistics release

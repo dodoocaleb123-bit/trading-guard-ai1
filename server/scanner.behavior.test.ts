@@ -111,8 +111,9 @@ describe("scanner paper routing without evidence gate", () => {
 
     expect(result.created).toBe(8);
     expect(insert).toHaveBeenCalled();
-    expect(sendTelegramMessage).toHaveBeenCalled();
-    expect(recordTelegramDelivery).toHaveBeenCalled();
+    expect(sendTelegramMessage).toHaveBeenCalledTimes(8);
+    expect(recordTelegramDelivery).toHaveBeenCalledTimes(8);
+    expect(recordTelegramDelivery.mock.calls.every(([input]: any[]) => input.kind === "SIGNAL" && input.status === "DELIVERED" && input.dedupeKey.startsWith("signal:"))).toBe(true);
     expect(createStrategyDecision).toHaveBeenCalled();
     expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "AVAILABLE" });
     expect(generateScannerDecisions).not.toHaveBeenCalled();

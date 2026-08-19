@@ -120,6 +120,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           verdict: "APPROVED" as const,
           confidence: replacementIntelligence.confidence,
           confluenceScore: replacementIntelligence.confluenceScore,
+          marketRegime: replacementIntelligence.marketRegime,
           adjustments: replacementIntelligence.adjustments,
           direction: replacementIntelligence.direction,
           entry: replacementIntelligence.entry,
@@ -128,7 +129,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           ruleEvidence: replacementIntelligence.ruleEvidence,
           ruleFindings: replacementIntelligence.ruleFindings,
           decisionTrace: replacementIntelligence.decisionTrace,
-          market: { ...market, intelligenceSeed: replacementIntelligence, replacementIntelligence },
+          market: { ...market, intelligenceSeed: replacementIntelligence, replacementIntelligence, replacementMarketRegime: replacementIntelligence.marketRegime },
         };
       });
     decisions.metrics = { snapshots: candidates.length, completeResponses: decisions.length, retries: 0 };
@@ -176,7 +177,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       }
       const approvedLevels = { asset, timeframe, direction: gated.direction, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: 2, confidence: gated.confidence };
       const rationale = formatAuditResult(gated, market);
-      const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), rationale, status: "PENDING" });
+      const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), rationale, intelligenceVersion: "replacement-forex-v1", intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
       const signal = { id: Number(result.insertId), ...approvedLevels };
       await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
       const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace }));

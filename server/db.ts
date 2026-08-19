@@ -376,3 +376,36 @@ export async function getRelevantRulesText(userId: number, query: string, maxCha
   }
   return sections.join("\n\n");
 }
+
+
+type ReplacementOutcomeRow = { status: string; intelligenceComponents: string | null; marketRegime: string | null };
+type ReplacementOutcomeBucket = { key: string; total: number; wins: number; losses: number; pending: number; invalidated: number };
+export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[]) {
+  const componentMap = new Map<string, ReplacementOutcomeBucket>();
+  const regimeMap = new Map<string, ReplacementOutcomeBucket>();
+  const add = (map: Map<string, ReplacementOutcomeBucket>, key: string, status: string) => {
+    const bucket = map.get(key) ?? { key, total: 0, wins: 0, losses: 0, pending: 0, invalidated: 0 };
+    bucket.total += 1;
+    if (status === "WIN") bucket.wins += 1;
+    else if (status === "LOSS") bucket.losses += 1;
+    else if (status === "INVALIDATED") bucket.invalidated += 1;
+    else bucket.pending += 1;
+    map.set(key, bucket);
+  };
+  for (const row of rows) {
+    const components = (() => { try { const parsed = JSON.parse(row.intelligenceComponents ?? "[]"); return Array.isArray(parsed) ? parsed : []; } catch { return []; } })();
+    for (const component of components) if (typeof component === "string" && component.trim()) add(componentMap, component, row.status);
+    add(regimeMap, row.marketRegime ?? "UNKNOWN", row.status);
+  }
+  const withRate = (bucket: ReplacementOutcomeBucket) => ({ ...bucket, resolved: bucket.wins + bucket.losses, winRate: bucket.wins + bucket.losses ? Math.round((bucket.wins / (bucket.wins + bucket.losses)) * 100) : null });
+  const wins = rows.filter((row) => row.status === "WIN").length;
+  const losses = rows.filter((row) => row.status === "LOSS").length;
+  return { version: "replacement-forex-v1", total: rows.length, components: Array.from(componentMap.values()).map(withRate).sort((a, b) => b.total - a.total), regimes: Array.from(regimeMap.values()).map(withRate).sort((a, b) => b.total - a.total), validation: { resolved: wins + losses, wins, losses, pending: rows.filter((row) => row.status === "PENDING").length, invalidated: rows.filter((row) => row.status === "INVALIDATED").length, winRate: wins + losses ? Math.round((wins / (wins + losses)) * 100) : null } };
+}
+
+export async function getReplacementOutcomeStats(userId: number) {
+  const db = await getDb();
+  if (!db) return summarizeReplacementOutcomes([]);
+  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "replacement-forex-v1")));
+  return summarizeReplacementOutcomes(rows);
+}

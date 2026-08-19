@@ -210,4 +210,7 @@
 - [ ] Monitor live Heartbeat cycles after the strategy-engine reliability release and verify directional decisions, retries, and unavailable-model handling
 - [x] Add production strategy-engine health metrics for response completeness, retry counts, and unavailable-model cycles
 - [x] Add dashboard health-panel UI and regression coverage for the new observability metrics
-- [ ] Run full validation and visual verification; publish the monitoring release after the checkpoint
+- [x] Run full validation and visual verification; publish the monitoring release after the checkpoint
+- [x] Harden live structured-response reliability by evaluating one raw snapshot per model call after production showed an incomplete two-candidate response
+- [x] Add regression coverage for single-snapshot batching, retry accounting, and complete directional output
+- [ ] Run validation and publish the hardening update; verify a post-release Heartbeat cycle after deployment

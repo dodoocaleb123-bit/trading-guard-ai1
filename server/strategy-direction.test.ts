@@ -19,5 +19,8 @@ describe("strategy-engine mandatory directional judgment", () => {
     expect(result[0].takeProfit).toBeTypeOf("number");
     expect(result[0].verdict).toBe("DENIED");
     expect(result[0].validationStatus).toBe("UNVALIDATED");
+    const request = invokeLLM.mock.calls[0]?.[0];
+    const userMessage = request.messages.find((message: { role: string }) => message.role === "user");
+    expect(userMessage.content).toContain("Raw market candidates with detailed deterministic context");
   });
 });

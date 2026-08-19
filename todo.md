@@ -183,3 +183,10 @@
 - [x] Add a dashboard card comparing directional strategy judgments with Telegram-approved alerts
 - [x] Add regression coverage, validate, visually verify, and publish the update
 
+
+- [x] Add deterministic market-context features derived from raw OHLCV for strategy-engine inputs
+- [x] Include structure, volatility, candle behavior, support/resistance, momentum, range/breakout state, and multi-timeframe context without invented facts
+- [x] Preserve raw candles, rule evidence, UNVALIDATED labeling, and Telegram approval safeguards
+- [x] Add feature-calculation and strategy-input regression tests
+- [x] Run full validation, visual verification, and publish the detailed market-context release
+

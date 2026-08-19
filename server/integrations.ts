@@ -3,6 +3,7 @@ import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import { invokeLLM } from "./_core/llm";
 import { ENV } from "./_core/env";
+import { calculateMarketContext, type MarketContext } from "./market-context";
 
 export type MarketSnapshot = {
   symbol: string;
@@ -16,6 +17,7 @@ export type MarketSnapshot = {
   interval?: "15min" | "1h";
   trend?: "UP" | "DOWN";
   values?: Array<Record<string, unknown>>;
+  marketContext?: MarketContext | null;
 };
 
 const supabaseHeaders = () => ({
@@ -141,6 +143,7 @@ export type MarketSeries = {
   close: number;
   trend: "UP" | "DOWN";
   fetchedAt: string;
+  marketContext: MarketContext | null;
 };
 
 function parseMarketSeries(symbol: string, interval: "15min" | "1h", payload: any): MarketSeries {
@@ -152,7 +155,7 @@ function parseMarketSeries(symbol: string, interval: "15min" | "1h", payload: an
   const close = Number(last.close);
   const priorClose = Number(prior.close);
   if (!Number.isFinite(close) || !Number.isFinite(priorClose)) throw new Error("OHLCV data has no usable close price");
-  return { symbol, interval, values, close, trend: close >= priorClose ? "UP" : "DOWN", fetchedAt: new Date().toISOString() };
+  return { symbol, interval, values, close, trend: close >= priorClose ? "UP" : "DOWN", fetchedAt: new Date().toISOString(), marketContext: calculateMarketContext(values) };
 }
 
 export async function fetchMarketSeries(asset: string, interval: "15min" | "1h") {
@@ -353,7 +356,7 @@ export async function generateScannerDecisions(input: { candidates: ScannerDecis
       },
       {
         role: "user",
-        content: `Generate exactly one BUY or SELL decision for each raw market candidate—exactly ${input.candidates.length} decisions total. Do not return an empty decisions array, do not omit candidates, and do not use NEUTRAL as the direction. Derive the directional judgment and risk levels from the complete strategy rules and raw market data. If evidence is weak or conflicting, still choose the better-supported BUY or SELL direction, return DENIED, and explain the evidence weakness. Complete strategy rules:\n${input.rules}\n\nRaw market candidates:\n${JSON.stringify(input.candidates)}`,
+        content: `Generate exactly one BUY or SELL decision for each raw market candidate—exactly ${input.candidates.length} decisions total. Do not return an empty decisions array, do not omit candidates, and do not use NEUTRAL as the direction. Derive the directional judgment and risk levels from the complete strategy rules, raw OHLCV candles, and the deterministic market-context features. Use the context to assess market structure, volatility regime, latest and recent candle behavior, support/resistance zones, momentum, breakout state, and opposing-timeframe context. Treat the raw candles as the source of truth and use derived features as transparent calculations, not as invented chart facts. If evidence is weak or conflicting, still choose the better-supported BUY or SELL direction, return DENIED, and explain the evidence weakness. Complete strategy rules:\n${input.rules}\n\nRaw market candidates with detailed deterministic context:\n${JSON.stringify(input.candidates)}`,
       },
     ],
     response_format: {

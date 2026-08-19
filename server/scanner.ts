@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
 import { createStrategyDecision, createStrategyRule, getAllRulesText, getDb, getRelevantRulesText, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
+import { buildMultiTimeframeContext } from "./market-context";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -67,7 +68,27 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       const localRules = await getRelevantRulesText(userId, "Interpret every forwarded raw OHLCV market snapshot using the saved strategy rules and determine whether a supported possible outcome and complementary signal exist.", 100_000);
     decisions = await generateScannerDecisions({
       rules: [localRules, mirroredText].filter(Boolean).join("\n\n"),
-      candidates: candidates.map(({ asset, timeframe, series }) => ({ asset, timeframe, market: { symbol: asset, price: series.close, close: series.close, interval: series.interval, trend: series.trend, values: series.values, fetchedAt: series.fetchedAt } })),
+      candidates: candidates.map(({ asset, timeframe, series }) => {
+        const companion = timeframe === "15MIN" ? seriesCache.get(`${asset}:1H`) : seriesCache.get(`${asset}:15MIN`);
+        const multiTimeframeContext = buildMultiTimeframeContext([
+          { interval: series.interval, context: series.marketContext },
+          { interval: companion?.interval ?? "companion", context: companion?.marketContext ?? null },
+        ], series.interval);
+        return {
+          asset,
+          timeframe,
+          market: {
+            symbol: asset,
+            price: series.close,
+            close: series.close,
+            interval: series.interval,
+            trend: series.trend,
+            values: series.values,
+            fetchedAt: series.fetchedAt,
+            marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext } : null,
+          },
+        };
+      }),
     });
     await updateStrategyEngineStatus(userId, { status: "AVAILABLE" });
   } catch (error) {

@@ -47,9 +47,10 @@ export const appRouter = router({
       const lessons = await listStrategyLessons(ctx.user.id);
       return { active, versions, components, lessons };
     }),
-    replacementPreview: protectedProcedure.query(() => {
+    replacementPreview: protectedProcedure.query(async ({ ctx }) => {
       const model = buildReplacementKnowledgeModel();
-      return { id: model.id, sourceDocument: model.sourceDocument, nodeCount: model.nodes.length, nodes: model.nodes, decisionPolicy: model.decisionPolicy, learningPolicy: model.learningPolicy, active: false };
+      const active = await getActiveIntelligenceVersion(ctx.user.id);
+      return { id: model.id, sourceDocument: model.sourceDocument, nodeCount: model.nodes.length, nodes: model.nodes, decisionPolicy: model.decisionPolicy, learningPolicy: model.learningPolicy, active: active?.versionLabel === model.id, activeVersionId: active?.id ?? null };
     }),
     promoteLessons: protectedProcedure.mutation(async ({ ctx }) => {
       const lessons = await listStrategyLessons(ctx.user.id);

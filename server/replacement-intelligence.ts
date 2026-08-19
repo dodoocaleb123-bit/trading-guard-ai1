@@ -1,4 +1,5 @@
 import type { MarketContext } from "./market-context";
+import type { IntelligenceDecisionTrace, IntelligenceStance, IntelligenceTrigger } from "./intelligence";
 
 export type KnowledgeSource = { document: "Forex trading.docx"; section: string; passage: string };
 export type KnowledgeNode = {
@@ -21,11 +22,23 @@ export type ReplacementKnowledgeModel = {
 
 export type ReplacementDecision = {
   direction: "BUY" | "SELL";
+  entry: number;
+  stopLoss: number;
+  takeProfit: number;
+  confidence: number;
+  confluenceScore: number;
+  riskReward: number;
+  ruleEvidence: string[];
+  ruleFindings: Array<{ title: string; stance: IntelligenceStance; weight: number }>;
+  adjustments: string;
+  buyScore: number;
+  sellScore: number;
   score: { buy: number; sell: number; net: number };
   matchedNodes: Array<KnowledgeNode & { observation: string; contribution: number }>;
   conflicts: string[];
   explanation: string;
   sourceTrace: KnowledgeSource[];
+  decisionTrace: IntelligenceDecisionTrace;
 };
 
 const source = (section: string, passage: string): KnowledgeSource => ({ document: "Forex trading.docx", section, passage });
@@ -79,6 +92,26 @@ export function evaluateReplacementIntelligence(market: { close: number; interva
   const sell = matched.reduce((sum, node) => sum + Math.max(0, -node.contribution), 0);
   const direction: "BUY" | "SELL" = buy >= sell ? "BUY" : "SELL";
   const conflicts = matched.filter((node) => node.contribution > 0 && direction === "SELL" || node.contribution < 0 && direction === "BUY").map((node) => node.concept);
+  const entry = Number(market.close.toFixed(5));
+  const risk = Math.max(context.volatility.atr, Math.abs(entry * 0.0012));
+  const stopLoss = Number((direction === "BUY" ? entry - risk : entry + risk).toFixed(5));
+  const takeProfit = Number((direction === "BUY" ? entry + risk * 2 : entry - risk * 2).toFixed(5));
+  const dominant = Math.max(buy, sell);
+  const total = buy + sell;
+  const confluenceScore = total ? Math.round((dominant / total) * 100) : 0;
+  const confidence = Math.min(94, Math.round(52 + Math.min(38, dominant * 4) + (confluenceScore >= 70 ? 8 : 0)));
+  const ruleEvidence = matched.filter((node) => Math.sign(node.contribution) === (direction === "BUY" ? 1 : -1)).slice(0, 8).map((node) => `${node.source.section}: ${node.concept}`);
+  const ruleFindings = matched.slice(0, 8).map((node) => ({ title: node.concept, stance: node.contribution >= 0 ? "BUY" as const : "SELL" as const, weight: Math.max(1, Math.abs(node.contribution)) }));
+  const familyToTrigger = (family: KnowledgeNode["family"]): IntelligenceTrigger => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : "CANDLE";
+  const matchedComponents = matched.slice(0, 8).map((node) => ({ title: node.concept, sourceRuleIds: [], sourceConcept: node.source.passage, trigger: familyToTrigger(node.family), stance: node.contribution >= 0 ? "BUY" as const : "SELL" as const, weight: Math.max(1, Math.abs(node.contribution)), match: node.observation }));
   const explanation = `Replacement PDF-derived intelligence selected ${direction} from ${matched.length} source-linked observations: ${matched.map((node) => `${node.concept} (${node.observation})`).join("; ") || "no matched directional observations"}.`;
-  return { direction, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source) };
+  const decisionTrace: IntelligenceDecisionTrace = {
+    matchedComponents,
+    supportingComponents: matched.filter((node) => Math.sign(node.contribution) === (direction === "BUY" ? 1 : -1)).map((node) => node.concept),
+    conflictingComponents: conflicts,
+    scoreSummary: { buyScore: buy, sellScore: sell, dominantDirection: direction, confluenceScore },
+    levelDerivation: { entry: "Latest enriched raw close rounded to provider precision.", stopLoss: `One ATR or 0.12% volatility floor from the replacement risk geometry (${risk}).`, takeProfit: "Two risk distances for 1:2 paper geometry.", riskDistance: risk, riskReward: 2 },
+  };
+  const adjustments = `${explanation} Source-linked replacement v1 is authoritative for this paper outcome; validation remains UNVALIDATED.`;
+  return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: 2, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace };
 }

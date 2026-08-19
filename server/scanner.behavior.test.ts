@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { calculateMarketContext } from "./market-context";
 
-const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, listIntelligenceComponents, listStrategyRules, createIntelligenceVersion, createIntelligenceComponent, insert, db } = vi.hoisted(() => {
+const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, createIntelligenceVersion, createIntelligenceComponent, insert, db } = vi.hoisted(() => {
   const fetchMarketSeriesBatch = vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); });
   const generateScannerDecisions = vi.fn();
   const createStrategyDecision = vi.fn(async (input: any) => ({ id: 99, ...input }));
@@ -8,7 +9,8 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
   const hasRecentStrategyDecision = vi.fn(async () => false);
   const updateStrategyEngineStatus = vi.fn();
   const recordStrategyEngineHealth = vi.fn();
-  const getActiveIntelligenceVersion = vi.fn(async () => ({ id: 1 }));
+  const getActiveIntelligenceVersion = vi.fn(async () => ({ id: 1, versionLabel: "replacement-forex-v1" }));
+  const activateIntelligenceVersion = vi.fn();
   const listIntelligenceComponents = vi.fn(async () => []);
   const listStrategyRules = vi.fn(async () => [{ id: 1, title: "Rules", content: "Use confirmation." }]);
   const createIntelligenceVersion = vi.fn(async (input: any) => ({ id: 1, ...input }));
@@ -22,13 +24,14 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
     })),
   }));
   const db = { select, insert, update: vi.fn() };
-  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, listIntelligenceComponents, listStrategyRules, createIntelligenceVersion, createIntelligenceComponent, insert, db };
+  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, createIntelligenceVersion, createIntelligenceComponent, insert, db };
 });
 
 vi.mock("./db", () => ({
   getDb: vi.fn(async () => db),
   listStrategyRules,
   getActiveIntelligenceVersion,
+  activateIntelligenceVersion,
   listIntelligenceComponents,
   createIntelligenceVersion,
   createIntelligenceComponent,
@@ -57,14 +60,10 @@ vi.mock("./integrations", () => ({
 
 import { compactStrategyContext, scanUser, shouldNotifyScannerSignal } from "./scanner";
 
-const series = (symbol: string, interval: "15min" | "1h") => ({
-  symbol,
-  interval,
-  values: [{ close: "1" }, { close: "2" }, { close: "3" }],
-  close: 3,
-  trend: "UP" as const,
-  fetchedAt: new Date().toISOString(),
-});
+const series = (symbol: string, interval: "15min" | "1h") => {
+  const values = [{ open: "0.9", high: "1.1", low: "0.8", close: "1" }, { open: "1.9", high: "2.1", low: "1.8", close: "2" }, { open: "2.9", high: "3.1", low: "2.8", close: "3" }];
+  return { symbol, interval, values, close: 3, trend: "UP" as const, marketContext: calculateMarketContext(values), fetchedAt: new Date().toISOString() };
+};
 
 const allSeries = () => new Map([
   ["EUR/USD", series("EUR/USD", "15min")],
@@ -116,10 +115,8 @@ describe("scanner paper routing without evidence gate", () => {
     expect(recordTelegramDelivery).toHaveBeenCalled();
     expect(createStrategyDecision).toHaveBeenCalled();
     expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "AVAILABLE" });
-    expect(generateScannerDecisions).toHaveBeenCalledTimes(1);
-    const firstBatch = generateScannerDecisions.mock.calls[0][0];
-    expect(firstBatch.candidates[0].market).toMatchObject({ interval: "15min", trend: "UP", values: expect.any(Array) });
-    expect(firstBatch.candidates[0].asset).toBe("EUR/USD");
+    expect(generateScannerDecisions).not.toHaveBeenCalled();
+    expect(createStrategyDecision.mock.calls[0][0].marketSnapshot).toContain("replacementIntelligence");
   });
 
   it("forwards every retrieved raw snapshot without scanner-side trend or cooldown filtering", async () => {
@@ -132,15 +129,13 @@ describe("scanner paper routing without evidence gate", () => {
 
     const result = await scanUser(1);
 
-    expect(result.created).toBe(0);
-    expect(generateScannerDecisions).toHaveBeenCalledTimes(1);
-    const batch = generateScannerDecisions.mock.calls[0][0];
-    expect(batch.candidates).toHaveLength(8);
-    expect(batch.candidates.find((candidate: any) => candidate.asset === "EUR/USD" && candidate.timeframe === "15MIN").market.trend).toBe("SIDEWAYS");
-    expect(createStrategyDecision).not.toHaveBeenCalled();
+    expect(result.created).toBe(8);
+    expect(generateScannerDecisions).not.toHaveBeenCalled();
+    expect(createStrategyDecision).toHaveBeenCalled();
+    expect(createStrategyDecision.mock.calls.some(([input]: any[]) => input.marketSnapshot.includes('"trend":"SIDEWAYS"'))).toBe(true);
   });
 
-  it("fails closed when the strategy engine is unavailable", async () => {
+  it("uses replacement intelligence without a separate model-service dependency", async () => {
     fetchMarketSeriesBatch.mockResolvedValue(allSeries());
     generateScannerDecisions.mockRejectedValue(new Error("LLM usage exhausted"));
     insert.mockClear();
@@ -149,15 +144,14 @@ describe("scanner paper routing without evidence gate", () => {
 
     const result = await scanUser(1);
 
-    expect(result.created).toBe(0);
+    expect(result.created).toBe(8);
     expect(result.marketData).toBe("available");
-    expect(insert).not.toHaveBeenCalled();
-    expect(sendTelegramMessage).not.toHaveBeenCalled();
-    expect(recordTelegramDelivery).not.toHaveBeenCalled();
-    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "UNAVAILABLE", decisionReason: expect.stringContaining("Strategy engine unavailable") }));
+    expect(sendTelegramMessage).toHaveBeenCalled();
+    expect(recordTelegramDelivery).toHaveBeenCalled();
+    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "APPROVED", generatedDirection: expect.stringMatching(/BUY|SELL/), generatedEntry: expect.any(String) }));
   });
 
-  it("never persists or sends a candidate rejected by the strategy engine", async () => {
+  it("routes complete replacement paper outcomes without evidence thresholds", async () => {
     fetchMarketSeriesBatch.mockResolvedValue(allSeries());
     generateScannerDecisions.mockResolvedValue([{ asset: "EUR/USD", timeframe: "15MIN", verdict: "DENIED", confidence: 40, adjustments: "Insufficient rule evidence", ruleEvidence: [], ruleFindings: [], market: series("EUR/USD", "15min") }]);
     insert.mockClear();
@@ -166,10 +160,10 @@ describe("scanner paper routing without evidence gate", () => {
 
     const result = await scanUser(1);
 
-    expect(result.created).toBe(0);
-    expect(sendTelegramMessage).not.toHaveBeenCalled();
-    expect(recordTelegramDelivery).not.toHaveBeenCalled();
-    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "DENIED", decisionReason: "Insufficient rule evidence" }));
+    expect(result.created).toBe(8);
+    expect(sendTelegramMessage).toHaveBeenCalled();
+    expect(recordTelegramDelivery).toHaveBeenCalled();
+    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "APPROVED", generatedDirection: expect.stringMatching(/BUY|SELL/) }));
   });
 });
 

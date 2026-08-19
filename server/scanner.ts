@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
-import { evaluateReplacementIntelligence } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModel, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -46,6 +46,17 @@ export function compactStrategyContext(localRules: string, mirroredRules: string
 
 type ScanUserResult = { created: number; tracked: number; marketData: ScanMarketDataStatus };
 
+async function ensureReplacementIntelligenceVersion(userId: number) {
+  const active = await getActiveIntelligenceVersion(userId);
+  if (active?.versionLabel === "replacement-forex-v1") return active;
+  const model = buildReplacementKnowledgeModel();
+  const version = await createIntelligenceVersion({ userId, versionLabel: model.id, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: 0, algorithmJson: JSON.stringify(model), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Replacement intelligence v1 is newly activated and requires forward paper validation." }), activatedAt: new Date() });
+  const triggerFor = (family: string) => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : "CANDLE";
+  for (const node of model.nodes) await createIntelligenceComponent({ userId, versionId: version.id, title: node.concept, sourceRuleIds: JSON.stringify([]), trigger: triggerFor(node.family) as any, stance: "NEUTRAL", conditionJson: JSON.stringify({ values: node.prerequisites, description: node.rule }), weight: "1", enabled: true });
+  await activateIntelligenceVersion(userId, version.id);
+  return version;
+}
+
 async function loadExecutableIntelligence(userId: number): Promise<ExecutableComponent[]> {
   const active = await getActiveIntelligenceVersion(userId);
   if (active) return listIntelligenceComponents(userId, active.id) as unknown as ExecutableComponent[];
@@ -79,16 +90,13 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
   const mirroredRules = await fetchStrategyRulesFromSupabase();
   const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 6_000);
-  const executableComponents = await loadExecutableIntelligence(userId);
+  await ensureReplacementIntelligenceVersion(userId);
+  const replacementModel = buildReplacementKnowledgeModel();
   const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series)).map((candidate) => ({ ...candidate, cooldownKey: `${candidate.asset}:${candidate.timeframe}:${(candidate.series.close ?? 0).toFixed(4)}` }));
   console.info(`[Scanner] Forwarding ${candidates.length} raw market snapshots to the strategy-rules algorithm.`);
-  let decisions: Awaited<ReturnType<typeof generateScannerDecisions>>;
+  let decisions: Array<any> & { metrics?: { snapshots: number; completeResponses: number; retries: number } };
   try {
-      const localRules = await getRelevantRulesText(userId, "forex BUY SELL market structure volatility support resistance momentum breakout candle behavior stop loss take profit risk management 15MIN 1H", 18_000);
-    const compiledTitles = executableComponents.map((component) => `## ${component.title}`).join("\n");
-    decisions = await generateScannerDecisions({
-      rules: compactStrategyContext(localRules, `${mirroredText}\n\nCompiled executable strategy components:\n${compiledTitles}`),
-      candidates: candidates.map(({ asset, timeframe, series }) => {
+    decisions = candidates.map(({ asset, timeframe, series }) => {
         const companion = timeframe === "15MIN" ? seriesCache.get(`${asset}:1H`) : seriesCache.get(`${asset}:15MIN`);
         const multiTimeframeContext = buildMultiTimeframeContext([
           { interval: series.interval, context: series.marketContext },
@@ -105,18 +113,25 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext } : null,
         };
         const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: market.marketContext }) : undefined;
-        const seed = evaluateExecutableIntelligence(market, executableComponents);
+        if (!replacementIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
         return {
           asset,
           timeframe,
-          market: {
-            ...market,
-            intelligenceSeed: seed,
-            replacementIntelligence,
-          },
+          verdict: "APPROVED" as const,
+          confidence: replacementIntelligence.confidence,
+          confluenceScore: replacementIntelligence.confluenceScore,
+          adjustments: replacementIntelligence.adjustments,
+          direction: replacementIntelligence.direction,
+          entry: replacementIntelligence.entry,
+          stopLoss: replacementIntelligence.stopLoss,
+          takeProfit: replacementIntelligence.takeProfit,
+          ruleEvidence: replacementIntelligence.ruleEvidence,
+          ruleFindings: replacementIntelligence.ruleFindings,
+          decisionTrace: replacementIntelligence.decisionTrace,
+          market: { ...market, intelligenceSeed: replacementIntelligence, replacementIntelligence },
         };
-      }),
-    });
+      });
+    decisions.metrics = { snapshots: candidates.length, completeResponses: decisions.length, retries: 0 };
     await updateStrategyEngineStatus(userId, { status: "AVAILABLE" });
     await recordStrategyEngineHealth(userId, { snapshots: decisions.metrics?.snapshots ?? candidates.length, completeResponses: decisions.metrics?.completeResponses ?? decisions.length, retries: decisions.metrics?.retries ?? 0 });
   } catch (error) {

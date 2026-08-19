@@ -251,8 +251,8 @@
 - [x] Implement the replacement in a parallel version with source provenance and paper-only decision outputs
 - [x] Prepare replacement validation and present it for user approval before any cutover; no cutover performed
 
-- [ ] Create a rollback checkpoint for the current authoritative intelligence before cutover
-- [ ] Switch the scanner’s authoritative BUY/SELL decision path to replacement intelligence v1
-- [ ] Persist replacement intelligence version and source-linked decision traces as the active production model
-- [ ] Verify Telegram paper routing, UNVALIDATED labeling, risk geometry, and no-live-execution controls after cutover
-- [ ] Run full regression, production build, visual verification, and publish the replacement cutover
+- [x] Create a rollback checkpoint for the current authoritative intelligence before cutover
+- [x] Switch the scanner’s authoritative BUY/SELL decision path to replacement intelligence v1
+- [x] Persist replacement intelligence version and source-linked decision traces as the active production model
+- [x] Verify Telegram paper routing, UNVALIDATED labeling, risk geometry, and no-live-execution controls after cutover
+- [ ] Run full regression, production build, and visual verification; publish the replacement cutover after the release checkpoint

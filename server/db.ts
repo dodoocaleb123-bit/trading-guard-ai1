@@ -378,11 +378,12 @@ export async function getRelevantRulesText(userId: number, query: string, maxCha
 }
 
 
-type ReplacementOutcomeRow = { status: string; intelligenceComponents: string | null; marketRegime: string | null };
+type ReplacementOutcomeRow = { status: string; intelligenceComponents: string | null; marketRegime: string | null; confidence?: string | number | null };
 type ReplacementOutcomeBucket = { key: string; total: number; wins: number; losses: number; pending: number; invalidated: number };
 export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[]) {
   const componentMap = new Map<string, ReplacementOutcomeBucket>();
   const regimeMap = new Map<string, ReplacementOutcomeBucket>();
+  const confidenceMap = new Map<string, ReplacementOutcomeBucket>();
   const add = (map: Map<string, ReplacementOutcomeBucket>, key: string, status: string) => {
     const bucket = map.get(key) ?? { key, total: 0, wins: 0, losses: 0, pending: 0, invalidated: 0 };
     bucket.total += 1;
@@ -396,16 +397,20 @@ export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[]) {
     const components = (() => { try { const parsed = JSON.parse(row.intelligenceComponents ?? "[]"); return Array.isArray(parsed) ? parsed : []; } catch { return []; } })();
     for (const component of components) if (typeof component === "string" && component.trim()) add(componentMap, component, row.status);
     add(regimeMap, row.marketRegime ?? "UNKNOWN", row.status);
+    const confidence = Number(row.confidence);
+    const confidenceBand = Number.isFinite(confidence) ? confidence >= 90 ? "90-94" : confidence >= 75 ? "75-89" : confidence >= 60 ? "60-74" : "40-59" : "UNKNOWN";
+    add(confidenceMap, confidenceBand, row.status);
   }
   const withRate = (bucket: ReplacementOutcomeBucket) => ({ ...bucket, resolved: bucket.wins + bucket.losses, winRate: bucket.wins + bucket.losses ? Math.round((bucket.wins / (bucket.wins + bucket.losses)) * 100) : null });
   const wins = rows.filter((row) => row.status === "WIN").length;
   const losses = rows.filter((row) => row.status === "LOSS").length;
-  return { version: "replacement-forex-v2", total: rows.length, components: Array.from(componentMap.values()).map(withRate).sort((a, b) => b.total - a.total), regimes: Array.from(regimeMap.values()).map(withRate).sort((a, b) => b.total - a.total), validation: { resolved: wins + losses, wins, losses, pending: rows.filter((row) => row.status === "PENDING").length, invalidated: rows.filter((row) => row.status === "INVALIDATED").length, winRate: wins + losses ? Math.round((wins / (wins + losses)) * 100) : null } };
+  const resolved = wins + losses;
+  return { version: "replacement-forex-v2", total: rows.length, components: Array.from(componentMap.values()).map(withRate).sort((a, b) => b.total - a.total), regimes: Array.from(regimeMap.values()).map(withRate).sort((a, b) => b.total - a.total), confidenceBands: Array.from(confidenceMap.values()).map(withRate).sort((a, b) => a.key.localeCompare(b.key)), validation: { resolved, wins, losses, pending: rows.filter((row) => row.status === "PENDING").length, invalidated: rows.filter((row) => row.status === "INVALIDATED").length, winRate: resolved ? Math.round((wins / resolved) * 100) : null, reviewThreshold: 50, reviewReady: resolved >= 50, reviewStatus: resolved >= 50 ? "READY_FOR_REVIEW" as const : "COLLECTING_EVIDENCE" as const } };
 }
 
 export async function getReplacementOutcomeStats(userId: number) {
   const db = await getDb();
   if (!db) return summarizeReplacementOutcomes([]);
-  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2")));
+  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2")));
   return summarizeReplacementOutcomes(rows);
 }

@@ -22,11 +22,11 @@ export function buildReplacementManualAuditResult(signal: string, asset: string,
   const directionMatches = !submittedDirection || submittedDirection === decision.direction;
   const directionReason = submittedDirection
     ? directionMatches
-      ? `Submitted ${submittedDirection} direction matches Replacement Intelligence v1.`
-      : `Submitted ${submittedDirection} direction conflicts with Replacement Intelligence v1 ${decision.direction} judgment.`
+      ? `Submitted ${submittedDirection} direction matches Replacement Intelligence v2.`
+      : `Submitted ${submittedDirection} direction conflicts with Replacement Intelligence v2 ${decision.direction} judgment.`
     : `No explicit direction was detected in the submitted signal; the audit uses the intelligence direction ${decision.direction}.`;
   const trace = `Score: BUY ${decision.score.buy} vs SELL ${decision.score.sell}; confluence ${decision.confluenceScore}%; market regime ${decision.marketRegime}. ${decision.conflicts.length ? `Conflicting components: ${decision.conflicts.join("; ")}.` : "No conflicting components were matched."}`;
-  const adjustments = `${directionReason} ${decision.explanation} ${trace} Source-linked replacement v1 is authoritative for this paper audit; validation remains UNVALIDATED.`;
+  const adjustments = `${directionReason} ${decision.explanation} ${trace} Source-linked replacement v2 is authoritative for this paper audit; validation remains UNVALIDATED.`;
   return {
     verdict: directionMatches ? "APPROVED" as const : "DENIED" as const,
     confidence: decision.confidence,

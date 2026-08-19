@@ -309,3 +309,8 @@
 - [x] Strengthen reviewed WIN/LOSS lesson promotion without self-modifying active intelligence
 - [x] Add comprehensive regression coverage and forward-paper-validation reporting
 - [x] Run validation and publish the upgraded intelligence release with evidence limitations documented
+
+- [x] Start and track a fresh replacement-forex-v2 paper-validation sample across all assets and timeframes; the current dashboard shows 8 v2 outcomes and 0 resolved, with additional cycles continuing to accumulate evidence
+- [x] Add component and market-regime calibration summaries to the dashboard, including confidence bands
+- [x] Add a first-50 resolved-v2 review gate and keep lesson promotion blocked until review
+- [x] Add regression coverage, validate, and publish the v2 validation release; full tests, typecheck, production build, and responsive desktop/mobile verification passed

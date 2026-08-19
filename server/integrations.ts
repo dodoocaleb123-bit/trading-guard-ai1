@@ -349,11 +349,11 @@ export async function generateScannerDecisions(input: { candidates: ScannerDecis
     messages: [
       {
         role: "system",
-        content: "You are TradingGuardAI. Analyze every supplied raw market candidate against the complete strategy-rule library. Generate the best-supported possible paper-validation trade outcome for each candidate; do not merely approve a preselected direction or levels. Never place trades, never guarantee profit, cite exact rule titles, and return valid JSON only.",
+        content: "You are TradingGuardAI. You MUST return exactly one directional judgment for EVERY supplied raw market candidate. Never omit a candidate and never return NEUTRAL as the direction: choose BUY or SELL using the complete strategy-rule library and raw OHLCV data, then generate entry, stop loss, and take profit. Mark the judgment APPROVED only when the supplied evidence gate is satisfied; otherwise return DENIED with the chosen BUY or SELL direction and a precise explanation. Never place trades, never guarantee profit, cite exact rule titles, and return valid JSON only.",
       },
       {
         role: "user",
-        content: `Generate one decision for each raw market candidate. Derive BUY or SELL, entry, stop loss, and take profit from the rules and market data. Return DENIED when evidence is insufficient or conflicting. Complete strategy rules:\n${input.rules}\n\nRaw market candidates:\n${JSON.stringify(input.candidates)}`,
+        content: `Generate exactly one BUY or SELL decision for each raw market candidate—exactly ${input.candidates.length} decisions total. Do not return an empty decisions array, do not omit candidates, and do not use NEUTRAL as the direction. Derive the directional judgment and risk levels from the complete strategy rules and raw market data. If evidence is weak or conflicting, still choose the better-supported BUY or SELL direction, return DENIED, and explain the evidence weakness. Complete strategy rules:\n${input.rules}\n\nRaw market candidates:\n${JSON.stringify(input.candidates)}`,
       },
     ],
     response_format: {
@@ -366,7 +366,7 @@ export async function generateScannerDecisions(input: { candidates: ScannerDecis
           properties: {
             decisions: {
               type: "array",
-              minItems: 0,
+              minItems: input.candidates.length,
               maxItems: 8,
               items: {
                 type: "object",
@@ -396,6 +396,25 @@ export async function generateScannerDecisions(input: { candidates: ScannerDecis
   });
   const content = response.choices?.[0]?.message?.content;
   const parsed = JSON.parse(typeof content === "string" ? content : "{}");
+  const byKey = new Map(input.candidates.map((candidate) => [`${candidate.asset}:${candidate.timeframe}`, candidate]));
+  const modelDecisions = Array.isArray(parsed.decisions) ? parsed.decisions : [];
+  const byDecisionKey = new Map<string, any>(modelDecisions.map((decision: any) => [`${decision.asset}:${decision.timeframe}`, decision] as [string, any]));
+  return input.candidates.map((candidate) => {
+    const decision: any = byDecisionKey.get(`${candidate.asset}:${candidate.timeframe}`) ?? buildDirectionalFallback(candidate);
+    const gated = gateAuditDecision(decision, input.rules);
+    return { ...gated, asset: candidate.asset, timeframe: candidate.timeframe, market: candidate.market };
+  });
+}
+
+function buildDirectionalFallback(candidate: ScannerDecisionCandidate) {
+  const direction = candidate.market.trend === "UP" ? "BUY" : "SELL";
+  const entry = Number((candidate.market.close ?? candidate.market.price).toFixed(5));
+  const risk = Number((entry * 0.0012).toFixed(5));
+  return { asset: candidate.asset, timeframe: candidate.timeframe, verdict: "DENIED" as const, confidence: 0, adjustments: "The strategy engine returned no structured judgment for this snapshot; a directional BUY/SELL placeholder was created for audit visibility and is not Telegram-eligible.", direction, entry, stopLoss: direction === "BUY" ? entry - risk : entry + risk, takeProfit: direction === "BUY" ? entry + risk * 2 : entry - risk * 2, ruleEvidence: [], ruleFindings: [] };
+}
+
+/* legacy normalization retained below for source compatibility */
+export function normalizeScannerDecisionResults(input: { candidates: ScannerDecisionCandidate[]; rules: string }, parsed: any) {
   const byKey = new Map(input.candidates.map((candidate) => [`${candidate.asset}:${candidate.timeframe}`, candidate]));
   return (Array.isArray(parsed.decisions) ? parsed.decisions : []).flatMap((decision: any) => {
     const candidate = byKey.get(`${decision.asset}:${decision.timeframe}`);

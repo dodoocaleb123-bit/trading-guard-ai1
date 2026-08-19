@@ -350,7 +350,10 @@ export async function generateScannerDecisions(input: { candidates: ScannerDecis
   if (!input.candidates.length) return Object.assign([], { metrics: { snapshots: 0, completeResponses: 0, retries: 0 } });
   const batchSize = 1;
   const batches = Array.from({ length: Math.ceil(input.candidates.length / batchSize) }, (_, index) => input.candidates.slice(index * batchSize, index * batchSize + batchSize));
-  const results = await Promise.all(batches.map((candidates) => generateScannerDecisionBatch({ candidates, rules: input.rules })));
+  const results: Array<{ decisions: any[]; retries: number }> = [];
+  for (let index = 0; index < batches.length; index += 4) {
+    results.push(...await Promise.all(batches.slice(index, index + 4).map((candidates) => generateScannerDecisionBatch({ candidates, rules: input.rules }))));
+  }
   return Object.assign(results.flatMap((result) => result.decisions), {
     metrics: {
       snapshots: input.candidates.length,

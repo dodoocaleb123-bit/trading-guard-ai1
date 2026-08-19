@@ -46,7 +46,7 @@ vi.mock("./integrations", () => ({
   sendTelegramMessage,
 }));
 
-import { scanUser, shouldNotifyScannerSignal } from "./scanner";
+import { compactStrategyContext, scanUser, shouldNotifyScannerSignal } from "./scanner";
 
 const series = (symbol: string, interval: "15min" | "1h") => ({
   symbol,
@@ -63,6 +63,13 @@ const allSeries = () => new Map([
   ["GBP/USD", series("GBP/USD", "15min")],
   ["BTC/USD", series("BTC/USD", "15min")],
 ]);
+
+describe("scanner context bounds", () => {
+  it("limits the strategy context to the configured prompt budget", () => {
+    expect(compactStrategyContext("a".repeat(20_000), "b".repeat(20_000), 24_000)).toHaveLength(24_000);
+    expect(compactStrategyContext("a".repeat(20_000), "b".repeat(20_000), 24_000).startsWith("a".repeat(100))).toBe(true);
+  });
+});
 
 describe("scanner approval gate", () => {
   it("allows only approved outcomes to reach the notification branch", () => {

@@ -38,6 +38,10 @@ export function buildSignalLevels(asset: string, timeframe: "15MIN" | "1H", clos
 
 type ScanMarketDataStatus = "available" | "unavailable" | "not-run";
 
+export function compactStrategyContext(localRules: string, mirroredRules: string, maxChars = 24_000) {
+  return [localRules, mirroredRules].filter(Boolean).join("\n\n").slice(0, maxChars);
+}
+
 type ScanUserResult = { created: number; tracked: number; marketData: ScanMarketDataStatus };
 
 export async function scanUser(userId: number): Promise<ScanUserResult> {
@@ -60,14 +64,14 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   series1h.forEach((series, symbol) => seriesCache.set(`${symbol}:1H`, series));
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
   const mirroredRules = await fetchStrategyRulesFromSupabase();
-  const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 12_000);
+  const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 6_000);
   const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series)).map((candidate) => ({ ...candidate, cooldownKey: `${candidate.asset}:${candidate.timeframe}:${(candidate.series.close ?? 0).toFixed(4)}` }));
   console.info(`[Scanner] Forwarding ${candidates.length} raw market snapshots to the strategy-rules algorithm.`);
   let decisions: Awaited<ReturnType<typeof generateScannerDecisions>>;
   try {
-      const localRules = await getRelevantRulesText(userId, "forex BUY SELL market structure volatility support resistance momentum breakout candle behavior stop loss take profit risk management 15MIN 1H", 36_000);
+      const localRules = await getRelevantRulesText(userId, "forex BUY SELL market structure volatility support resistance momentum breakout candle behavior stop loss take profit risk management 15MIN 1H", 18_000);
     decisions = await generateScannerDecisions({
-      rules: [localRules, mirroredText].filter(Boolean).join("\n\n"),
+      rules: compactStrategyContext(localRules, mirroredText),
       candidates: candidates.map(({ asset, timeframe, series }) => {
         const companion = timeframe === "15MIN" ? seriesCache.get(`${asset}:1H`) : seriesCache.get(`${asset}:15MIN`);
         const multiTimeframeContext = buildMultiTimeframeContext([

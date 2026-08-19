@@ -314,3 +314,16 @@
 - [x] Add component and market-regime calibration summaries to the dashboard, including confidence bands
 - [x] Add a first-50 resolved-v2 review gate and keep lesson promotion blocked until review
 - [x] Add regression coverage, validate, and publish the v2 validation release; full tests, typecheck, production build, and responsive desktop/mobile verification passed
+
+- [x] Verify generated signal persistence and complete risk fields; all 8 active v2 signals are persisted with direction, entry, stop loss, take profit, and PENDING status
+- [x] Verify outcome resolution, including intrabar high/low detection and Heartbeat timing; resolver uses candle high/low and production has successful tracked runs, but recent Heartbeat executions also show timeouts
+- [x] Reconcile signal, outcome, and Telegram delivery records by asset and status; v2 has 8 SIGNAL deliveries, all PENDING, with no OUTCOME yet; historical totals reconcile with 150 WIN, 234 LOSS, and 117 PENDING
+- [x] Fix any tracking discrepancy, add regression coverage, and document the result; no tracking-code discrepancy found, and existing intrabar/resolution/delivery regressions cover the behavior
+
+- [ ] Diagnose why recent paper signals are not visible in private asset Telegram groups
+- [ ] Verify group chat IDs, bot membership/permissions, delivery statuses, and Heartbeat execution
+- [ ] Fix any group-routing or delivery issue, add regression coverage, and publish if code changes are needed
+
+- [x] Keep manual Chat Audit responses in the audit chat area only
+- [x] Stop manual-audit Telegram delivery without changing autonomous signal/outcome routing
+- [x] Add regression coverage, run validation, and publish the audit-channel correction

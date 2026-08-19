@@ -3,9 +3,9 @@ import { z } from "zod";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, recordTelegramDelivery, updateSetupCooldown, updateStrategyLessonStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
-import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage, type MarketSnapshot } from "./integrations";
+import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents } from "./intelligence";
 import { buildReplacementKnowledgeModel, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
 import { storagePut } from "./storage";
@@ -139,28 +139,7 @@ export const appRouter = router({
         const [auditTradeInsert] = await db.insert(auditTrades).values({ userId: ctx.user.id, asset, timeframe: result.timeframe || "15MIN", direction: result.direction, entry: result.entry ? String(result.entry) : null, stopLoss: result.stopLoss ? String(result.stopLoss) : null, takeProfit: result.takeProfit ? String(result.takeProfit) : null, verdict: result.verdict, confidence: String(result.confidence), adjustments: result.adjustments });
         const auditTradeId = Number(auditTradeInsert.insertId);
         await mirrorToSupabase("audited_signals", { user_id: ctx.user.id, signal: input.signal, verdict: result.verdict, confidence: result.confidence, adjustments: result.adjustments, asset });
-        const telegramDelivery = shouldNotifyApprovedAudit(result.verdict)
-          ? await sendTelegramMessage(formatApprovedTelegramMessage({
-              asset,
-              timeframe: result.timeframe || "15MIN",
-              direction: result.direction || "UNKNOWN",
-              entry: result.entry,
-              stopLoss: result.stopLoss,
-              takeProfit: result.takeProfit,
-              confidence: Number(result.confidence ?? 0),
-              adjustments: result.adjustments || "No adjustments.",
-              ruleEvidence: result.ruleEvidence,
-              confluenceScore: result.confluenceScore,
-            }), asset)
-          : { delivered: false, error: "Not an approved audit" };
-        if (shouldNotifyApprovedAudit(result.verdict)) {
-          await recordTelegramDelivery({ userId: ctx.user.id, auditTradeId, kind: "AUDIT", status: telegramDelivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: telegramDelivery.telegramMessageId, dedupeKey: `audit:${auditTradeId}`, error: telegramDelivery.error });
-        }
-        const telegramDelivered = telegramDelivery.delivered;
-        if (shouldNotifyApprovedAudit(result.verdict)) {
-          console.info(`[Telegram] Approved audit delivery ${telegramDelivered ? "succeeded" : "was unavailable"} for user ${ctx.user.id}`);
-        }
-        return { role: "assistant" as const, content: assistantText, verdict: result.verdict, confidence: result.confidence, telegramDelivered };
+        return { role: "assistant" as const, content: assistantText, verdict: result.verdict, confidence: result.confidence, telegramDelivered: false };
       } catch (error) {
         const content = `TRADE DENIED\\n\\nConfidence level: 0%\\n\\nAdjustments: Live market data or strategy rules were unavailable. No decision should be made without a verified market snapshot.`;
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content, verdict: "DENIED", confidence: "0", asset });

@@ -64,6 +64,12 @@ describe("TradingGuardAI market helpers", () => {
     expect(resolveOutcome("SELL", 98, 105, 90)).toBeNull();
   });
 
+  it("resolves intrabar target touches from candle high and low", () => {
+    expect(resolveOutcome("BUY", 99, 95, 100, 101, 98)).toBe("WIN");
+    expect(resolveOutcome("SELL", 91, 105, 90, 92, 89)).toBe("WIN");
+    expect(resolveOutcome("BUY", 94, 95, 100, 96, 94)).toBe("LOSS");
+  });
+
   it("builds timeframe-specific 1:2 signal geometry", () => {
     const signal = buildSignalLevels("EUR/USD", "1H", 1.15805, "UP");
     expect(signal.timeframe).toBe("1H");

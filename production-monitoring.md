@@ -17,3 +17,7 @@ The Overview dashboard renders the new Replacement paper validation panel on des
 ## Linked outcome release verification
 
 The first post-publish scanner Heartbeat finished at 2026-08-19 14:29:47 UTC with HTTP 200, marketData available, and 8 created paper signals. The production database shows all 8 latest signals labeled replacement-forex-v1, with BUY direction, complete entry/stop-loss/take-profit levels, market-regime metadata, and SIGNAL Telegram delivery status DELIVERED with timestamps from 14:29:44 to 14:29:47 UTC. Outcome notifications will be emitted when these pending signals resolve to WIN or LOSS and will use dedupe keys of the form outcome:<signalId>:<status>.
+
+## Take-profit outcome diagnosis
+
+The reported take-profit event was recorded successfully. Signal 1200003 (XAU/USD, 15MIN, BUY) was opened at 14:07:57 UTC with take profit 4488.21999? The production record shows take profit 4488.21965000, closed at 14:34:52 UTC at live price 4489.04892, status WIN, and an OUTCOME Telegram delivery marked DELIVERED at 14:34:52 UTC. The Heartbeat run that performed the tracking completed successfully at 14:34:52 UTC with tracked=1. The apparent delay was the five-minute polling interval and likely a stale dashboard view, not a missing outcome record.

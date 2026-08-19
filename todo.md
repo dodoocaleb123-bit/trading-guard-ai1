@@ -275,3 +275,11 @@
 - [x] Match paper-signal Telegram output exactly to the user-provided plain-text section order and wording
 - [x] Update formatter regression tests for exact line breaks, bullets, and removal of extra HTML/footer text
 - [x] Run full validation and publish the exact Telegram format update
+
+- [x] Diagnose the reported paper signal that reached take profit but remains unrecorded; production confirms signal 1200003 was recorded WIN
+- [x] Verify outcome-tracker timing, signal status, market-price comparison, and outcome Telegram delivery; the five-minute Heartbeat tracked=1 and the OUTCOME row is DELIVERED
+- [x] Fix any outcome-recording issue, add regression coverage, and publish the correction; no code correction was required because the outcome was already recorded and delivered
+
+- [x] Identify why the screenshot’s XAU/USD paper signal remains PENDING while a production XAU/USD signal is WIN; the screenshot is signal 1290004, distinct from the earlier closed signal 1200003
+- [x] Reconcile signal identity, timestamp, status, and dashboard query results; the screenshot row matches signal 1290004 and was still PENDING because tracking evaluated close price only
+- [x] Fix any mismatch, add regression coverage, and publish if implementation changes are needed; tracker now evaluates candle high/low extremes and has intrabar regression tests

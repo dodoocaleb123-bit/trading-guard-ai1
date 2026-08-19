@@ -21,9 +21,11 @@ export function shouldCreateCandidate(ruleCount: number, series: { close?: numbe
   return ruleCount > 0 && Boolean(series && Number.isFinite(series.close) && (series.trend === "UP" || series.trend === "DOWN"));
 }
 
-export function resolveOutcome(direction: "BUY" | "SELL", price: number, stop: number, target: number): "WIN" | "LOSS" | null {
-  const win = direction === "BUY" ? price >= target : price <= target;
-  const loss = direction === "BUY" ? price <= stop : price >= stop;
+export function resolveOutcome(direction: "BUY" | "SELL", price: number, stop: number, target: number, high = price, low = price): "WIN" | "LOSS" | null {
+  const observedHigh = Number.isFinite(high) ? high : price;
+  const observedLow = Number.isFinite(low) ? low : price;
+  const win = direction === "BUY" ? observedHigh >= target : observedLow <= target;
+  const loss = direction === "BUY" ? observedLow <= stop : observedHigh >= stop;
   return win ? "WIN" : loss ? "LOSS" : null;
 }
 
@@ -199,11 +201,13 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
     try {
       const timeframe = signal.timeframe === "1H" ? "1H" : "15MIN";
       const cached = seriesCache?.get(`${signal.asset}:${timeframe}`);
-      const market = cached ? { symbol: signal.asset, price: cached.close, close: cached.close, fetchedAt: cached.fetchedAt } : await fetchMarketSnapshot(signal.asset, timeframe === "1H" ? "1h" : "15min");
+      const market = cached
+        ? { symbol: signal.asset, price: cached.close, close: cached.close, high: Number(cached.values.at(-1)?.high), low: Number(cached.values.at(-1)?.low), fetchedAt: cached.fetchedAt }
+        : await fetchMarketSnapshot(signal.asset, timeframe === "1H" ? "1h" : "15min");
       const price = market.price;
       const stop = Number(signal.stopLoss);
       const target = Number(signal.takeProfit);
-      const status = resolveOutcome(signal.direction, price, stop, target);
+      const status = resolveOutcome(signal.direction, price, stop, target, Number(market.high), Number(market.low));
       if (!status) continue;
       const note = `Closed from live ${signal.asset} ${signal.timeframe} price ${price}.`;
       await db.update(generatedSignals).set({ status, closedAt: new Date(), outcomeNote: note }).where(eq(generatedSignals.id, signal.id));

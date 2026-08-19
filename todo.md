@@ -178,3 +178,8 @@
 - [x] Add regression coverage proving empty strategy responses are converted into deterministic BUY/SELL judgments rather than silently producing no signal
 - [x] Run full validation, live directional-decision verification, and publish the correction
 
+
+- [x] Refresh and verify the enabled five-minute Heartbeat after the directional-judgment release; refreshed at 00:31 UTC and the callback returned HTTP 200 with marketData=available
+- [x] Add a dashboard card comparing directional strategy judgments with Telegram-approved alerts
+- [x] Add regression coverage, validate, visually verify, and publish the update
+

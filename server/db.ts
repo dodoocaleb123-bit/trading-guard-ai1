@@ -227,6 +227,14 @@ export function summarizeStrategyDecisions(decisions: Array<{ verdict: string }>
   };
 }
 
+export function summarizeJudgmentAlertBridge(judgment: { total: number; approved: number }, delivery: { signalDelivered: number }) {
+  return {
+    directionalJudgments: judgment.total,
+    approvedJudgments: judgment.approved,
+    telegramDelivered: delivery.signalDelivered,
+  };
+}
+
 export async function getStrategyDecisionSummary(userId: number) {
   const db = await getDb();
   if (!db) return summarizeStrategyDecisions([]);

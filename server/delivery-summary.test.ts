@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { summarizeDeliveryCounts } from "./db";
+import { summarizeDeliveryCounts, summarizeJudgmentAlertBridge } from "./db";
 
 describe("delivery reconciliation summary", () => {
   it("separates generated signals, approved audits, and Telegram outcomes", () => {
@@ -27,5 +27,9 @@ describe("delivery reconciliation summary", () => {
       approvedAuditDelivered: 1,
       outcomeDelivered: 1,
     });
+  });
+
+  it("keeps directional judgments distinct from approved and delivered alerts", () => {
+    expect(summarizeJudgmentAlertBridge({ total: 8, approved: 0 }, { signalDelivered: 40 })).toEqual({ directionalJudgments: 8, approvedJudgments: 0, telegramDelivered: 40 });
   });
 });

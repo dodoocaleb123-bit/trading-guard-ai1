@@ -190,3 +190,9 @@
 - [x] Add feature-calculation and strategy-input regression tests
 - [x] Run full validation, visual verification, and publish the detailed market-context release
 
+
+- [x] Show calculated market-context details inside expandable decision-ledger rows
+- [x] Add a 15-minute versus 1-hour confluence panel for each asset
+- [x] Add visible diagnostics for denied placeholder judgments and their causes
+- [x] Add regression coverage, validate, visually verify, and publish the update
+

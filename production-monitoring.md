@@ -13,3 +13,7 @@
 ## UI verification
 
 The Overview dashboard renders the new Replacement paper validation panel on desktop and narrow mobile widths. Component and regime columns collapse cleanly on mobile; the panel shows the current collecting-evidence state without overflow. The dashboard currently displays zero replacement outcomes because the first live cycle was executed before this metadata/statistics checkpoint was published, while the existing 8 open signals remain visible in the broader signal metrics.
+
+## Linked outcome release verification
+
+The first post-publish scanner Heartbeat finished at 2026-08-19 14:29:47 UTC with HTTP 200, marketData available, and 8 created paper signals. The production database shows all 8 latest signals labeled replacement-forex-v1, with BUY direction, complete entry/stop-loss/take-profit levels, market-regime metadata, and SIGNAL Telegram delivery status DELIVERED with timestamps from 14:29:44 to 14:29:47 UTC. Outcome notifications will be emitted when these pending signals resolve to WIN or LOSS and will use dedupe keys of the form outcome:<signalId>:<status>.

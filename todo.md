@@ -267,7 +267,7 @@
 - [x] Add formatter regression coverage for readable escaping, section order, and preserved decision details
 - [x] Run full validation and publish the Telegram notification-format update
 
-- [ ] Verify a newly structured paper-signal message reaches Telegram and is recorded in the delivery ledger
+- [x] Verify a newly structured paper-signal message reaches Telegram and is recorded in the delivery ledger; post-publish Heartbeat created 8 replacement-v1 signals and all 8 SIGNAL delivery rows are DELIVERED
 - [x] Add WIN/LOSS outcome Telegram messages linked to the originating signal with deduplication and delivery tracking
 - [x] Add regression coverage for linked outcome formatting, delivery, and failure handling
-- [ ] Run full validation and publish the linked-outcome notification release
+- [x] Run full validation and publish the linked-outcome notification release; production verification completed after checkpoint 21b1fb16

@@ -3,10 +3,10 @@ import { z } from "zod";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, recordTelegramDelivery, updateSetupCooldown } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, recordTelegramDelivery, updateSetupCooldown, updateStrategyLessonStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage } from "./integrations";
-import { buildIntelligenceModel, compileExecutableComponents } from "./intelligence";
+import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents } from "./intelligence";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -45,6 +45,18 @@ export const appRouter = router({
       const components = active ? await listIntelligenceComponents(ctx.user.id, active.id) : [];
       const lessons = await listStrategyLessons(ctx.user.id);
       return { active, versions, components, lessons };
+    }),
+    promoteLessons: protectedProcedure.mutation(async ({ ctx }) => {
+      const lessons = await listStrategyLessons(ctx.user.id);
+      const plan = buildLessonPromotionPlan(lessons);
+      if (plan.eligible.length === 0) return { promoted: false, ...plan };
+      const rules = await listStrategyRules(ctx.user.id);
+      const components = compileExecutableComponents(rules);
+      const version = await createIntelligenceVersion({ userId: ctx.user.id, versionLabel: `intelligence-lesson-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`, status: "ACTIVE", sourceRuleCount: rules.length, componentCount: components.length, lessonCount: plan.eligible.length, algorithmJson: JSON.stringify({ ...buildIntelligenceModel(components), promotedLessonIds: plan.eligible.map((lesson) => lesson.id) }), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Lesson promotion is still paper-validation; repeated outcomes do not guarantee profitability." }), activatedAt: new Date() });
+      for (const component of components) await createIntelligenceComponent({ userId: ctx.user.id, versionId: version.id, title: component.title, sourceRuleIds: JSON.stringify(component.sourceRuleIds), trigger: component.trigger, stance: component.stance, conditionJson: JSON.stringify(component.condition), weight: String(component.weight), enabled: true });
+      await activateIntelligenceVersion(ctx.user.id, version.id);
+      for (const lesson of plan.eligible) await updateStrategyLessonStatus(ctx.user.id, lesson.id, "ACCEPTED", version.id);
+      return { promoted: true, versionId: version.id, promotedLessonIds: plan.eligible.map((lesson) => lesson.id), explanation: plan.explanation };
     }),
     rebuild: protectedProcedure.mutation(async ({ ctx }) => {
       const rules = await listStrategyRules(ctx.user.id);

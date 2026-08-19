@@ -90,6 +90,14 @@ export function compileExecutableComponents(rules: Array<Pick<StrategyRule, "id"
   return rules.map(compileRuleComponent);
 }
 
+export function buildLessonPromotionPlan(lessons: Array<{ id: number; outcome: "WIN" | "LOSS" | "INVALIDATED"; status: string; lessonJson: string }>) {
+  const proposed = lessons.filter((lesson) => lesson.status === "PROPOSED");
+  const wins = proposed.filter((lesson) => lesson.outcome === "WIN");
+  const losses = proposed.filter((lesson) => lesson.outcome === "LOSS");
+  const promote = (group: typeof proposed) => group.length >= 3 ? group : [];
+  return { eligible: [...promote(wins), ...promote(losses)], requiredRepeatedOutcomes: 3, proposedCount: proposed.length, explanation: proposed.length < 3 ? "Collect at least three comparable paper outcomes before promoting a lesson." : "Repeated paper outcomes are eligible for a new intelligence version; no automatic profitability claim is made." };
+}
+
 export function buildIntelligenceModel(components: ExecutableComponent[]) {
   return {
     kind: "pdf-derived-trading-intelligence",

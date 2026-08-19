@@ -293,3 +293,13 @@
 - [x] Evaluate manually submitted trade signals with Replacement Intelligence v1 and return APPROVED or DENIED with reasons and adjustments
 - [x] Preserve source-linked trace, paper-only safeguards, and asset-specific Telegram routing for approved manual audits
 - [x] Add regression coverage, run validation, and publish the unified manual-audit release
+
+- [x] Assess group-chat versus approved-subscriber-list delivery for the four Telegram bots; shared private asset groups selected
+- [x] Preserve explicit consent and owner authorization for every additional recipient; group membership is controlled by the user and friends
+- [x] Implement the selected recipient-management workflow without exposing bot credentials; group chat IDs remain secure environment secrets
+- [x] Add recipient routing, unsubscribe, deduplication, and audit regression coverage; group routing preserves existing deduplicated delivery ledger
+- [x] Validate and publish the multi-recipient paper-signal delivery update
+
+- [x] Configure one private Telegram group chat ID for BTC/USD, EUR/USD, XAU/USD, and GBP/USD
+- [x] Route each asset’s signal and outcome messages to its shared asset group
+- [x] Verify group delivery and publish the shared-group routing release

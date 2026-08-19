@@ -9,9 +9,9 @@ describe("asset Telegram routing", () => {
   beforeEach(() => post.mockClear());
 
   it.each([
-    ["EUR/USD", "TELEGRAM_EURUSD_BOT_TOKEN", "TELEGRAM_EURUSD_CHAT_ID"],
-    ["XAU/USD", "TELEGRAM_XAUUSD_BOT_TOKEN", "TELEGRAM_XAUUSD_CHAT_ID"],
-    ["GBP/USD", "TELEGRAM_GBPUSD_BOT_TOKEN", "TELEGRAM_GBPUSD_CHAT_ID"],
+    ["EUR/USD", "TELEGRAM_EURUSD_BOT_TOKEN", "TELEGRAM_EURUSD_GROUP_CHAT_ID"],
+    ["XAU/USD", "TELEGRAM_XAUUSD_BOT_TOKEN", "TELEGRAM_XAUUSD_GROUP_CHAT_ID"],
+    ["GBP/USD", "TELEGRAM_GBPUSD_BOT_TOKEN", "TELEGRAM_GBPUSD_GROUP_CHAT_ID"],
   ])("routes %s to its designated bot", async (asset, tokenKey, chatKey) => {
     const result = await sendTelegramMessage("paper signal", asset);
     expect(result.delivered).toBe(true);

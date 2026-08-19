@@ -272,8 +272,11 @@ export function formatOutcomeTelegramMessage(input: { asset: string; timeframe: 
 export type TelegramAsset = "EUR/USD" | "XAU/USD" | "GBP/USD" | "BTC/USD";
 
 function telegramDestination(asset?: string) {
-  if (asset === "EUR/USD" || asset === "XAU/USD" || asset === "GBP/USD") return ENV.telegramAssetBots[asset];
-  return { token: ENV.telegramBotToken, chatId: ENV.telegramChatId };
+  if (asset === "EUR/USD" || asset === "XAU/USD" || asset === "GBP/USD") {
+    const configured = ENV.telegramAssetBots[asset];
+    return { token: configured.token, chatId: configured.groupChatId || configured.chatId };
+  }
+  return { token: ENV.telegramBotToken, chatId: ENV.telegramGroupChatId || ENV.telegramChatId };
 }
 
 export async function sendTelegramMessage(text: string, asset?: string): Promise<{ delivered: boolean; telegramMessageId?: string; error?: string }> {

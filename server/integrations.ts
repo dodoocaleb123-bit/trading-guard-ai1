@@ -200,10 +200,6 @@ export function shouldNotifyApprovedAudit(verdict: string) {
   return verdict === "APPROVED";
 }
 
-function escapeTelegramHtml(value: string) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
-}
-
 export function formatApprovedTelegramMessage(input: {
   asset: string;
   timeframe: string;
@@ -217,42 +213,40 @@ export function formatApprovedTelegramMessage(input: {
   confluenceScore?: number;
   decisionTrace?: IntelligenceDecisionTrace;
 }) {
-  const text = (value: string | number) => escapeTelegramHtml(String(value));
-  const optional = (value: number | null | undefined) => value == null ? "—" : text(value);
+  const optional = (value: number | null | undefined) => value == null ? "—" : String(value);
   const trace = input.decisionTrace;
   const confluence = trace?.scoreSummary.confluenceScore ?? input.confluenceScore;
-  const supporting = trace?.supportingComponents ?? [];
-  const conflicting = trace?.conflictingComponents ?? [];
-  const rules = input.ruleEvidence ?? [];
   const lines = [
-    "<b>TradingGuardAI · PAPER SIGNAL</b>",
-    `<b>${text(input.direction)} ${text(input.asset)}</b> · ${text(input.timeframe)}`,
-    "<b>Validation:</b> UNVALIDATED · Paper trading only",
+    "TradingGuardAI · PAPER SIGNAL",
+    `${input.direction} ${input.asset} · ${input.timeframe}`,
+    "Validation: UNVALIDATED · Paper trading only",
     "",
-    "<b>Trade plan</b>",
-    `<b>Entry:</b> ${optional(input.entry)}`,
-    `<b>Stop loss:</b> ${optional(input.stopLoss)}`,
-    `<b>Take profit:</b> ${optional(input.takeProfit)}`,
-    `<b>Confidence:</b> ${text(input.confidence)}%${confluence == null ? "" : ` · <b>Confluence:</b> ${text(confluence)}%`}`,
+    "Trade plan",
+    `Entry: ${optional(input.entry)}`,
+    `Stop loss: ${optional(input.stopLoss)}`,
+    `Take profit: ${optional(input.takeProfit)}`,
+    `Confidence: ${input.confidence}%${confluence == null ? "" : ` · Confluence: ${confluence}%`}`,
     "",
-    "<b>Decision summary</b>",
-    text(input.adjustments),
+    "Decision summary",
+    input.adjustments,
   ];
-  if (rules.length) {
-    lines.push("", "<b>Source rules applied</b>", ...rules.slice(0, 3).map((rule) => `• ${text(rule)}`));
-  }
+  const rules = input.ruleEvidence ?? [];
+  if (rules.length) lines.push("", "Source rules applied", ...rules.slice(0, 3).map((rule) => `• ${rule}`));
   if (trace) {
     lines.push(
       "",
-      "<b>Deterministic intelligence trace</b>",
-      `<b>Supporting components:</b> ${supporting.length ? supporting.map(text).join("; ") : "None"}`,
-      `<b>Conflicting components:</b> ${conflicting.length ? conflicting.map(text).join("; ") : "None"}`,
-      `<b>Score:</b> BUY ${text(trace.scoreSummary.buyScore)} vs SELL ${text(trace.scoreSummary.sellScore)}`,
-      `<b>Level derivation:</b> ${text(trace.levelDerivation.stopLoss)} ${text(trace.levelDerivation.takeProfit)}`,
+      "Deterministic intelligence trace",
+      `Supporting components: ${trace.supportingComponents.join("; ") || "None"}`,
+      `Conflicting components: ${trace.conflictingComponents.join("; ") || "None"}`,
+      `Score: BUY ${trace.scoreSummary.buyScore} vs SELL ${trace.scoreSummary.sellScore}`,
+      `Level derivation: ${trace.levelDerivation.stopLoss} ${trace.levelDerivation.takeProfit}`,
     );
   }
-  lines.push("", "<i>No live trade is executed. Review the paper outcome before treating it as validated.</i>");
-  return lines.join("\\n");
+  return lines.join("\n");
+}
+
+function escapeTelegramHtml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
 }
 
 export function formatOutcomeTelegramMessage(input: { asset: string; timeframe: string; direction: string; status: "WIN" | "LOSS"; entry: number | string; stopLoss: number | string; takeProfit: number | string; closePrice: number; signalId: number; note?: string }) {
@@ -272,7 +266,7 @@ export function formatOutcomeTelegramMessage(input: { asset: string; timeframe: 
     "",
     `<b>Paper record:</b> ${text(input.note ?? "Outcome recorded for paper validation.")}`,
     "<i>No live trade was executed. This outcome is available for validation and lesson review.</i>",
-  ].join("\\n");
+  ].join("\n");
 }
 
 export async function sendTelegramMessage(text: string): Promise<{ delivered: boolean; telegramMessageId?: string; error?: string }> {

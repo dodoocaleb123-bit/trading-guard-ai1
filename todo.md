@@ -271,3 +271,7 @@
 - [x] Add WIN/LOSS outcome Telegram messages linked to the originating signal with deduplication and delivery tracking
 - [x] Add regression coverage for linked outcome formatting, delivery, and failure handling
 - [x] Run full validation and publish the linked-outcome notification release; production verification completed after checkpoint 21b1fb16
+
+- [x] Match paper-signal Telegram output exactly to the user-provided plain-text section order and wording
+- [x] Update formatter regression tests for exact line breaks, bullets, and removal of extra HTML/footer text
+- [x] Run full validation and publish the exact Telegram format update

@@ -40,13 +40,16 @@ describe("TradingGuardAI market helpers", () => {
     expect(record.storageKey).toContain("strategy-rules");
   });
 
-  it("requires rule evidence, confidence, and directional levels before approval", () => {
+  it("does not require evidence or confidence thresholds, but still requires complete directional levels", () => {
     const rules = "## Trend confirmation\n## Risk management\n## Session filter\n";
     const approved = gateAuditDecision({ verdict: "APPROVED", confidence: 82, adjustments: "None", direction: "BUY", entry: 100, stopLoss: 98, takeProfit: 104, ruleEvidence: ["Trend confirmation", "Risk management", "Session filter"], ruleFindings: [{ title: "Trend confirmation", stance: "BUY", weight: 3 }, { title: "Risk management", stance: "BUY", weight: 2 }, { title: "Session filter", stance: "BUY", weight: 1 }] }, rules);
     expect(approved.verdict).toBe("APPROVED");
-    const denied = gateAuditDecision({ verdict: "APPROVED", confidence: 90, adjustments: "None", direction: "BUY", entry: 100, stopLoss: 101, takeProfit: 104, ruleEvidence: ["Trend confirmation"], ruleFindings: [{ title: "Trend confirmation", stance: "BUY", weight: 1 }] }, rules);
-    expect(denied.verdict).toBe("DENIED");
-    expect(denied.adjustments).toContain("Decision gate");
+    const paperApproved = gateAuditDecision({ verdict: "DENIED", confidence: 42, adjustments: "Mixed context", direction: "BUY", entry: 100, stopLoss: 98, takeProfit: 104, ruleEvidence: [], ruleFindings: [] }, rules);
+    expect(paperApproved.verdict).toBe("APPROVED");
+    expect(paperApproved.validationStatus).toBe("UNVALIDATED");
+    const invalidLevels = gateAuditDecision({ verdict: "APPROVED", confidence: 90, adjustments: "None", direction: "BUY", entry: 100, stopLoss: 101, takeProfit: 104, ruleEvidence: [], ruleFindings: [] }, rules);
+    expect(invalidLevels.verdict).toBe("DENIED");
+    expect(invalidLevels.adjustments).toContain("directional entry");
   });
 
   it("formats structured approved and denied audit verdicts", () => {

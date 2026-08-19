@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, insert, db } = vi.hoisted(() => {
+const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, listIntelligenceComponents, listStrategyRules, createIntelligenceVersion, createIntelligenceComponent, insert, db } = vi.hoisted(() => {
   const fetchMarketSeriesBatch = vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); });
   const generateScannerDecisions = vi.fn();
   const createStrategyDecision = vi.fn(async (input: any) => ({ id: 99, ...input }));
@@ -8,6 +8,11 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
   const hasRecentStrategyDecision = vi.fn(async () => false);
   const updateStrategyEngineStatus = vi.fn();
   const recordStrategyEngineHealth = vi.fn();
+  const getActiveIntelligenceVersion = vi.fn(async () => ({ id: 1 }));
+  const listIntelligenceComponents = vi.fn(async () => []);
+  const listStrategyRules = vi.fn(async () => [{ id: 1, title: "Rules", content: "Use confirmation." }]);
+  const createIntelligenceVersion = vi.fn(async (input: any) => ({ id: 1, ...input }));
+  const createIntelligenceComponent = vi.fn();
   const sendTelegramMessage = vi.fn();
   const recordTelegramDelivery = vi.fn();
   const insert = vi.fn();
@@ -17,12 +22,16 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
     })),
   }));
   const db = { select, insert, update: vi.fn() };
-  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, insert, db };
+  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, listIntelligenceComponents, listStrategyRules, createIntelligenceVersion, createIntelligenceComponent, insert, db };
 });
 
 vi.mock("./db", () => ({
   getDb: vi.fn(async () => db),
-  listStrategyRules: vi.fn(async () => [{ id: 1, title: "Rules", content: "Use confirmation." }]),
+  listStrategyRules,
+  getActiveIntelligenceVersion,
+  listIntelligenceComponents,
+  createIntelligenceVersion,
+  createIntelligenceComponent,
   getAllRulesText: vi.fn(async () => "Use confirmation."),
   createStrategyDecision,
   getSettings,
@@ -71,7 +80,7 @@ describe("scanner context bounds", () => {
   });
 });
 
-describe("scanner approval gate", () => {
+describe("scanner paper routing without evidence gate", () => {
   it("allows only approved outcomes to reach the notification branch", () => {
     expect(shouldNotifyScannerSignal("APPROVED")).toBe(true);
     expect(shouldNotifyScannerSignal("DENIED")).toBe(false);
@@ -81,8 +90,8 @@ describe("scanner approval gate", () => {
     fetchMarketSeriesBatch.mockResolvedValue(allSeries());
     generateScannerDecisions.mockImplementation(async ({ candidates }: any) => candidates.map((candidate: any) => ({
       verdict: "APPROVED",
-      confidence: 82,
-      adjustments: "Generated from aligned strategy evidence",
+      confidence: 42,
+      adjustments: "Generated from compiled PDF intelligence; no evidence gate",
       asset: candidate.asset,
       timeframe: candidate.timeframe,
       market: candidate.market,
@@ -90,12 +99,8 @@ describe("scanner approval gate", () => {
       entry: 3,
       stopLoss: 3.1,
       takeProfit: 2.8,
-      ruleEvidence: ["Rules", "Rules", "Rules"],
-      ruleFindings: [
-        { title: "Rules", stance: "SELL", weight: 5 },
-        { title: "Rules", stance: "SELL", weight: 4 },
-        { title: "Rules", stance: "SELL", weight: 3 },
-      ],
+      ruleEvidence: [],
+      ruleFindings: [],
     })));
     insert.mockImplementation(() => [{ insertId: 42 }]);
     sendTelegramMessage.mockResolvedValue({ delivered: true, telegramMessageId: "7" });

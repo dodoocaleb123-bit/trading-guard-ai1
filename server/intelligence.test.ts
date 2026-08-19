@@ -1,0 +1,49 @@
+import { describe, expect, it } from "vitest";
+import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence } from "./intelligence";
+
+describe("executable trading intelligence", () => {
+  it("compiles source rules into executable components with provenance", () => {
+    const components = compileExecutableComponents([
+      { id: 1, title: "Rising structure BUY", content: "Buy when the market forms higher highs and bullish momentum." },
+      { id: 2, title: "Falling structure SELL", content: "Sell when the market forms lower lows and bearish momentum." },
+    ]);
+    expect(components).toHaveLength(2);
+    expect(components[0].sourceRuleIds).toEqual([1]);
+    expect(components[0].stance).toBe("BUY");
+    expect(components[1].stance).toBe("SELL");
+    expect(components[0].sourceConcept).toContain("Buy");
+    expect(components[0].relationships.conflicts).toContain("SELL");
+    expect(components[0].applicability.timeframes).toEqual(["15MIN", "1H"]);
+    const model = buildIntelligenceModel(components);
+    expect(model.concepts).toHaveLength(2);
+    expect(model.relationships[0].supports).toContain("BUY");
+    expect(model.learningPolicy).toContain("WIN/LOSS");
+  });
+
+  it("selects the better-supported direction from matching compiled components", () => {
+    const components = compileExecutableComponents([
+      { id: 1, title: "Rising structure BUY", content: "Buy in a rising market structure." },
+      { id: 2, title: "Bullish momentum BUY", content: "Buy when momentum is bullish." },
+      { id: 3, title: "Falling structure SELL", content: "Sell in a falling market structure." },
+    ]);
+    const result = evaluateExecutableIntelligence({
+      close: 100,
+      trend: "UP",
+      marketContext: {
+        sampleSize: 30,
+        latestCandle: { direction: "BULLISH", body: 1, range: 2, upperWick: 0.5, lowerWick: 0.5, bodyPercentOfRange: 50 },
+        recentCandles: { lookback: 10, bullish: 7, bearish: 3, doji: 0, averageBodyPercentOfRange: 40 },
+        marketStructure: "RISING",
+        volatility: { atr: 1, atrPercent: 1, regime: "STABLE" },
+        supportResistance: { lookback: 20, support: 98, resistance: 104, supportZone: [98, 99], resistanceZone: [103, 104] },
+        momentum: { change5: 0.5, change10: 0.8, direction: "BULLISH" },
+        breakoutState: "WITHIN_RANGE",
+        summary: "rising and bullish",
+      },
+    }, components);
+    expect(result.direction).toBe("BUY");
+    expect(result.ruleEvidence.length).toBeGreaterThan(0);
+    expect(result.entry).toBe(100);
+    expect(result.takeProfit).toBeGreaterThan(result.entry);
+  });
+});

@@ -124,6 +124,47 @@ export const cooldownChangeLog = mysqlTable("cooldown_change_log", {
   changedAt: timestamp("changedAt").defaultNow().notNull(),
 });
 
+export const strategyIntelligenceVersions = mysqlTable("strategy_intelligence_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  versionLabel: varchar("versionLabel", { length: 64 }).notNull(),
+  status: mysqlEnum("status", ["DRAFT", "VALIDATING", "ACTIVE", "RETIRED"]).default("DRAFT").notNull(),
+  sourceRuleCount: int("sourceRuleCount").default(0).notNull(),
+  componentCount: int("componentCount").default(0).notNull(),
+  lessonCount: int("lessonCount").default(0).notNull(),
+  algorithmJson: mediumtext("algorithmJson").notNull(),
+  validationJson: mediumtext("validationJson"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  activatedAt: timestamp("activatedAt"),
+});
+
+export const strategyIntelligenceComponents = mysqlTable("strategy_intelligence_components", {
+  id: int("id").autoincrement().primaryKey(),
+  versionId: int("versionId").notNull(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  sourceRuleIds: mediumtext("sourceRuleIds").notNull(),
+  trigger: mysqlEnum("trigger", ["MARKET_STRUCTURE", "MOMENTUM", "VOLATILITY", "SUPPORT_RESISTANCE", "BREAKOUT", "CANDLE"]).notNull(),
+  stance: mysqlEnum("stance", ["BUY", "SELL", "NEUTRAL"]).notNull(),
+  conditionJson: mediumtext("conditionJson").notNull(),
+  weight: decimal("weight", { precision: 8, scale: 3 }).default("1").notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const strategyLessons = mysqlTable("strategy_lessons", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  signalId: int("signalId"),
+  sourceVersionId: int("sourceVersionId"),
+  outcome: mysqlEnum("outcome", ["WIN", "LOSS", "INVALIDATED"]).notNull(),
+  status: mysqlEnum("status", ["PROPOSED", "VALIDATING", "ACCEPTED", "REJECTED"]).default("PROPOSED").notNull(),
+  observation: mediumtext("observation").notNull(),
+  lessonJson: mediumtext("lessonJson").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  validatedAt: timestamp("validatedAt"),
+});
+
 export const appSettings = mysqlTable("app_settings", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().unique(),
@@ -147,3 +188,6 @@ export type AuditTrade = typeof auditTrades.$inferSelect;
 export type TelegramDelivery = typeof telegramDeliveries.$inferSelect;
 export type StrategyDecision = typeof strategyDecisionLedger.$inferSelect;
 export type CooldownChange = typeof cooldownChangeLog.$inferSelect;
+export type StrategyIntelligenceVersion = typeof strategyIntelligenceVersions.$inferSelect;
+export type StrategyIntelligenceComponent = typeof strategyIntelligenceComponents.$inferSelect;
+export type StrategyLesson = typeof strategyLessons.$inferSelect;

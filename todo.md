@@ -220,3 +220,16 @@
 - [x] Normalize structured LLM content arrays and set an explicit output-token budget for scanner decisions after live calls returned empty decisions without timing out
 - [x] Add regression coverage for content-part JSON parsing and bounded structured output requests
 - [x] Verify the live directional workflow or record the remaining model-service limitation explicitly; production recorded 8 snapshots, 0 complete responses, and 1 retry on the latest cycle because the model returned an empty structured decisions array for EUR/USD:1H
+
+- [x] Define a versioned trading-intelligence architecture that turns ingested PDF knowledge into executable strategy components rather than runtime-only retrieval
+- [x] Convert ingested strategy knowledge into structured, testable rule primitives with provenance, weights, conflicts, and market applicability
+- [ ] Add a validated lesson-learning pipeline from WIN/LOSS outcomes without allowing unvalidated lessons to alter live signal behavior
+- [x] Integrate executable strategy scoring with the existing market snapshot, UNVALIDATED labeling, and gate-free Telegram paper-routing boundary
+- [x] Add intelligence-version auditability, paper-validation metrics, and dashboard visibility for learned strategy updates
+- [x] Add regression coverage and publish the continual-intelligence release after full validation
+
+- [x] Remove the rule-evidence approval gate from Telegram signal routing while preserving paper-only, UNVALIDATED labeling and no live execution
+- [x] Replace simple component scoring with a richer PDF-derived intelligence model containing concepts, relationships, conflicts, applicability, and provenance
+- [x] Route signals and explanations from the active intelligence version without requiring the removed evidence gate
+- [x] Add regression coverage and dashboard transparency for gate-free routing and intelligence composition
+- [x] Run full validation and visual verification; publish the changed behavior with remaining controls documented

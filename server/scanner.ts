@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { createStrategyDecision, createStrategyRule, getAllRulesText, getDb, getRelevantRulesText, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
+import { createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
+import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -44,6 +45,18 @@ export function compactStrategyContext(localRules: string, mirroredRules: string
 
 type ScanUserResult = { created: number; tracked: number; marketData: ScanMarketDataStatus };
 
+async function loadExecutableIntelligence(userId: number): Promise<ExecutableComponent[]> {
+  const active = await getActiveIntelligenceVersion(userId);
+  if (active) return listIntelligenceComponents(userId, active.id) as unknown as ExecutableComponent[];
+  const rules = await listStrategyRules(userId);
+  const components = compileExecutableComponents(rules);
+  const version = await createIntelligenceVersion({ userId, versionLabel: `intelligence-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`, status: "ACTIVE", sourceRuleCount: rules.length, componentCount: components.length, lessonCount: 0, algorithmJson: JSON.stringify(buildIntelligenceModel(components)), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "No sufficient forward paper-validation sample yet." }), activatedAt: new Date() });
+  for (const component of components) {
+    await createIntelligenceComponent({ userId, versionId: version.id, title: component.title, sourceRuleIds: JSON.stringify(component.sourceRuleIds), trigger: component.trigger, stance: component.stance, conditionJson: JSON.stringify(component.condition), weight: String(component.weight), enabled: true });
+  }
+  return components;
+}
+
 export async function scanUser(userId: number): Promise<ScanUserResult> {
   const db = await getDb();
   if (!db) return { created: 0, tracked: 0, marketData: "not-run" };
@@ -65,31 +78,38 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
   const mirroredRules = await fetchStrategyRulesFromSupabase();
   const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 6_000);
+  const executableComponents = await loadExecutableIntelligence(userId);
   const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series)).map((candidate) => ({ ...candidate, cooldownKey: `${candidate.asset}:${candidate.timeframe}:${(candidate.series.close ?? 0).toFixed(4)}` }));
   console.info(`[Scanner] Forwarding ${candidates.length} raw market snapshots to the strategy-rules algorithm.`);
   let decisions: Awaited<ReturnType<typeof generateScannerDecisions>>;
   try {
       const localRules = await getRelevantRulesText(userId, "forex BUY SELL market structure volatility support resistance momentum breakout candle behavior stop loss take profit risk management 15MIN 1H", 18_000);
+    const compiledTitles = executableComponents.map((component) => `## ${component.title}`).join("\n");
     decisions = await generateScannerDecisions({
-      rules: compactStrategyContext(localRules, mirroredText),
+      rules: compactStrategyContext(localRules, `${mirroredText}\n\nCompiled executable strategy components:\n${compiledTitles}`),
       candidates: candidates.map(({ asset, timeframe, series }) => {
         const companion = timeframe === "15MIN" ? seriesCache.get(`${asset}:1H`) : seriesCache.get(`${asset}:15MIN`);
         const multiTimeframeContext = buildMultiTimeframeContext([
           { interval: series.interval, context: series.marketContext },
           { interval: companion?.interval ?? "companion", context: companion?.marketContext ?? null },
         ], series.interval);
+        const market = {
+          symbol: asset,
+          price: series.close,
+          close: series.close,
+          interval: series.interval,
+          trend: series.trend,
+          values: series.values,
+          fetchedAt: series.fetchedAt,
+          marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext } : null,
+        };
+        const seed = evaluateExecutableIntelligence(market, executableComponents);
         return {
           asset,
           timeframe,
           market: {
-            symbol: asset,
-            price: series.close,
-            close: series.close,
-            interval: series.interval,
-            trend: series.trend,
-            values: series.values,
-            fetchedAt: series.fetchedAt,
-            marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext } : null,
+            ...market,
+            intelligenceSeed: seed,
           },
         };
       }),
@@ -169,13 +189,18 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
       const note = `Closed from live ${signal.asset} ${signal.timeframe} price ${price}.`;
       await db.update(generatedSignals).set({ status, closedAt: new Date(), outcomeNote: note }).where(eq(generatedSignals.id, signal.id));
       await mirrorToSupabase("trade_outcomes", { signal_id: signal.id, user_id: userId, status, close_price: price, note });
+      const activeVersion = await getActiveIntelligenceVersion(userId);
+      let lesson: Record<string, unknown> = { outcome: status, reinforcement: status === "WIN" ? "Reinforce the compiled components that supported this direction after forward validation." : "Do not promote this failure into active intelligence without repeated evidence." };
       if (status === "LOSS") {
-        const forensics = await forensicAnalysis({ asset: signal.asset, direction: signal.direction, entry: String(signal.entry), stopLoss: String(signal.stopLoss), takeProfit: String(signal.takeProfit) }, market, await getAllRulesText(userId));
-        const learned = `${forensics.lesson}\n\nGuardrail: ${forensics.guardrail}`;
-        const rule = await createStrategyRule({ userId, title: `Learned guardrail · ${signal.asset} ${signal.timeframe}`, sourceType: "text", sourceFileName: null, content: learned, storageKey: null, supabaseId: null });
-        const mirrored = await mirrorToSupabase("strategy_rules", { title: rule.title, content: learned, source_type: "text", source_file_name: "loss-forensics" });
-        if (mirrored?.id) await db.update(generatedSignals).set({ outcomeNote: `${note} Learned: ${forensics.rootCause}` }).where(eq(generatedSignals.id, signal.id));
+        try {
+          const forensics = await forensicAnalysis({ asset: signal.asset, direction: signal.direction, entry: String(signal.entry), stopLoss: String(signal.stopLoss), takeProfit: String(signal.takeProfit) }, market, await getAllRulesText(userId));
+          lesson = { ...lesson, rootCause: forensics.rootCause, lesson: forensics.lesson, guardrail: forensics.guardrail };
+          await db.update(generatedSignals).set({ outcomeNote: `${note} Proposed lesson: ${forensics.rootCause}` }).where(eq(generatedSignals.id, signal.id));
+        } catch (forensicError) {
+          lesson = { ...lesson, forensicStatus: "UNAVAILABLE", error: forensicError instanceof Error ? forensicError.message : String(forensicError) };
+        }
       }
+      await createStrategyLesson({ userId, signalId: signal.id, sourceVersionId: activeVersion?.id ?? null, outcome: status, status: "PROPOSED", observation: note, lessonJson: JSON.stringify(lesson) });
       const delivery = await sendTelegramMessage(`<b>TradingGuardAI outcome</b>\n\n${signal.asset} ${signal.direction}\nStatus: ${status}\nClose price: ${price}`);
       await recordTelegramDelivery({ userId, signalId: signal.id, kind: "OUTCOME", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: `outcome:${signal.id}:${status}`, error: delivery.error });
       tracked += 1;

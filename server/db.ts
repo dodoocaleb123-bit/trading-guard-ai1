@@ -1,6 +1,6 @@
 import { and, desc, eq, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, cooldownChangeLog, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, telegramDeliveries, users } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, cooldownChangeLog, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
 
@@ -88,6 +88,59 @@ export async function getUserByOpenId(openId: string) {
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
 
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createIntelligenceVersion(input: typeof strategyIntelligenceVersions.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(strategyIntelligenceVersions).values(input);
+  return { id: Number(result[0].insertId), ...input };
+}
+
+export async function listIntelligenceVersions(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(strategyIntelligenceVersions).where(eq(strategyIntelligenceVersions.userId, userId)).orderBy(desc(strategyIntelligenceVersions.createdAt));
+}
+
+export async function getActiveIntelligenceVersion(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(strategyIntelligenceVersions).where(and(eq(strategyIntelligenceVersions.userId, userId), eq(strategyIntelligenceVersions.status, "ACTIVE"))).orderBy(desc(strategyIntelligenceVersions.createdAt)).limit(1);
+  return rows[0];
+}
+
+export async function activateIntelligenceVersion(userId: number, versionId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(strategyIntelligenceVersions).set({ status: "RETIRED" }).where(and(eq(strategyIntelligenceVersions.userId, userId), eq(strategyIntelligenceVersions.status, "ACTIVE")));
+  await db.update(strategyIntelligenceVersions).set({ status: "ACTIVE", activatedAt: new Date() }).where(and(eq(strategyIntelligenceVersions.userId, userId), eq(strategyIntelligenceVersions.id, versionId)));
+}
+
+export async function createIntelligenceComponent(input: typeof strategyIntelligenceComponents.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(strategyIntelligenceComponents).values(input);
+  return { id: Number(result[0].insertId), ...input };
+}
+
+export async function listIntelligenceComponents(userId: number, versionId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(strategyIntelligenceComponents).where(and(eq(strategyIntelligenceComponents.userId, userId), eq(strategyIntelligenceComponents.versionId, versionId), eq(strategyIntelligenceComponents.enabled, true)));
+}
+
+export async function createStrategyLesson(input: typeof strategyLessons.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(strategyLessons).values(input);
+  return { id: Number(result[0].insertId), ...input };
+}
+
+export async function listStrategyLessons(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(strategyLessons).where(eq(strategyLessons.userId, userId)).orderBy(desc(strategyLessons.createdAt)).limit(100);
 }
 
 export async function listStrategyRules(userId: number) {

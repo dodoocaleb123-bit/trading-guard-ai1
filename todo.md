@@ -196,3 +196,13 @@
 - [x] Add visible diagnostics for denied placeholder judgments and their causes
 - [x] Add regression coverage, validate, visually verify, and publish the update
 
+
+- [x] Diagnose why the strategy-rules algorithm is denying recent raw market snapshots and distinguish rule-gate failures from placeholder responses: latest rows have empty ruleEvidence, 0 confidence, 0 confluence, and the exact no-structured-judgment placeholder reason; they are not genuine rule-evidence denials
+
+
+- [x] Compact relevant strategy-rule context for each scanner decision batch
+- [x] Use smaller strategy-engine batches and strictly validate one complete response per snapshot
+- [x] Retry malformed or empty model responses once and persist technical failures as UNAVAILABLE
+- [x] Prevent fake DENIED placeholders and Telegram delivery from failed model responses
+- [x] Add regression coverage and full validation; live verification remains pending after the release checkpoint
+

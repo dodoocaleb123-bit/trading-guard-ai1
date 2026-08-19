@@ -348,7 +348,17 @@ export type ScannerDecisionCandidate = {
 
 export async function generateScannerDecisions(input: { candidates: ScannerDecisionCandidate[]; rules: string }) {
   if (!input.candidates.length) return [];
-  const response = await invokeLLM({
+  const batchSize = 2;
+  const batches = Array.from({ length: Math.ceil(input.candidates.length / batchSize) }, (_, index) => input.candidates.slice(index * batchSize, index * batchSize + batchSize));
+  const results = await Promise.all(batches.map((candidates) => generateScannerDecisionBatch({ candidates, rules: input.rules })));
+  return results.flat();
+}
+
+async function generateScannerDecisionBatch(input: { candidates: ScannerDecisionCandidate[]; rules: string }) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const response = await invokeLLM({
     messages: [
       {
         role: "system",
@@ -396,17 +406,30 @@ export async function generateScannerDecisions(input: { candidates: ScannerDecis
         },
       },
     },
-  });
-  const content = response.choices?.[0]?.message?.content;
-  const parsed = JSON.parse(typeof content === "string" ? content : "{}");
-  const byKey = new Map(input.candidates.map((candidate) => [`${candidate.asset}:${candidate.timeframe}`, candidate]));
-  const modelDecisions = Array.isArray(parsed.decisions) ? parsed.decisions : [];
-  const byDecisionKey = new Map<string, any>(modelDecisions.map((decision: any) => [`${decision.asset}:${decision.timeframe}`, decision] as [string, any]));
-  return input.candidates.map((candidate) => {
-    const decision: any = byDecisionKey.get(`${candidate.asset}:${candidate.timeframe}`) ?? buildDirectionalFallback(candidate);
-    const gated = gateAuditDecision(decision, input.rules);
-    return { ...gated, asset: candidate.asset, timeframe: candidate.timeframe, market: candidate.market };
-  });
+      });
+      const content = response.choices?.[0]?.message?.content;
+      const parsed = JSON.parse(typeof content === "string" ? content : "{}");
+      const modelDecisions = Array.isArray(parsed.decisions) ? parsed.decisions : [];
+      const expectedKeys = new Set(input.candidates.map((candidate) => `${candidate.asset}:${candidate.timeframe}`));
+      const returnedKeys = new Set(modelDecisions.map((decision: any) => `${decision.asset}:${decision.timeframe}`));
+      const missing = Array.from(expectedKeys).filter((key) => !returnedKeys.has(key));
+      const duplicates = modelDecisions.length !== returnedKeys.size;
+      if (missing.length || duplicates || modelDecisions.length !== input.candidates.length) {
+        throw new Error(`Strategy engine returned incomplete structured decisions (expected ${input.candidates.length}, received ${modelDecisions.length}, missing ${missing.join(", ") || "none"}).`);
+      }
+      const byDecisionKey = new Map<string, any>(modelDecisions.map((decision: any) => [`${decision.asset}:${decision.timeframe}`, decision] as [string, any]));
+      return input.candidates.map((candidate) => {
+        const decision = byDecisionKey.get(`${candidate.asset}:${candidate.timeframe}`);
+        if (!decision) throw new Error(`Strategy engine omitted ${candidate.asset} ${candidate.timeframe}.`);
+        const gated = gateAuditDecision(decision, input.rules);
+        return { ...gated, asset: candidate.asset, timeframe: candidate.timeframe, market: candidate.market };
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt === 2) break;
+    }
+  }
+  throw new Error(`Strategy engine failed after one retry: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 
 function buildDirectionalFallback(candidate: ScannerDecisionCandidate) {

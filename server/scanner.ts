@@ -60,12 +60,12 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   series1h.forEach((series, symbol) => seriesCache.set(`${symbol}:1H`, series));
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
   const mirroredRules = await fetchStrategyRulesFromSupabase();
-  const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 40_000);
+  const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 12_000);
   const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series)).map((candidate) => ({ ...candidate, cooldownKey: `${candidate.asset}:${candidate.timeframe}:${(candidate.series.close ?? 0).toFixed(4)}` }));
   console.info(`[Scanner] Forwarding ${candidates.length} raw market snapshots to the strategy-rules algorithm.`);
   let decisions: Awaited<ReturnType<typeof generateScannerDecisions>>;
   try {
-      const localRules = await getRelevantRulesText(userId, "Interpret every forwarded raw OHLCV market snapshot using the saved strategy rules and determine whether a supported possible outcome and complementary signal exist.", 100_000);
+      const localRules = await getRelevantRulesText(userId, "forex BUY SELL market structure volatility support resistance momentum breakout candle behavior stop loss take profit risk management 15MIN 1H", 36_000);
     decisions = await generateScannerDecisions({
       rules: [localRules, mirroredText].filter(Boolean).join("\n\n"),
       candidates: candidates.map(({ asset, timeframe, series }) => {

@@ -288,3 +288,8 @@
 - [x] Route EUR/USD, XAU/USD, and GBP/USD signals and outcomes to their designated new Telegram bots
 - [x] Add secure per-asset Telegram bot token and chat-ID configuration without exposing credentials
 - [x] Add routing and delivery-isolation regression tests, verify production delivery, and publish
+
+- [x] Make manual trade audits fetch the latest scanner market snapshot for the submitted asset
+- [x] Evaluate manually submitted trade signals with Replacement Intelligence v1 and return APPROVED or DENIED with reasons and adjustments
+- [x] Preserve source-linked trace, paper-only safeguards, and asset-specific Telegram routing for approved manual audits
+- [x] Add regression coverage, run validation, and publish the unified manual-audit release

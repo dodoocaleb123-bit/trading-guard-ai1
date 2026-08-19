@@ -5,9 +5,9 @@ import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
 import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, recordTelegramDelivery, updateSetupCooldown, updateStrategyLessonStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
-import { auditWithLLM, extractStrategyText, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage } from "./integrations";
+import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatApprovedTelegramMessage, formatAuditResult, mirrorToSupabase, shouldNotifyApprovedAudit, normalizeAsset, sendTelegramMessage, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents } from "./intelligence";
-import { buildReplacementKnowledgeModel } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModel, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -15,6 +15,34 @@ import { systemRouter } from "./_core/systemRouter";
 
 export function buildStrategyRuleRecord(input: { userId: number; title: string; sourceType: "pdf" | "docx" | "text"; fileName: string; content: string; storageKey: string; supabaseId: string | null }) {
   return { userId: input.userId, title: input.title, sourceType: input.sourceType, sourceFileName: input.fileName, content: input.content, storageKey: input.storageKey, supabaseId: input.supabaseId };
+}
+
+export function buildReplacementManualAuditResult(signal: string, asset: string, timeframe: "15MIN" | "1H", market: MarketSnapshot, decision: ReplacementDecision) {
+  const submittedDirection = signal.match(/\b(BUY|SELL)\b/i)?.[1]?.toUpperCase() as "BUY" | "SELL" | undefined;
+  const directionMatches = !submittedDirection || submittedDirection === decision.direction;
+  const directionReason = submittedDirection
+    ? directionMatches
+      ? `Submitted ${submittedDirection} direction matches Replacement Intelligence v1.`
+      : `Submitted ${submittedDirection} direction conflicts with Replacement Intelligence v1 ${decision.direction} judgment.`
+    : `No explicit direction was detected in the submitted signal; the audit uses the intelligence direction ${decision.direction}.`;
+  const trace = `Score: BUY ${decision.score.buy} vs SELL ${decision.score.sell}; confluence ${decision.confluenceScore}%; market regime ${decision.marketRegime}. ${decision.conflicts.length ? `Conflicting components: ${decision.conflicts.join("; ")}.` : "No conflicting components were matched."}`;
+  const adjustments = `${directionReason} ${decision.explanation} ${trace} Source-linked replacement v1 is authoritative for this paper audit; validation remains UNVALIDATED.`;
+  return {
+    verdict: directionMatches ? "APPROVED" as const : "DENIED" as const,
+    confidence: decision.confidence,
+    adjustments,
+    asset,
+    timeframe,
+    direction: decision.direction,
+    entry: decision.entry,
+    stopLoss: decision.stopLoss,
+    takeProfit: decision.takeProfit,
+    ruleEvidence: decision.ruleEvidence,
+    ruleFindings: decision.ruleFindings,
+    confluenceScore: decision.confluenceScore,
+    validationStatus: "UNVALIDATED" as const,
+    market,
+  };
 }
 
 export function buildStrategyContext(localRules: string, supabaseRules: Array<{ title?: string; content?: string }>) {
@@ -98,11 +126,14 @@ export const appRouter = router({
       await db.insert(auditMessages).values({ userId: ctx.user.id, role: "user", content: input.signal });
       const assetMatch = input.signal.match(/(?:asset|symbol)\s*:\s*([A-Za-z/]+)|\b(EUR\/?USD|GBP\/?USD|XAU\/?USD|BTC\/?USD)\b/i);
       const asset = normalizeAsset(assetMatch?.[1] ?? assetMatch?.[2] ?? "EUR/USD");
+      const timeframeMatch = input.signal.match(/(?:timeframe|tf)\s*[:=]\s*(15\s*MIN|1\s*H|15M|1H)\b/i) ?? input.signal.match(/\b(15\s*MIN|1\s*H|15M|1H)\b/i);
+      const timeframe: "15MIN" | "1H" = timeframeMatch?.[1]?.replace(/\s+/g, "").toUpperCase() === "1H" ? "1H" : "15MIN";
       try {
-        const market = await fetchMarketSnapshot(asset);
-        const localRules = await getRelevantRulesText(ctx.user.id, input.signal);
-        const mirroredRules = await fetchStrategyRulesFromSupabase();
-        const result = await auditWithLLM({ tradeSignal: input.signal, rules: buildStrategyContext(localRules, mirroredRules), market });
+        const series = await fetchMarketSeries(asset, timeframe === "1H" ? "1h" : "15min");
+        if (!series.marketContext) throw new Error("Latest scanner market context is unavailable");
+        const market: MarketSnapshot = { symbol: series.symbol, price: series.close, close: series.close, fetchedAt: series.fetchedAt, interval: timeframe === "1H" ? "1h" : "15min", trend: series.trend, values: series.values, marketContext: series.marketContext };
+        const decision = evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: series.marketContext }, buildReplacementKnowledgeModel());
+        const result = buildReplacementManualAuditResult(input.signal, asset, timeframe, market, decision);
         const assistantText = formatAuditResult(result, market);
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });
         const [auditTradeInsert] = await db.insert(auditTrades).values({ userId: ctx.user.id, asset, timeframe: result.timeframe || "15MIN", direction: result.direction, entry: result.entry ? String(result.entry) : null, stopLoss: result.stopLoss ? String(result.stopLoss) : null, takeProfit: result.takeProfit ? String(result.takeProfit) : null, verdict: result.verdict, confidence: String(result.confidence), adjustments: result.adjustments });

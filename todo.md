@@ -207,7 +207,7 @@
 - [x] Add regression coverage and full validation; live verification remains pending after the release checkpoint
 
 
-- [ ] Monitor live Heartbeat cycles after the strategy-engine reliability release and verify directional decisions, retries, and unavailable-model handling
+- [x] Monitor live Heartbeat cycles after the strategy-engine reliability release and verify directional decisions, retries, and unavailable-model handling; the scheduler returned HTTP 200 in 10.3 seconds, while health counters recorded 0 complete responses, 1 retry, and an UNAVAILABLE model cycle
 - [x] Add production strategy-engine health metrics for response completeness, retry counts, and unavailable-model cycles
 - [x] Add dashboard health-panel UI and regression coverage for the new observability metrics
 - [x] Run full validation and visual verification; publish the monitoring release after the checkpoint

@@ -346,6 +346,16 @@ export type ScannerDecisionCandidate = {
   market: MarketSnapshot;
 };
 
+function parseStructuredContent(content: unknown): any {
+  const text = typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.filter((part: any) => part && part.type === "text" && typeof part.text === "string").map((part: any) => part.text).join("\n")
+      : "";
+  if (!text.trim()) return {};
+  return JSON.parse(text);
+}
+
 export async function generateScannerDecisions(input: { candidates: ScannerDecisionCandidate[]; rules: string }) {
   if (!input.candidates.length) return Object.assign([], { metrics: { snapshots: 0, completeResponses: 0, retries: 0 } });
   const batchSize = 1;
@@ -378,6 +388,7 @@ async function generateScannerDecisionBatch(input: { candidates: ScannerDecision
         content: `Generate exactly one BUY or SELL decision for each raw market candidate—exactly ${input.candidates.length} decisions total. Do not return an empty decisions array, do not omit candidates, and do not use NEUTRAL as the direction. Derive the directional judgment and risk levels from the complete strategy rules, raw OHLCV candles, and the deterministic market-context features. Use the context to assess market structure, volatility regime, latest and recent candle behavior, support/resistance zones, momentum, breakout state, and opposing-timeframe context. Treat the raw candles as the source of truth and use derived features as transparent calculations, not as invented chart facts. If evidence is weak or conflicting, still choose the better-supported BUY or SELL direction, return DENIED, and explain the evidence weakness. Complete strategy rules:\n${input.rules}\n\nRaw market candidates with detailed deterministic context:\n${JSON.stringify(input.candidates)}`,
       },
     ],
+    maxTokens: 2048,
     response_format: {
       type: "json_schema",
       json_schema: {
@@ -417,7 +428,7 @@ async function generateScannerDecisionBatch(input: { candidates: ScannerDecision
     },
       });
       const content = response.choices?.[0]?.message?.content;
-      const parsed = JSON.parse(typeof content === "string" ? content : "{}");
+      const parsed = parseStructuredContent(content);
       const modelDecisions = Array.isArray(parsed.decisions) ? parsed.decisions : [];
       const expectedKeys = new Set(input.candidates.map((candidate) => `${candidate.asset}:${candidate.timeframe}`));
       const returnedKeys = new Set(modelDecisions.map((decision: any) => `${decision.asset}:${decision.timeframe}`));

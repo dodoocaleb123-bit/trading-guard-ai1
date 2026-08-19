@@ -22,7 +22,7 @@ describe("strategy-engine structured response contract", () => {
       const candidate = callIndex++ === 0
         ? { asset: "EUR/USD", timeframe: "15MIN", market: { close: 1.1 } }
         : { asset: "GBP/USD", timeframe: "1H", market: { close: 1.2 } };
-      return { choices: [{ message: { content: JSON.stringify({ decisions: [{ asset: candidate.asset, timeframe: candidate.timeframe, verdict: "DENIED", confidence: 60, adjustments: "Evidence is recorded for paper validation.", direction: "BUY", entry: candidate.market.close, stopLoss: candidate.market.close - 0.001, takeProfit: candidate.market.close + 0.002, ruleEvidence: ["Trend rule"], ruleFindings: [{ title: "Trend rule", stance: "BUY", weight: 3 }] }] }) } }] };
+      return { choices: [{ message: { content: [{ type: "text", text: JSON.stringify({ decisions: [{ asset: candidate.asset, timeframe: candidate.timeframe, verdict: "DENIED", confidence: 60, adjustments: "Evidence is recorded for paper validation.", direction: "BUY", entry: candidate.market.close, stopLoss: candidate.market.close - 0.001, takeProfit: candidate.market.close + 0.002, ruleEvidence: ["Trend rule"], ruleFindings: [{ title: "Trend rule", stance: "BUY", weight: 3 }] }] }) }] } }] };
     });
     const result = await generateScannerDecisions({ rules: "## Trend rule\\nFollow the dominant market direction.", candidates: [
       { asset: "EUR/USD", timeframe: "15MIN", market: { symbol: "EUR/USD", price: 1.1, close: 1.1, interval: "15min", trend: "UP", values: [{ close: "1.1" }], fetchedAt: "2026-08-19T00:00:00Z" } },
@@ -31,5 +31,6 @@ describe("strategy-engine structured response contract", () => {
     expect(result).toHaveLength(2);
     expect(result.metrics).toEqual({ snapshots: 2, completeResponses: 2, retries: 0 });
     expect(invokeLLM).toHaveBeenCalledTimes(2);
+    expect(invokeLLM.mock.calls.every(([params]: any[]) => params.maxTokens === 2048)).toBe(true);
   });
 });

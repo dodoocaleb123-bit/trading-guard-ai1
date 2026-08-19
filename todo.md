@@ -213,7 +213,10 @@
 - [x] Run full validation and visual verification; publish the monitoring release after the checkpoint
 - [x] Harden live structured-response reliability by evaluating one raw snapshot per model call after production showed an incomplete two-candidate response
 - [x] Add regression coverage for single-snapshot batching, retry accounting, and complete directional output
-- [ ] Run validation and publish the hardening update; verify a post-release Heartbeat cycle after deployment
+- [x] Run validation and publish the hardening update; verify a post-release Heartbeat cycle after deployment
 - [x] Reduce structured-call concurrency and compact prompt context after the first post-hardening Heartbeat exceeded the two-minute timeout
 - [x] Add regression coverage for bounded concurrency and prompt-size limits
 - [ ] Publish and verify a timeout-resilient Heartbeat cycle after deployment
+- [x] Normalize structured LLM content arrays and set an explicit output-token budget for scanner decisions after live calls returned empty decisions without timing out
+- [x] Add regression coverage for content-part JSON parsing and bounded structured output requests
+- [ ] Publish and verify a live directional decision cycle or record the remaining model-service limitation explicitly

@@ -26,14 +26,15 @@ describe("approved Telegram signal formatting", () => {
       adjustments: "Wait for confirmation.",
     });
 
-    expect(message).toContain("TradingGuardAI approved trade");
-    expect(message).toContain("Asset: EUR/USD");
-    expect(message).toContain("Timeframe: 15MIN");
-    expect(message).toContain("Direction: BUY");
-    expect(message).toContain("Entry: 1.15805");
-    expect(message).toContain("Stop Loss: 1.15666");
-    expect(message).toContain("Take Profit: 1.16083");
-    expect(message).toContain("Confidence: 88%");
+    expect(message).toContain("TradingGuardAI · PAPER SIGNAL");
+    expect(message).toContain("<b>BUY EUR/USD</b> · 15MIN");
+    expect(message).toContain("<b>Validation:</b> UNVALIDATED · Paper trading only");
+    expect(message).toContain("<b>Trade plan</b>");
+    expect(message).toContain("<b>Entry:</b> 1.15805");
+    expect(message).toContain("<b>Stop loss:</b> 1.15666");
+    expect(message).toContain("<b>Take profit:</b> 1.16083");
+    expect(message).toContain("<b>Confidence:</b> 88%");
+    expect(message).toContain("<i>No live trade is executed.");
   });
 
   it("includes deterministic source-linked intelligence explanation", () => {
@@ -44,10 +45,18 @@ describe("approved Telegram signal formatting", () => {
         supportingComponents: ["Higher-high structure"], conflictingComponents: [], scoreSummary: { buyScore: 1, sellScore: 0, dominantDirection: "BUY", confluenceScore: 100 }, levelDerivation: { entry: "Latest raw close rounded to provider precision.", stopLoss: "BUY stop at one volatility risk distance (0.1).", takeProfit: "BUY target at two volatility risk distances for 1:2 paper geometry.", riskDistance: 0.1, riskReward: 2 },
       },
     });
-    expect(message).toContain("Deterministic intelligence explanation:");
-    expect(message).toContain("Higher-high structure");
-    expect(message).toContain("Score: BUY 1 vs SELL 0");
-    expect(message).toContain("Confluence: 100%");
+    expect(message).toContain("<b>Deterministic intelligence trace</b>");
+    expect(message).toContain("<b>Supporting components:</b> Higher-high structure");
+    expect(message).toContain("<b>Score:</b> BUY 1 vs SELL 0");
+    expect(message).toContain("<b>Confidence:</b> 63% · <b>Confluence:</b> 100%");
+  });
+
+  it("escapes user- and source-provided HTML characters", () => {
+    const message = formatApprovedTelegramMessage({ asset: "EUR/<USD", timeframe: "1H", direction: "BUY", entry: 1, stopLoss: 0.9, takeProfit: 1.2, confidence: 70, adjustments: "Use <confirmation> & review.", ruleEvidence: ["Rule <A> & context"] });
+    expect(message).toContain("EUR/&lt;USD");
+    expect(message).toContain("Use &lt;confirmation&gt; &amp; review.");
+    expect(message).toContain("Rule &lt;A&gt; &amp; context");
+    expect(message).not.toContain("Use <confirmation>");
   });
 
   it("renders missing levels safely", () => {
@@ -62,8 +71,8 @@ describe("approved Telegram signal formatting", () => {
       adjustments: "No adjustments.",
     });
 
-    expect(message).toContain("Entry: —");
-    expect(message).toContain("Stop Loss: —");
-    expect(message).toContain("Take Profit: —");
+    expect(message).toContain("<b>Entry:</b> —");
+    expect(message).toContain("<b>Stop loss:</b> —");
+    expect(message).toContain("<b>Take profit:</b> —");
   });
 });

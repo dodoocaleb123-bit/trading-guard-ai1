@@ -262,3 +262,7 @@
 - [x] Add outcome statistics by replacement-intelligence component and market regime through a protected tRPC endpoint and tested pure aggregator
 - [x] Add a first paper-validation sample review that blocks lesson promotion until the sample is sufficient; dashboard explicitly remains in collecting-evidence state and does not claim profitability
 - [x] Add dashboard visibility, regression coverage, full validation, visual verification, and publish the monitoring/statistics release
+
+- [x] Restructure Telegram paper-signal messages into clear labeled sections without removing deterministic trace, source provenance, risk geometry, or UNVALIDATED labeling
+- [x] Add formatter regression coverage for readable escaping, section order, and preserved decision details
+- [x] Run full validation and publish the Telegram notification-format update

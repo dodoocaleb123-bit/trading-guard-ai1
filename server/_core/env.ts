@@ -19,5 +19,10 @@ export const ENV = {
   ].filter((key): key is string => Boolean(key)),
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
   telegramChatId: process.env.TELEGRAM_CHAT_ID ?? "",
+  telegramAssetBots: {
+    "EUR/USD": { token: process.env.TELEGRAM_EURUSD_BOT_TOKEN ?? "", chatId: process.env.TELEGRAM_EURUSD_CHAT_ID ?? "" },
+    "XAU/USD": { token: process.env.TELEGRAM_XAUUSD_BOT_TOKEN ?? "", chatId: process.env.TELEGRAM_XAUUSD_CHAT_ID ?? "" },
+    "GBP/USD": { token: process.env.TELEGRAM_GBPUSD_BOT_TOKEN ?? "", chatId: process.env.TELEGRAM_GBPUSD_CHAT_ID ?? "" },
+  },
   frontendOrigin: process.env.FRONTEND_ORIGIN ?? "",
 };

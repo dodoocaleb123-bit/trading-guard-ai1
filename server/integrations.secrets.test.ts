@@ -6,6 +6,12 @@ const required = [
   "TWELVE_DATA_API_KEY",
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_CHAT_ID",
+  "TELEGRAM_EURUSD_BOT_TOKEN",
+  "TELEGRAM_EURUSD_CHAT_ID",
+  "TELEGRAM_XAUUSD_BOT_TOKEN",
+  "TELEGRAM_XAUUSD_CHAT_ID",
+  "TELEGRAM_GBPUSD_BOT_TOKEN",
+  "TELEGRAM_GBPUSD_CHAT_ID",
 ] as const;
 
 describe("configured integration secrets", () => {

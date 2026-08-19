@@ -283,3 +283,8 @@
 - [x] Identify why the screenshot’s XAU/USD paper signal remains PENDING while a production XAU/USD signal is WIN; the screenshot is signal 1290004, distinct from the earlier closed signal 1200003
 - [x] Reconcile signal identity, timestamp, status, and dashboard query results; the screenshot row matches signal 1290004 and was still PENDING because tracking evaluated close price only
 - [x] Fix any mismatch, add regression coverage, and publish if implementation changes are needed; tracker now evaluates candle high/low extremes and has intrabar regression tests
+
+- [x] Route BTC/USD signals and outcomes to the existing Telegram bot
+- [x] Route EUR/USD, XAU/USD, and GBP/USD signals and outcomes to their designated new Telegram bots
+- [x] Add secure per-asset Telegram bot token and chat-ID configuration without exposing credentials
+- [x] Add routing and delivery-isolation regression tests, verify production delivery, and publish

@@ -21,3 +21,7 @@ The first post-publish scanner Heartbeat finished at 2026-08-19 14:29:47 UTC wit
 ## Take-profit outcome diagnosis
 
 The reported take-profit event was recorded successfully. Signal 1200003 (XAU/USD, 15MIN, BUY) was opened at 14:07:57 UTC with take profit 4488.21999? The production record shows take profit 4488.21965000, closed at 14:34:52 UTC at live price 4489.04892, status WIN, and an OUTCOME Telegram delivery marked DELIVERED at 14:34:52 UTC. The Heartbeat run that performed the tracking completed successfully at 14:34:52 UTC with tracked=1. The apparent delay was the five-minute polling interval and likely a stale dashboard view, not a missing outcome record.
+
+## Screenshot row verification after intrabar release
+
+The screenshot row is signal 1290004 (XAU/USD 1H BUY, entry 4489.04892, stop 4470.38260, take profit 4526.38156), not signal 1200003. After the intrabar release, the 14:58:08 UTC Heartbeat resolved 7 other BUY signals as WIN and delivered all 7 OUTCOME messages. Signal 1290004 remained PENDING because the production OHLC data used by the tracker had not observed its 4526.38156 target or 4470.38260 stop. Refreshing the page therefore correctly continues to show PENDING for that exact row; the earlier XAU/USD 15MIN WIN was a different signal.

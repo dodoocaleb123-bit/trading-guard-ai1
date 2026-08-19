@@ -120,7 +120,7 @@ export const appRouter = router({
               adjustments: result.adjustments || "No adjustments.",
               ruleEvidence: result.ruleEvidence,
               confluenceScore: result.confluenceScore,
-            }))
+            }), asset)
           : { delivered: false, error: "Not an approved audit" };
         if (shouldNotifyApprovedAudit(result.verdict)) {
           await recordTelegramDelivery({ userId: ctx.user.id, auditTradeId, kind: "AUDIT", status: telegramDelivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: telegramDelivery.telegramMessageId, dedupeKey: `audit:${auditTradeId}`, error: telegramDelivery.error });

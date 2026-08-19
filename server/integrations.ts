@@ -269,21 +269,29 @@ export function formatOutcomeTelegramMessage(input: { asset: string; timeframe: 
   ].join("\n");
 }
 
-export async function sendTelegramMessage(text: string): Promise<{ delivered: boolean; telegramMessageId?: string; error?: string }> {
-  if (!ENV.telegramBotToken || !ENV.telegramChatId) return { delivered: false, error: "Telegram credentials are not configured" };
+export type TelegramAsset = "EUR/USD" | "XAU/USD" | "GBP/USD" | "BTC/USD";
+
+function telegramDestination(asset?: string) {
+  if (asset === "EUR/USD" || asset === "XAU/USD" || asset === "GBP/USD") return ENV.telegramAssetBots[asset];
+  return { token: ENV.telegramBotToken, chatId: ENV.telegramChatId };
+}
+
+export async function sendTelegramMessage(text: string, asset?: string): Promise<{ delivered: boolean; telegramMessageId?: string; error?: string }> {
+  const destination = telegramDestination(asset);
+  if (!destination.token || !destination.chatId) return { delivered: false, error: `${asset ?? "BTC/USD"} Telegram credentials are not configured` };
   try {
-    const response = await axios.post<{ ok?: boolean; result?: { message_id?: number }; description?: string }>(`https://api.telegram.org/bot${ENV.telegramBotToken}/sendMessage`, {
-      chat_id: ENV.telegramChatId,
+    const response = await axios.post<{ ok?: boolean; result?: { message_id?: number }; description?: string }>(`https://api.telegram.org/bot${destination.token}/sendMessage`, {
+      chat_id: destination.chatId,
       text,
       parse_mode: "HTML",
       disable_web_page_preview: true,
     }, { timeout: 12000 });
     const telegramMessageId = response.data.result?.message_id != null ? String(response.data.result.message_id) : undefined;
-    console.info(`[Telegram] Notification delivered to configured chat (${text.startsWith("<b>TradingGuardAI signal</b>") ? "signal" : "outcome"})`);
+    console.info(`[Telegram] ${asset ?? "BTC/USD"} notification delivered (${text.startsWith("<b>TradingGuardAI signal</b>") ? "signal" : "outcome"})`);
     return { delivered: true, telegramMessageId };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn("[Telegram] Could not send notification:", message);
+    console.warn(`[Telegram] Could not send ${asset ?? "BTC/USD"} notification:`, message);
     return { delivered: false, error: message };
   }
 }

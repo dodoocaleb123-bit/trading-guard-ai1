@@ -15,6 +15,7 @@ function Router() {
       <Route path={"/strategy-rules"} component={Home} />
       <Route path={"/trade-history"} component={Home} />
       <Route path={"/scanner"} component={Home} />
+      <Route path={"/winning-rate"} component={Home} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

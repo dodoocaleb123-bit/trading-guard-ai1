@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getWinningRateStats, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents } from "./intelligence";
@@ -81,6 +81,7 @@ export const appRouter = router({
       return { id: model.id, sourceDocument: model.sourceDocument, nodeCount: model.nodes.length, nodes: model.nodes, decisionPolicy: model.decisionPolicy, learningPolicy: model.learningPolicy, active: active?.versionLabel === model.id, activeVersionId: active?.id ?? null };
     }),
     replacementOutcomeStats: protectedProcedure.query(({ ctx }) => getReplacementOutcomeStats(ctx.user.id)),
+    winningRateStats: protectedProcedure.query(({ ctx }) => getWinningRateStats(ctx.user.id)),
     promoteLessons: protectedProcedure.mutation(async ({ ctx }) => {
       const lessons = await listStrategyLessons(ctx.user.id);
       const plan = buildLessonPromotionPlan(lessons);

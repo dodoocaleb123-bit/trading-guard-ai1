@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { BookOpen, ClipboardCheck, LayoutDashboard, LogOut, PanelLeft, Radar, ScrollText, ShieldCheck } from "lucide-react";
+import { BookOpen, ClipboardCheck, LayoutDashboard, LogOut, PanelLeft, Radar, ScrollText, ShieldCheck, Trophy } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -33,6 +33,7 @@ const menuItems = [
   { icon: BookOpen, label: "Strategy rules", path: "/strategy-rules" },
   { icon: ScrollText, label: "Trade history", path: "/trade-history" },
   { icon: Radar, label: "Scanner", path: "/scanner" },
+  { icon: Trophy, label: "Winning rate", path: "/winning-rate" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { appSettings, auditMessages, auditTrades, cooldownChangeLog, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -413,4 +413,49 @@ export async function getReplacementOutcomeStats(userId: number) {
   if (!db) return summarizeReplacementOutcomes([]);
   const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2")));
   return summarizeReplacementOutcomes(rows);
+}
+
+type WinningRateRow = { version: string; asset: string; timeframe: string; confidence: string | number | null; status: string };
+export type WinningRateMetric = { generated: number; resolved: number; wins: number; losses: number; winRate: number | null };
+export type WinningRateBucket = WinningRateMetric & { key: string };
+const WINNING_RATE_ASSETS = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
+const WINNING_RATE_TIMEFRAMES = ["15MIN", "1H"] as const;
+const WINNING_RATE_BANDS = ["100-90", "89-80", "79-70", "69-60", "59-40"] as const;
+const WINNING_RATE_VERSIONS = ["replacement-forex-v1", "forex-trading-combined-document-v2"] as const;
+
+function emptyWinningRateMetric(): WinningRateMetric { return { generated: 0, resolved: 0, wins: 0, losses: 0, winRate: null }; }
+function updateWinningRateMetric(metric: WinningRateMetric, status: string) {
+  metric.generated += 1;
+  if (status === "WIN") metric.wins += 1;
+  if (status === "LOSS") metric.losses += 1;
+  metric.resolved = metric.wins + metric.losses;
+  metric.winRate = metric.resolved ? Math.round((metric.wins / metric.resolved) * 100) : null;
+}
+function confidenceBand(value: string | number | null) {
+  const confidence = Number(value);
+  if (!Number.isFinite(confidence)) return "UNKNOWN";
+  if (confidence >= 90) return "100-90";
+  if (confidence >= 80) return "89-80";
+  if (confidence >= 70) return "79-70";
+  if (confidence >= 60) return "69-60";
+  if (confidence >= 40) return "59-40";
+  return "BELOW-40";
+}
+export function summarizeWinningRate(rows: WinningRateRow[]) {
+  const byVersion = WINNING_RATE_VERSIONS.map((version) => {
+    const versionRows = rows.filter((row) => row.version === version);
+    const overall = emptyWinningRateMetric();
+    versionRows.forEach((row) => updateWinningRateMetric(overall, row.status));
+    const assets = WINNING_RATE_ASSETS.map((asset) => { const metric = emptyWinningRateMetric(); versionRows.filter((row) => row.asset === asset).forEach((row) => updateWinningRateMetric(metric, row.status)); return { key: asset, ...metric }; });
+    const timeframes = WINNING_RATE_ASSETS.flatMap((asset) => WINNING_RATE_TIMEFRAMES.map((timeframe) => { const metric = emptyWinningRateMetric(); versionRows.filter((row) => row.asset === asset && row.timeframe === timeframe).forEach((row) => updateWinningRateMetric(metric, row.status)); return { key: `${asset} · ${timeframe}`, asset, timeframe, ...metric }; }));
+    const confidenceBands = [...WINNING_RATE_BANDS, "UNKNOWN"].map((band) => { const metric = emptyWinningRateMetric(); versionRows.filter((row) => confidenceBand(row.confidence) === band).forEach((row) => updateWinningRateMetric(metric, row.status)); return { key: band, ...metric }; });
+    return { version, overall, assets, timeframes, confidenceBands };
+  });
+  return { versions: byVersion, confidenceBandLabels: [...WINNING_RATE_BANDS], assets: [...WINNING_RATE_ASSETS], timeframes: [...WINNING_RATE_TIMEFRAMES] };
+}
+export async function getWinningRateStats(userId: number) {
+  const db = await getDb();
+  if (!db) return summarizeWinningRate([]);
+  const rows = await db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, confidence: generatedSignals.confidence, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), or(eq(generatedSignals.intelligenceVersion, "replacement-forex-v1"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2"))));
+  return summarizeWinningRate(rows.map((row) => ({ ...row, version: row.version ?? "" })));
 }

@@ -332,3 +332,13 @@
 - [x] Inspect v2 score symmetry, fallback direction, component weights, and source-linked traces for directional bias; BUY examples contain bullish structure/indicator/HTF evidence, and SELL examples contain bearish evidence, but unconditional tie fallback was a real bias risk
 - [x] Add a source-grounded structure/momentum tie-break, correct v2 provenance wording, and add bearish-direction regression coverage
 - [x] Document whether recent signals are intelligence-driven, generic, or biased; they are source-linked and context-driven, but the small BUY-heavy sample does not prove accuracy
+
+- [x] Add a protected Winning Rate tab for Replacement Intelligence v1 historical records (superseded by the version-separated v1/v2 implementation below)
+- [x] Aggregate generated, resolved, WIN, LOSS, and win-rate metrics by asset, timeframe, and confidence band (superseded by the version-separated aggregation below)
+- [x] Add API, responsive UI tables, regression coverage, and visual verification for the Winning Rate tab (superseded by the version-separated implementation below)
+- [x] Run full validation and publish the Winning Rate release (superseded by the version-separated release below)
+
+- [x] Add a protected Winning Rate tab for both Replacement Intelligence v1 and v2, keeping their histories separate
+- [x] Aggregate generated, resolved, WIN, LOSS, and win-rate metrics by version, asset, timeframe, and confidence band
+- [x] Add API, responsive UI tables, regression coverage, and visual verification for both intelligence versions
+- [x] Run full validation and publish the version-separated Winning Rate release

@@ -346,3 +346,6 @@
 - [x] Extend Winning Rate confidence-band records to include every asset and timeframe for both Replacement Intelligence v1 and v2
 - [x] Add aggregation/API coverage and responsive UI tables for asset-timeframe-confidence buckets
 - [x] Run tests, visual verification, and publish the confidence-detail update
+
+- [x] Reorganize confidence-band records into clearly separated asset and timeframe groups for both intelligence versions
+- [x] Add grouped-layout regression coverage, responsive verification, and publish the presentation update

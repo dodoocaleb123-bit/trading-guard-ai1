@@ -201,7 +201,7 @@ export function shouldNotifyApprovedAudit(verdict: string) {
   return verdict === "APPROVED";
 }
 
-export function formatApprovedTelegramMessage(input: {
+export function formatDetailedApprovedTelegramMessage(input: {
   asset: string;
   timeframe: string;
   direction: string;
@@ -253,28 +253,84 @@ export function formatApprovedTelegramMessage(input: {
   return lines.join("\n");
 }
 
+export function formatApprovedTelegramMessage(input: { asset: string; timeframe: string; direction: string; entry: number | null | undefined; stopLoss: number | null | undefined; takeProfit: number | null | undefined; confidence: number; adjustments?: string; ruleEvidence?: string[]; fundamentalContext?: FundamentalContext; confluenceScore?: number; decisionTrace?: IntelligenceDecisionTrace }) {
+  const optional = (value: number | null | undefined) => value == null ? "—" : String(value);
+  const trace = input.decisionTrace;
+  const confluence = trace?.scoreSummary.confluenceScore ?? input.confluenceScore;
+  const score = trace ? `Score: BUY ${trace.scoreSummary.buyScore} vs SELL ${trace.scoreSummary.sellScore}` : "Score: unavailable";
+  return [
+    input.direction,
+    `${input.asset} · ${input.timeframe}`,
+    `Entry: ${optional(input.entry)}`,
+    `Stop loss: ${optional(input.stopLoss)}`,
+    `Take profit: ${optional(input.takeProfit)}`,
+    `Confidence: ${input.confidence}%${confluence == null ? "" : ` · Confluence: ${confluence}%`}`,
+    score,
+    "Paper only · UNVALIDATED",
+  ].join("\n");
+}
+
 function escapeTelegramHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
 }
 
 export function formatOutcomeTelegramMessage(input: { asset: string; timeframe: string; direction: string; status: "WIN" | "LOSS"; entry: number | string; stopLoss: number | string; takeProfit: number | string; closePrice: number; signalId: number; note?: string }) {
-  const text = (value: string | number) => escapeTelegramHtml(String(value));
-  const outcomeLabel = input.status === "WIN" ? "TARGET REACHED" : "STOP LOSS REACHED";
   return [
-    "<b>TradingGuardAI · PAPER OUTCOME</b>",
-    `<b>${text(input.status)} · ${text(input.asset)}</b> · ${text(input.timeframe)}`,
-    `<b>Original signal:</b> ${text(input.direction)} · Signal #${text(input.signalId)}`,
-    "",
-    "<b>Outcome</b>",
-    `<b>Result:</b> ${text(outcomeLabel)}`,
-    `<b>Close price:</b> ${text(input.closePrice)}`,
-    `<b>Entry:</b> ${text(input.entry)}`,
-    `<b>Stop loss:</b> ${text(input.stopLoss)}`,
-    `<b>Take profit:</b> ${text(input.takeProfit)}`,
-    "",
-    `<b>Paper record:</b> ${text(input.note ?? "Outcome recorded for paper validation.")}`,
-    "<i>No live trade was executed. This outcome is available for validation and lesson review.</i>",
+    input.status,
+    input.direction,
+    `${input.asset} · ${input.timeframe}`,
+    `Entry: ${input.entry}`,
+    "Paper only · UNVALIDATED",
   ].join("\n");
+}
+
+export function formatReasonTelegramMessage(input: {
+  signalId: number;
+  asset: string;
+  timeframe: string;
+  direction: string;
+  entry: number | string;
+  stopLoss: number | string;
+  takeProfit: number | string;
+  confidence: number | string;
+  rationale?: string | null;
+  intelligenceVersion?: string | null;
+  intelligenceComponents?: string | null;
+  marketRegime?: string | null;
+  marketSnapshot?: string | null;
+}) {
+  const lines = [
+    "TradingGuardAI · REASON",
+    `${input.direction} ${input.asset} · ${input.timeframe} · Signal #${input.signalId}`,
+    "Paper only · UNVALIDATED",
+    "",
+    "Decision details",
+    input.rationale?.trim() || "No stored rationale was available for this signal.",
+    `Intelligence: ${input.intelligenceVersion ?? "unknown"}`,
+    `Confidence: ${input.confidence}%`,
+    `Market regime: ${input.marketRegime ?? "unknown"}`,
+  ];
+  try {
+    const components = JSON.parse(input.intelligenceComponents ?? "[]");
+    if (Array.isArray(components) && components.length) lines.push("", "Source-linked components", ...components.filter((item) => typeof item === "string").slice(0, 8).map((item) => `• ${item}`));
+  } catch {
+    // Preserve the response even if an older signal has malformed component metadata.
+  }
+  try {
+    const snapshot = JSON.parse(input.marketSnapshot ?? "{}");
+    const macro = snapshot?.fundamentalContext;
+    if (macro) {
+      lines.push("", "Macro context", `Status: ${macro.status ?? "UNKNOWN"} · Bias: ${macro.bias ?? "NEUTRAL"}`, macro.summary ?? "No macro summary stored.");
+      if (Array.isArray(macro.observations) && macro.observations.length) lines.push(...macro.observations.slice(0, 6).map((observation: any) => `• ${observation.source} ${observation.series}: ${observation.value} (${String(observation.observedAt ?? "").slice(0, 10)})`));
+    }
+    if (snapshot?.replacementIntelligence?.decisionTrace?.scoreSummary) {
+      const score = snapshot.replacementIntelligence.decisionTrace.scoreSummary;
+      lines.push("", "Deterministic score", `BUY ${score.buyScore} vs SELL ${score.sellScore}`, `Confluence: ${score.confluenceScore}%`);
+    }
+  } catch {
+    // Older snapshots may not be JSON; the stored rationale remains the source of truth.
+  }
+  return lines.join("\n");
 }
 
 export type TelegramAsset = "EUR/USD" | "XAU/USD" | "GBP/USD" | "BTC/USD";

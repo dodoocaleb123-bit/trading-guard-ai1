@@ -13,6 +13,7 @@ import { ENV } from "./env";
 import { scanAllUsers } from "../scanner";
 import { isAuthorizedScannerCron } from "../scheduled";
 import { sendWeeklyStrategySummary } from "../weekly-summary";
+import { handleTelegramWebhookUpdate, isTelegramWebhookAuthorized } from "../telegram-webhook";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -51,6 +52,16 @@ async function startServer() {
     next();
   });
   app.get("/healthz", (_req, res) => res.json({ ok: true, service: "trading-guard-ai" }));
+  app.post("/api/telegram/webhook", async (req, res) => {
+    if (!isTelegramWebhookAuthorized(req.headers as Record<string, string | string[] | undefined>)) return res.status(401).json({ error: "unauthorized" });
+    try {
+      const result = await handleTelegramWebhookUpdate(req.body);
+      return res.json({ ok: true, ...result });
+    } catch (error) {
+      console.error("[TelegramWebhook] Update handling failed:", error);
+      return res.status(500).json({ error: "webhook processing failed" });
+    }
+  });
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   app.post("/api/scheduled/weekly-strategy-summary", async (req, res) => {

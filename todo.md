@@ -367,3 +367,8 @@
 - [x] Add freshness, source provenance, unavailable-data safeguards, and connect verified context to v3 decisions
 - [x] Show macro evidence in paper Telegram/audit outputs and add v2-v3 comparison metrics
 - [x] Add regression tests, responsive verification, and publish the official-data macro release
+
+- [x] Replace automatic Telegram signal messages with the requested compact paper format showing direction, asset/timeframe, levels, confidence/confluence, and score
+- [x] Replace automatic WIN/LOSS replies with the requested compact linked-outcome format
+- [x] Add secure inbound group-message handling so a reply containing “Reason” returns the detailed v3 explanation as a reply
+- [x] Preserve asset routing, signal linkage, authorization, paper-only labeling, and add regression tests before publishing

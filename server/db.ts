@@ -188,7 +188,7 @@ export async function listAuditTrades(userId: number) {
   return attachTelegramDelivery(audits, deliveries, "AUDIT", "auditTradeId");
 }
 
-export async function recordTelegramDelivery(input: { userId: number; signalId?: number; auditTradeId?: number; kind: "SIGNAL" | "AUDIT" | "OUTCOME" | "SUMMARY"; status: "DELIVERED" | "FAILED"; telegramMessageId?: string; dedupeKey: string; error?: string }) {
+export async function recordTelegramDelivery(input: { userId: number; signalId?: number; auditTradeId?: number; kind: "SIGNAL" | "AUDIT" | "OUTCOME" | "SUMMARY" | "REASON"; status: "DELIVERED" | "FAILED"; telegramMessageId?: string; dedupeKey: string; error?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const deliveredAt = input.status === "DELIVERED" ? new Date() : null;
@@ -202,6 +202,17 @@ export async function getTelegramDeliveryForSignal(userId: number, signalId: num
   return rows[0];
 }
 
+export async function findSignalByTelegramMessageId(telegramMessageId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const deliveries = await db.select().from(telegramDeliveries).where(and(eq(telegramDeliveries.telegramMessageId, telegramMessageId), eq(telegramDeliveries.kind, "SIGNAL"), eq(telegramDeliveries.status, "DELIVERED"))).orderBy(desc(telegramDeliveries.createdAt)).limit(1);
+  const delivery = deliveries[0];
+  if (!delivery?.signalId) return undefined;
+  const signals = await db.select().from(generatedSignals).where(and(eq(generatedSignals.id, delivery.signalId), eq(generatedSignals.userId, delivery.userId))).limit(1);
+  const signal = signals[0];
+  return signal ? { delivery, signal } : undefined;
+}
+
 export async function hasTelegramDelivery(dedupeKey: string) {
   const db = await getDb();
   if (!db) return false;
@@ -210,7 +221,7 @@ export async function hasTelegramDelivery(dedupeKey: string) {
 }
 
 export function summarizeDeliveryCounts(signals: Array<{ status: string }>, audits: Array<{ verdict: string }>, deliveries: Array<{ kind: string; status: string }>) {
-  const count = (kind: "SIGNAL" | "AUDIT" | "OUTCOME", status?: "DELIVERED" | "FAILED") => deliveries.filter((delivery) => delivery.kind === kind && (!status || delivery.status === status)).length;
+  const count = (kind: "SIGNAL" | "AUDIT" | "OUTCOME" | "REASON", status?: "DELIVERED" | "FAILED") => deliveries.filter((delivery) => delivery.kind === kind && (!status || delivery.status === status)).length;
   return {
     generated: signals.length,
     pending: signals.filter((signal) => signal.status === "PENDING").length,
@@ -223,6 +234,7 @@ export function summarizeDeliveryCounts(signals: Array<{ status: string }>, audi
     approvedAuditDelivered: deliveries.filter((delivery) => delivery.kind === "AUDIT" && delivery.status === "DELIVERED").length,
     approvedAuditFailed: deliveries.filter((delivery) => delivery.kind === "AUDIT" && delivery.status === "FAILED").length,
     outcomeAttempts: count("OUTCOME"), outcomeDelivered: count("OUTCOME", "DELIVERED"), outcomeFailed: count("OUTCOME", "FAILED"),
+    reasonAttempts: count("REASON"), reasonDelivered: count("REASON", "DELIVERED"), reasonFailed: count("REASON", "FAILED"),
   };
 }
 

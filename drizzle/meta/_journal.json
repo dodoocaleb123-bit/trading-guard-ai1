@@ -71,6 +71,13 @@
       "when": 1787148418758,
       "tag": "0009_powerful_gamma_corps",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1787247174309,
+      "tag": "0010_organic_dragon_man",
+      "breakpoints": true
     }
   ]
 }

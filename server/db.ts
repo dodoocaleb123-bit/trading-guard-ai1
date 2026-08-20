@@ -449,7 +449,8 @@ export function summarizeWinningRate(rows: WinningRateRow[]) {
     const assets = WINNING_RATE_ASSETS.map((asset) => { const metric = emptyWinningRateMetric(); versionRows.filter((row) => row.asset === asset).forEach((row) => updateWinningRateMetric(metric, row.status)); return { key: asset, ...metric }; });
     const timeframes = WINNING_RATE_ASSETS.flatMap((asset) => WINNING_RATE_TIMEFRAMES.map((timeframe) => { const metric = emptyWinningRateMetric(); versionRows.filter((row) => row.asset === asset && row.timeframe === timeframe).forEach((row) => updateWinningRateMetric(metric, row.status)); return { key: `${asset} · ${timeframe}`, asset, timeframe, ...metric }; }));
     const confidenceBands = [...WINNING_RATE_BANDS, "UNKNOWN"].map((band) => { const metric = emptyWinningRateMetric(); versionRows.filter((row) => confidenceBand(row.confidence) === band).forEach((row) => updateWinningRateMetric(metric, row.status)); return { key: band, ...metric }; });
-    return { version, overall, assets, timeframes, confidenceBands };
+    const confidenceByAssetTimeframe = WINNING_RATE_ASSETS.flatMap((asset) => WINNING_RATE_TIMEFRAMES.flatMap((timeframe) => [...WINNING_RATE_BANDS, "UNKNOWN"].map((band) => { const metric = emptyWinningRateMetric(); versionRows.filter((row) => row.asset === asset && row.timeframe === timeframe && confidenceBand(row.confidence) === band).forEach((row) => updateWinningRateMetric(metric, row.status)); return { key: `${asset} · ${timeframe} · ${band}`, asset, timeframe, confidenceBand: band, ...metric }; })));
+    return { version, overall, assets, timeframes, confidenceBands, confidenceByAssetTimeframe };
   });
   return { versions: byVersion, confidenceBandLabels: [...WINNING_RATE_BANDS], assets: [...WINNING_RATE_ASSETS], timeframes: [...WINNING_RATE_TIMEFRAMES] };
 }

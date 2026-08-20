@@ -41,5 +41,8 @@ describe("replacement outcome statistics", () => {
     expect(v1.confidenceBands.find((item) => item.key === "89-80")).toMatchObject({ generated: 1, losses: 1, resolved: 1, winRate: 0 });
     expect(v2.confidenceBands.find((item) => item.key === "79-70")).toMatchObject({ generated: 1, wins: 1, resolved: 1, winRate: 100 });
     expect(result.confidenceBandLabels).toEqual(["100-90", "89-80", "79-70", "69-60", "59-40"]);
+    expect(v1.confidenceByAssetTimeframe).toHaveLength(4 * 2 * 6);
+    expect(v1.confidenceByAssetTimeframe.find((item) => item.key === "EUR/USD · 15MIN · 100-90")).toMatchObject({ asset: "EUR/USD", timeframe: "15MIN", confidenceBand: "100-90", generated: 1, wins: 1, resolved: 1, winRate: 100 });
+    expect(v1.confidenceByAssetTimeframe.find((item) => item.key === "BTC/USD · 1H · 69-60")).toMatchObject({ generated: 1, resolved: 0, winRate: null });
   });
 });

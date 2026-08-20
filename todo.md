@@ -342,3 +342,7 @@
 - [x] Aggregate generated, resolved, WIN, LOSS, and win-rate metrics by version, asset, timeframe, and confidence band
 - [x] Add API, responsive UI tables, regression coverage, and visual verification for both intelligence versions
 - [x] Run full validation and publish the version-separated Winning Rate release
+
+- [x] Extend Winning Rate confidence-band records to include every asset and timeframe for both Replacement Intelligence v1 and v2
+- [x] Add aggregation/API coverage and responsive UI tables for asset-timeframe-confidence buckets
+- [x] Run tests, visual verification, and publish the confidence-detail update

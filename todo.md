@@ -353,3 +353,7 @@
 - [x] Send each WIN/LOSS outcome as a Telegram reply to its corresponding signal message
 - [x] Preserve asset-specific routing, delivery records, and fallback behavior for older signals without message references
 - [x] Add reply-linking regression tests, validate, and publish the update
+
+- [x] Build v3 as an additive upgrade: retain all combined-document v2 intelligence and add the new PDF-derived macro/fundamental layer
+- [x] Preserve v2 provenance, add v3 source attribution and conflict handling, and route scanner BUY/SELL judgments through the combined v3 logic
+- [x] Add v3 paper-only validation, version-separated statistics, regression tests, visual verification, and publish the release

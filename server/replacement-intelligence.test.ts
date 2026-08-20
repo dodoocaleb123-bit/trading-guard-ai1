@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReplacementKnowledgeModel, evaluateReplacementIntelligence } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModel, buildReplacementKnowledgeModelV3, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { calculateMarketContext } from "./market-context";
 
 describe("replacement PDF-derived intelligence", () => {
@@ -15,6 +15,28 @@ describe("replacement PDF-derived intelligence", () => {
     expect(model.nodes.length).toBeGreaterThan(8);
     expect(model.nodes.some((node) => node.concept.includes("higher peaks"))).toBe(true);
     expect(model.nodes.every((node) => node.source.passage.length > 20)).toBe(true);
+  });
+
+  it("builds v3 by retaining every v2 node and adding the new PDF layer", () => {
+    const v2 = buildReplacementKnowledgeModel();
+    const v3 = buildReplacementKnowledgeModelV3();
+    expect(v3.id).toBe("forex-trading-combined-document-v3");
+    expect(v3.sourceDocument).toContain("Forex trading.docx");
+    expect(v3.sourceDocument).toContain("What_moves_the_currency_market.pdf");
+    expect(v3.nodes.length).toBeGreaterThan(v2.nodes.length);
+    expect(v2.nodes.every((node) => v3.nodes.some((candidate) => candidate.id === node.id))).toBe(true);
+    expect(v3.nodes.some((node) => node.id === "macro-technical-alignment" && node.source.document === "What_moves_the_currency_market.pdf")).toBe(true);
+  });
+
+  it("uses verified macro context as additive evidence and does not fabricate it when unavailable", () => {
+    const marketContext = calculateMarketContext(candles)!;
+    const unavailable = evaluateReplacementIntelligence({ close: candles.at(-1)!.close, interval: "1h", marketContext, fundamentalContext: { status: "UNAVAILABLE", bias: "NEUTRAL", summary: "No verified macro feed" } }, buildReplacementKnowledgeModelV3());
+    const available = evaluateReplacementIntelligence({ close: candles.at(-1)!.close, interval: "1h", marketContext, fundamentalContext: { status: "AVAILABLE", bias: "BUY", summary: "Policy and employment context support the currency", eventRisk: "NORMAL" } }, buildReplacementKnowledgeModelV3());
+    expect(unavailable.direction).toMatch(/BUY|SELL/);
+    expect(unavailable.matchedNodes.some((node) => node.source.document === "What_moves_the_currency_market.pdf")).toBe(false);
+    expect(unavailable.adjustments).toContain("Macro/fundamental layer: UNAVAILABLE");
+    expect(available.matchedNodes.some((node) => node.id === "macro-technical-alignment")).toBe(true);
+    expect(available.sourceTrace.some((source) => source.document === "What_moves_the_currency_market.pdf")).toBe(true);
   });
 
   it("makes a paper direction from enriched market context and preserves a source trace", () => {

@@ -7,7 +7,7 @@ import { activateIntelligenceVersion, createIntelligenceComponent, createIntelli
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents } from "./intelligence";
-import { buildReplacementKnowledgeModel, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModelV3, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -22,11 +22,11 @@ export function buildReplacementManualAuditResult(signal: string, asset: string,
   const directionMatches = !submittedDirection || submittedDirection === decision.direction;
   const directionReason = submittedDirection
     ? directionMatches
-      ? `Submitted ${submittedDirection} direction matches Replacement Intelligence v2.`
-      : `Submitted ${submittedDirection} direction conflicts with Replacement Intelligence v2 ${decision.direction} judgment.`
+      ? `Submitted ${submittedDirection} direction matches Replacement Intelligence v3.`
+      : `Submitted ${submittedDirection} direction conflicts with Replacement Intelligence v3 ${decision.direction} judgment.`
     : `No explicit direction was detected in the submitted signal; the audit uses the intelligence direction ${decision.direction}.`;
   const trace = `Score: BUY ${decision.score.buy} vs SELL ${decision.score.sell}; confluence ${decision.confluenceScore}%; market regime ${decision.marketRegime}. ${decision.conflicts.length ? `Conflicting components: ${decision.conflicts.join("; ")}.` : "No conflicting components were matched."}`;
-  const adjustments = `${directionReason} ${decision.explanation} ${trace} Source-linked replacement v2 is authoritative for this paper audit; validation remains UNVALIDATED.`;
+  const adjustments = `${directionReason} ${decision.explanation} ${trace} Additive source-linked replacement v3 is authoritative for this paper audit; it retains the complete v2 foundation and uses verified macro/fundamental evidence when available. Validation remains UNVALIDATED.`;
   return {
     verdict: directionMatches ? "APPROVED" as const : "DENIED" as const,
     confidence: decision.confidence,
@@ -76,7 +76,7 @@ export const appRouter = router({
       return { active, versions, components, lessons };
     }),
     replacementPreview: protectedProcedure.query(async ({ ctx }) => {
-      const model = buildReplacementKnowledgeModel();
+      const model = buildReplacementKnowledgeModelV3();
       const active = await getActiveIntelligenceVersion(ctx.user.id);
       return { id: model.id, sourceDocument: model.sourceDocument, nodeCount: model.nodes.length, nodes: model.nodes, decisionPolicy: model.decisionPolicy, learningPolicy: model.learningPolicy, active: active?.versionLabel === model.id, activeVersionId: active?.id ?? null };
     }),
@@ -133,7 +133,7 @@ export const appRouter = router({
         const series = await fetchMarketSeries(asset, timeframe === "1H" ? "1h" : "15min");
         if (!series.marketContext) throw new Error("Latest scanner market context is unavailable");
         const market: MarketSnapshot = { symbol: series.symbol, price: series.close, close: series.close, fetchedAt: series.fetchedAt, interval: timeframe === "1H" ? "1h" : "15min", trend: series.trend, values: series.values, marketContext: series.marketContext };
-        const decision = evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: series.marketContext }, buildReplacementKnowledgeModel());
+        const decision = evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: series.marketContext, fundamentalContext: { status: "UNAVAILABLE", bias: "NEUTRAL", summary: "No verified live macroeconomic feed is configured; v2 combined-document technical intelligence remains the decision base." } }, buildReplacementKnowledgeModelV3());
         const result = buildReplacementManualAuditResult(input.signal, asset, timeframe, market, decision);
         const assistantText = formatAuditResult(result, market);
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });

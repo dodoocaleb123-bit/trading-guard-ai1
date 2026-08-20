@@ -3,7 +3,7 @@ import { generatedSignals, users } from "../drizzle/schema";
 import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, getTelegramDeliveryForSignal, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
-import { buildReplacementKnowledgeModel, evaluateReplacementIntelligence } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModelV3, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -50,8 +50,8 @@ type ScanUserResult = { created: number; tracked: number; marketData: ScanMarket
 
 async function ensureReplacementIntelligenceVersion(userId: number) {
   const active = await getActiveIntelligenceVersion(userId);
-  if (active?.versionLabel === "forex-trading-combined-document-v2") return active;
-  const model = buildReplacementKnowledgeModel();
+  if (active?.versionLabel === "forex-trading-combined-document-v3") return active;
+  const model = buildReplacementKnowledgeModelV3();
   const version = await createIntelligenceVersion({ userId, versionLabel: model.id, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: 0, algorithmJson: JSON.stringify(model), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Replacement intelligence v2 is newly activated and requires forward paper validation." }), activatedAt: new Date() });
   const triggerFor = (family: string) => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : "CANDLE";
   for (const node of model.nodes) await createIntelligenceComponent({ userId, versionId: version.id, title: node.concept, sourceRuleIds: JSON.stringify([]), trigger: triggerFor(node.family) as any, stance: "NEUTRAL", conditionJson: JSON.stringify({ values: node.prerequisites, description: node.rule }), weight: "1", enabled: true });
@@ -93,7 +93,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   const mirroredRules = await fetchStrategyRulesFromSupabase();
   const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 6_000);
   await ensureReplacementIntelligenceVersion(userId);
-  const replacementModel = buildReplacementKnowledgeModel();
+  const replacementModel = buildReplacementKnowledgeModelV3();
   const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series)).map((candidate) => ({ ...candidate, cooldownKey: `${candidate.asset}:${candidate.timeframe}:${(candidate.series.close ?? 0).toFixed(4)}` }));
   console.info(`[Scanner] Forwarding ${candidates.length} raw market snapshots to the strategy-rules algorithm.`);
   let decisions: Array<any> & { metrics?: { snapshots: number; completeResponses: number; retries: number } };
@@ -126,7 +126,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           fetchedAt: series.fetchedAt,
           marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext, multiTimeframeAlignment } : null,
         };
-        const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: market.marketContext }) : undefined;
+        const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext: { status: "UNAVAILABLE", bias: "NEUTRAL", summary: "No verified live macroeconomic feed is configured; v2 combined-document technical intelligence remains the decision base." } }, replacementModel) : undefined;
         if (!replacementIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
         return {
           asset,

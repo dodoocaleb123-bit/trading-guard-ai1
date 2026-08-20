@@ -387,7 +387,7 @@ export async function getRelevantRulesText(userId: number, query: string, maxCha
 
 type ReplacementOutcomeRow = { status: string; intelligenceComponents: string | null; marketRegime: string | null; confidence?: string | number | null };
 type ReplacementOutcomeBucket = { key: string; total: number; wins: number; losses: number; pending: number; invalidated: number };
-export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[]) {
+export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], version: "replacement-forex-v2" | "replacement-forex-v3" = "replacement-forex-v2") {
   const componentMap = new Map<string, ReplacementOutcomeBucket>();
   const regimeMap = new Map<string, ReplacementOutcomeBucket>();
   const confidenceMap = new Map<string, ReplacementOutcomeBucket>();
@@ -412,14 +412,14 @@ export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[]) {
   const wins = rows.filter((row) => row.status === "WIN").length;
   const losses = rows.filter((row) => row.status === "LOSS").length;
   const resolved = wins + losses;
-  return { version: "replacement-forex-v2", total: rows.length, components: Array.from(componentMap.values()).map(withRate).sort((a, b) => b.total - a.total), regimes: Array.from(regimeMap.values()).map(withRate).sort((a, b) => b.total - a.total), confidenceBands: Array.from(confidenceMap.values()).map(withRate).sort((a, b) => a.key.localeCompare(b.key)), validation: { resolved, wins, losses, pending: rows.filter((row) => row.status === "PENDING").length, invalidated: rows.filter((row) => row.status === "INVALIDATED").length, winRate: resolved ? Math.round((wins / resolved) * 100) : null, reviewThreshold: 50, reviewReady: resolved >= 50, reviewStatus: resolved >= 50 ? "READY_FOR_REVIEW" as const : "COLLECTING_EVIDENCE" as const } };
+  return { version, total: rows.length, components: Array.from(componentMap.values()).map(withRate).sort((a, b) => b.total - a.total), regimes: Array.from(regimeMap.values()).map(withRate).sort((a, b) => b.total - a.total), confidenceBands: Array.from(confidenceMap.values()).map(withRate).sort((a, b) => a.key.localeCompare(b.key)), validation: { resolved, wins, losses, pending: rows.filter((row) => row.status === "PENDING").length, invalidated: rows.filter((row) => row.status === "INVALIDATED").length, winRate: resolved ? Math.round((wins / resolved) * 100) : null, reviewThreshold: 50, reviewReady: resolved >= 50, reviewStatus: resolved >= 50 ? "READY_FOR_REVIEW" as const : "COLLECTING_EVIDENCE" as const } };
 }
 
 export async function getReplacementOutcomeStats(userId: number) {
   const db = await getDb();
   if (!db) return summarizeReplacementOutcomes([]);
-  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2")));
-  return summarizeReplacementOutcomes(rows);
+  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v3")));
+  return summarizeReplacementOutcomes(rows, "replacement-forex-v3");
 }
 
 type WinningRateRow = { version: string; asset: string; timeframe: string; confidence: string | number | null; status: string };
@@ -428,7 +428,7 @@ export type WinningRateBucket = WinningRateMetric & { key: string };
 const WINNING_RATE_ASSETS = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
 const WINNING_RATE_TIMEFRAMES = ["15MIN", "1H"] as const;
 const WINNING_RATE_BANDS = ["100-90", "89-80", "79-70", "69-60", "59-40"] as const;
-const WINNING_RATE_VERSIONS = ["replacement-forex-v1", "forex-trading-combined-document-v2"] as const;
+const WINNING_RATE_VERSIONS = ["replacement-forex-v1", "forex-trading-combined-document-v2", "forex-trading-combined-document-v3"] as const;
 
 function emptyWinningRateMetric(): WinningRateMetric { return { generated: 0, resolved: 0, wins: 0, losses: 0, winRate: null }; }
 function updateWinningRateMetric(metric: WinningRateMetric, status: string) {
@@ -464,6 +464,6 @@ export function summarizeWinningRate(rows: WinningRateRow[]) {
 export async function getWinningRateStats(userId: number) {
   const db = await getDb();
   if (!db) return summarizeWinningRate([]);
-  const rows = await db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, confidence: generatedSignals.confidence, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), or(eq(generatedSignals.intelligenceVersion, "replacement-forex-v1"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2"))));
+  const rows = await db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, confidence: generatedSignals.confidence, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), or(eq(generatedSignals.intelligenceVersion, "replacement-forex-v1"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v3"))));
   return summarizeWinningRate(rows.map((row) => ({ ...row, version: row.version ?? "" })));
 }

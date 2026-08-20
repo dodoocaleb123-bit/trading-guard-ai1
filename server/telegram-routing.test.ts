@@ -22,6 +22,16 @@ describe("asset Telegram routing", () => {
     );
   });
 
+  it("adds a Telegram reply reference when an outcome should attach to a signal", async () => {
+    await sendTelegramMessage("paper outcome", "EUR/USD", { replyToMessageId: "42" });
+    expect(post).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ reply_parameters: { message_id: 42 } }), expect.any(Object));
+  });
+
+  it("omits invalid reply references instead of breaking delivery", async () => {
+    await sendTelegramMessage("paper outcome", "EUR/USD", { replyToMessageId: "not-a-message-id" });
+    expect(post).toHaveBeenCalledWith(expect.any(String), expect.not.objectContaining({ reply_parameters: expect.anything() }), expect.any(Object));
+  });
+
   it("keeps BTC/USD and unspecified legacy calls on the existing bot", async () => {
     await sendTelegramMessage("btc signal", "BTC/USD");
     expect(post.mock.calls[0]?.[0]).toContain(`/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`);

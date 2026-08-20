@@ -195,6 +195,13 @@ export async function recordTelegramDelivery(input: { userId: number; signalId?:
   await db.insert(telegramDeliveries).values({ ...input, deliveredAt }).onDuplicateKeyUpdate({ set: { status: input.status, telegramMessageId: input.telegramMessageId ?? null, error: input.error ?? null, deliveredAt } });
 }
 
+export async function getTelegramDeliveryForSignal(userId: number, signalId: number, kind: "SIGNAL" | "OUTCOME" = "SIGNAL") {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(telegramDeliveries).where(and(eq(telegramDeliveries.userId, userId), eq(telegramDeliveries.signalId, signalId), eq(telegramDeliveries.kind, kind))).orderBy(desc(telegramDeliveries.createdAt)).limit(1);
+  return rows[0];
+}
+
 export async function hasTelegramDelivery(dedupeKey: string) {
   const db = await getDb();
   if (!db) return false;

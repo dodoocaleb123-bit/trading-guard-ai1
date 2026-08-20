@@ -279,7 +279,7 @@ function telegramDestination(asset?: string) {
   return { token: ENV.telegramBotToken, chatId: ENV.telegramGroupChatId || ENV.telegramChatId };
 }
 
-export async function sendTelegramMessage(text: string, asset?: string): Promise<{ delivered: boolean; telegramMessageId?: string; error?: string }> {
+export async function sendTelegramMessage(text: string, asset?: string, options?: { replyToMessageId?: string }): Promise<{ delivered: boolean; telegramMessageId?: string; error?: string }> {
   const destination = telegramDestination(asset);
   if (!destination.token || !destination.chatId) return { delivered: false, error: `${asset ?? "BTC/USD"} Telegram credentials are not configured` };
   try {
@@ -288,6 +288,7 @@ export async function sendTelegramMessage(text: string, asset?: string): Promise
       text,
       parse_mode: "HTML",
       disable_web_page_preview: true,
+      ...(options?.replyToMessageId && Number.isInteger(Number(options.replyToMessageId)) ? { reply_parameters: { message_id: Number(options.replyToMessageId) } } : {}),
     }, { timeout: 12000 });
     const telegramMessageId = response.data.result?.message_id != null ? String(response.data.result.message_id) : undefined;
     console.info(`[Telegram] ${asset ?? "BTC/USD"} notification delivered (${text.startsWith("<b>TradingGuardAI signal</b>") ? "signal" : "outcome"})`);

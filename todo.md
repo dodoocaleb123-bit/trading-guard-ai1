@@ -349,3 +349,7 @@
 
 - [x] Reorganize confidence-band records into clearly separated asset and timeframe groups for both intelligence versions
 - [x] Add grouped-layout regression coverage, responsive verification, and publish the presentation update
+
+- [x] Send each WIN/LOSS outcome as a Telegram reply to its corresponding signal message
+- [x] Preserve asset-specific routing, delivery records, and fallback behavior for older signals without message references
+- [x] Add reply-linking regression tests, validate, and publish the update

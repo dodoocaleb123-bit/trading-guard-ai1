@@ -37,6 +37,13 @@ describe("approved Telegram signal formatting", () => {
     expect(message).not.toContain("<b>");
   });
 
+  it("includes official macro status and observations when v3 has them", () => {
+    const message = formatApprovedTelegramMessage({ asset: "EUR/USD", timeframe: "1H", direction: "BUY", entry: 1, stopLoss: 0.9, takeProfit: 1.2, confidence: 80, adjustments: "v3 combined decision", fundamentalContext: { status: "AVAILABLE", bias: "NEUTRAL", summary: "Official observations available", eventRisk: "NORMAL", observations: [{ source: "FRED", series: "FEDFUNDS", value: 5.25, observedAt: "2026-08-19T00:00:00.000Z" }], fetchedAt: "2026-08-20T00:00:00.000Z", stale: false } });
+    expect(message).toContain("Macro context");
+    expect(message).toContain("FRED FEDFUNDS: 5.25");
+    expect(message).toContain("Status: AVAILABLE");
+  });
+
   it("includes deterministic source-linked intelligence explanation", () => {
     const message = formatApprovedTelegramMessage({
       asset: "BTC/USD", timeframe: "1H", direction: "BUY", entry: 64488.11, stopLoss: 64346.672, takeProfit: 64770.986, confidence: 63, adjustments: "Model explanation unavailable.",

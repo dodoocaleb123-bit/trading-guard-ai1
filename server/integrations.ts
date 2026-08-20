@@ -5,7 +5,7 @@ import { invokeLLM } from "./_core/llm";
 import { ENV } from "./_core/env";
 import { calculateMarketContext, type MarketContext } from "./market-context";
 import type { IntelligenceDecisionTrace } from "./intelligence";
-import type { ReplacementDecision } from "./replacement-intelligence";
+import type { FundamentalContext, ReplacementDecision } from "./replacement-intelligence";
 
 export type MarketSnapshot = {
   symbol: string;
@@ -20,6 +20,7 @@ export type MarketSnapshot = {
   trend?: "UP" | "DOWN";
   values?: Array<Record<string, unknown>>;
   marketContext?: MarketContext | null;
+  fundamentalContext?: FundamentalContext & { observations?: Array<{ source: string; series: string; value: number; observedAt: string }>; fetchedAt?: string; stale?: boolean };
   intelligenceSeed?: {
     direction: "BUY" | "SELL";
     entry: number;
@@ -212,6 +213,7 @@ export function formatApprovedTelegramMessage(input: {
   ruleEvidence?: string[];
   confluenceScore?: number;
   decisionTrace?: IntelligenceDecisionTrace;
+  fundamentalContext?: FundamentalContext & { observations?: Array<{ source: string; series: string; value: number; observedAt: string }>; fetchedAt?: string; stale?: boolean };
 }) {
   const optional = (value: number | null | undefined) => value == null ? "—" : String(value);
   const trace = input.decisionTrace;
@@ -230,6 +232,12 @@ export function formatApprovedTelegramMessage(input: {
     "Decision summary",
     input.adjustments,
   ];
+  const macro = input.fundamentalContext;
+  if (macro) {
+    lines.push("", "Macro context", `Status: ${macro.status} · Bias: ${macro.bias}${macro.eventRisk ? ` · Event risk: ${macro.eventRisk}` : ""}`, `Summary: ${macro.summary}`);
+    if (macro.observations?.length) lines.push("Official observations: ", ...macro.observations.slice(0, 4).map((observation) => `• ${observation.source} ${observation.series}: ${observation.value} (${observation.observedAt.slice(0, 10)})`));
+    if (macro.fetchedAt) lines.push(`Fetched: ${macro.fetchedAt}`);
+  }
   const rules = input.ruleEvidence ?? [];
   if (rules.length) lines.push("", "Source rules applied", ...rules.slice(0, 3).map((rule) => `• ${rule}`));
   if (trace) {

@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
 import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, getTelegramDeliveryForSignal, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
+import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
 import { buildReplacementKnowledgeModelV3, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
@@ -98,7 +99,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   console.info(`[Scanner] Forwarding ${candidates.length} raw market snapshots to the strategy-rules algorithm.`);
   let decisions: Array<any> & { metrics?: { snapshots: number; completeResponses: number; retries: number } };
   try {
-    decisions = candidates.map(({ asset, timeframe, series }) => {
+    decisions = await Promise.all(candidates.map(async ({ asset, timeframe, series }) => {
         const companion = timeframe === "15MIN" ? seriesCache.get(`${asset}:1H`) : seriesCache.get(`${asset}:15MIN`);
         const multiTimeframeContext = buildMultiTimeframeContext([
           { interval: series.interval, context: series.marketContext },
@@ -126,7 +127,8 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           fetchedAt: series.fetchedAt,
           marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext, multiTimeframeAlignment } : null,
         };
-        const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext: { status: "UNAVAILABLE", bias: "NEUTRAL", summary: "No verified live macroeconomic feed is configured; v2 combined-document technical intelligence remains the decision base." } }, replacementModel) : undefined;
+        const fundamentalContext = await fetchOfficialMacroContext(asset);
+        const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext }, replacementModel) : undefined;
         if (!replacementIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
         return {
           asset,
@@ -143,9 +145,9 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           ruleEvidence: replacementIntelligence.ruleEvidence,
           ruleFindings: replacementIntelligence.ruleFindings,
           decisionTrace: replacementIntelligence.decisionTrace,
-          market: { ...market, intelligenceSeed: replacementIntelligence, replacementIntelligence, replacementMarketRegime: replacementIntelligence.marketRegime },
+          market: { ...market, fundamentalContext, intelligenceSeed: replacementIntelligence, replacementIntelligence, replacementMarketRegime: replacementIntelligence.marketRegime },
         };
-      });
+      }));
     decisions.metrics = { snapshots: candidates.length, completeResponses: decisions.length, retries: 0 };
     await updateStrategyEngineStatus(userId, { status: "AVAILABLE" });
     await recordStrategyEngineHealth(userId, { snapshots: decisions.metrics?.snapshots ?? candidates.length, completeResponses: decisions.metrics?.completeResponses ?? decisions.length, retries: decisions.metrics?.retries ?? 0 });
@@ -194,7 +196,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), rationale, intelligenceVersion: replacementModel.id, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
       const signal = { id: Number(result.insertId), ...approvedLevels };
       await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
-      const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace }), asset);
+      const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext }), asset);
       await recordTelegramDelivery({ userId, signalId: signal.id, kind: "SIGNAL", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: `signal:${signal.id}`, error: delivery.error });
       created.push(signal);
     } catch (error) {

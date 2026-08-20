@@ -8,6 +8,7 @@ import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decis
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents } from "./intelligence";
 import { buildReplacementKnowledgeModelV3, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
+import { fetchOfficialMacroContext } from "./official-macro";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -82,6 +83,10 @@ export const appRouter = router({
     }),
     replacementOutcomeStats: protectedProcedure.query(({ ctx }) => getReplacementOutcomeStats(ctx.user.id)),
     winningRateStats: protectedProcedure.query(({ ctx }) => getWinningRateStats(ctx.user.id)),
+    macroStatus: protectedProcedure.query(async () => {
+      const assets = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
+      return Promise.all(assets.map(async (asset) => ({ asset, context: await fetchOfficialMacroContext(asset) })));
+    }),
     promoteLessons: protectedProcedure.mutation(async ({ ctx }) => {
       const lessons = await listStrategyLessons(ctx.user.id);
       const plan = buildLessonPromotionPlan(lessons);
@@ -132,8 +137,9 @@ export const appRouter = router({
       try {
         const series = await fetchMarketSeries(asset, timeframe === "1H" ? "1h" : "15min");
         if (!series.marketContext) throw new Error("Latest scanner market context is unavailable");
-        const market: MarketSnapshot = { symbol: series.symbol, price: series.close, close: series.close, fetchedAt: series.fetchedAt, interval: timeframe === "1H" ? "1h" : "15min", trend: series.trend, values: series.values, marketContext: series.marketContext };
-        const decision = evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: series.marketContext, fundamentalContext: { status: "UNAVAILABLE", bias: "NEUTRAL", summary: "No verified live macroeconomic feed is configured; v2 combined-document technical intelligence remains the decision base." } }, buildReplacementKnowledgeModelV3());
+        const fundamentalContext = await fetchOfficialMacroContext(asset);
+        const market: MarketSnapshot = { symbol: series.symbol, price: series.close, close: series.close, fetchedAt: series.fetchedAt, interval: timeframe === "1H" ? "1h" : "15min", trend: series.trend, values: series.values, marketContext: series.marketContext, fundamentalContext };
+        const decision = evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: series.marketContext, fundamentalContext }, buildReplacementKnowledgeModelV3());
         const result = buildReplacementManualAuditResult(input.signal, asset, timeframe, market, decision);
         const assistantText = formatAuditResult(result, market);
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });

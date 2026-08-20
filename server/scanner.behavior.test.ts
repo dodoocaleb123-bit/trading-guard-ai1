@@ -46,6 +46,10 @@ vi.mock("./db", () => ({
   recordTelegramDelivery,
 }));
 
+vi.mock("./official-macro", () => ({
+  fetchOfficialMacroContext: vi.fn(async () => ({ status: "UNAVAILABLE", bias: "NEUTRAL", summary: "Test macro context unavailable", eventRisk: "NORMAL", interestRateDifferential: null, observations: [], fetchedAt: new Date().toISOString(), stale: true })),
+}));
+
 vi.mock("./integrations", () => ({
   fetchMarketSeriesBatch,
   fetchMarketSnapshot: vi.fn(),

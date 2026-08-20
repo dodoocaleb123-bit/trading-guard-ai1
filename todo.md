@@ -357,3 +357,13 @@
 - [x] Build v3 as an additive upgrade: retain all combined-document v2 intelligence and add the new PDF-derived macro/fundamental layer
 - [x] Preserve v2 provenance, add v3 source attribution and conflict handling, and route scanner BUY/SELL judgments through the combined v3 logic
 - [x] Add v3 paper-only validation, version-separated statistics, regression tests, visual verification, and publish the release
+
+- [x] Add a configurable verified macro-data provider for v3 with safe unavailable-data handling (completed by the free official-data composite below)
+- [x] Show macro-context availability and evidence in paper Telegram signals and manual audits (completed by the free official-data composite below)
+- [x] Strengthen the v3 first-50 resolved-outcome review workflow and dashboard (completed by the existing review gate plus the dashboard comparison panel below)
+- [x] Add tests, responsive verification, and publish the post-v3 follow-up release (completed by the free official-data release below)
+
+- [x] Build the free official-data macro layer for U.S., euro-area, and U.K. context without Trading Economics
+- [x] Add freshness, source provenance, unavailable-data safeguards, and connect verified context to v3 decisions
+- [x] Show macro evidence in paper Telegram/audit outputs and add v2-v3 comparison metrics
+- [x] Add regression tests, responsive verification, and publish the official-data macro release

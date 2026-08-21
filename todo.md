@@ -396,3 +396,4 @@
 - [x] Add protected backend aggregations, navigation entries, responsive UI, regression tests, and visual verification for the new analytics tabs
 - [x] Register the new Best Time to Trade and Best Days to Trade paths in the top-level router so direct navigation works
 - [x] Fix missing win-rate visibility in Best Time to Trade and Best Days to Trade tables and verify the rendered metrics
+- [x] Change Best Time to Trade and Best Days to Trade win rate to (take-profit hits / resolved signals) × 100 and update tests and display wording

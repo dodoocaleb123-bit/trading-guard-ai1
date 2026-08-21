@@ -507,6 +507,7 @@ function updateTimingMetric(metric: TimingMetric, status: string) {
   updateWinningRateMetric(metric, status);
   if (status === "WIN") metric.takeProfitHits += 1;
   if (status === "LOSS") metric.stopLossHits += 1;
+  metric.winRate = metric.resolved ? Math.round((metric.takeProfitHits / metric.resolved) * 100) : null;
 }
 function buildTimingGroups(rows: TimingSignalRow[], unit: "hour" | "day") {
   const labels = unit === "hour" ? Array.from({ length: 24 }, (_, hour) => ({ key: String(hour), label: `${String(hour).padStart(2, "0")}:00 UTC` })) : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((label, index) => ({ key: String(index), label }));

@@ -18,6 +18,17 @@ describe("best timing paper analytics", () => {
     expect(v2.buckets.find((bucket) => bucket.key === "9")).toMatchObject({ generated: 1, takeProfitHits: 1, stopLossHits: 0 });
   });
 
+  it("calculates win rate as take-profit hits divided by resolved signals", () => {
+    const rows = [
+      { ...base, status: "WIN", openedAt: new Date("2026-08-20T10:00:00.000Z") },
+      { ...base, status: "WIN", openedAt: new Date("2026-08-20T10:15:00.000Z") },
+      { ...base, status: "WIN", openedAt: new Date("2026-08-20T10:30:00.000Z") },
+      { ...base, status: "LOSS", openedAt: new Date("2026-08-20T10:45:00.000Z") },
+    ];
+    const bucket = summarizeBestTimeToTrade(rows).groups.find((group) => group.version === base.version && group.asset === base.asset && group.timeframe === base.timeframe)!.buckets.find((item) => item.key === "10")!;
+    expect(bucket).toMatchObject({ resolved: 4, takeProfitHits: 3, stopLossHits: 1, winRate: 75 });
+  });
+
   it("groups signals by Monday-first UTC weekday", () => {
     const result = summarizeBestDaysToTrade([{ ...base, status: "WIN", openedAt: new Date("2026-08-17T01:00:00.000Z") }]);
     const group = result.groups.find((item) => item.version === base.version && item.asset === base.asset && item.timeframe === base.timeframe)!;

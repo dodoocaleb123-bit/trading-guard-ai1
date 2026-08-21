@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { BookOpen, ClipboardCheck, LayoutDashboard, LogOut, PanelLeft, Radar, ScrollText, ShieldCheck, Trophy } from "lucide-react";
+import { BookOpen, CalendarDays, ClipboardCheck, Clock3, LayoutDashboard, LogOut, PanelLeft, Radar, ScrollText, ShieldCheck, Trophy } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -34,6 +34,8 @@ const menuItems = [
   { icon: ScrollText, label: "Trade history", path: "/trade-history" },
   { icon: Radar, label: "Scanner", path: "/scanner" },
   { icon: Trophy, label: "Winning rate", path: "/winning-rate" },
+  { icon: Clock3, label: "Best Time to Trade", path: "/best-time-to-trade" },
+  { icon: CalendarDays, label: "Best Days to Trade", path: "/best-days-to-trade" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

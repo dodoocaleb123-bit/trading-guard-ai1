@@ -390,3 +390,8 @@
 - [x] Ensure pattern decisions update every associated lesson safely
 - [x] Add regression tests and verify the review workflow on desktop and mobile
 - [x] Finalize explicit lesson review controls after implementation
+
+- [x] Add Best Time to Trade tab with hourly generated, resolved, take-profit, stop-loss, and win-rate analytics for assets, timeframes, and intelligence v1/v2/v3
+- [x] Add Best Days to Trade tab with weekday generated, resolved, take-profit, stop-loss, and win-rate analytics for assets, timeframes, and intelligence v1/v2/v3
+- [x] Add protected backend aggregations, navigation entries, responsive UI, regression tests, and visual verification for the new analytics tabs
+- [x] Register the new Best Time to Trade and Best Days to Trade paths in the top-level router so direct navigation works

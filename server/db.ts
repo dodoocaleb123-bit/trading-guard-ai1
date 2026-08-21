@@ -496,3 +496,41 @@ export async function getWinningRateStats(userId: number) {
   const rows = await db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, confidence: generatedSignals.confidence, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), or(eq(generatedSignals.intelligenceVersion, "replacement-forex-v1"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v3"))));
   return summarizeWinningRate(rows.map((row) => ({ ...row, version: row.version ?? "" })));
 }
+
+type TimingSignalRow = { version: string; asset: string; timeframe: string; status: string; openedAt: Date | string };
+export type TimingMetric = WinningRateMetric & { takeProfitHits: number; stopLossHits: number };
+export type TimingBucket = TimingMetric & { key: string; label: string };
+export type TimingGroup = { version: string; asset: string; timeframe: string; buckets: TimingBucket[] };
+
+function emptyTimingMetric(): TimingMetric { return { ...emptyWinningRateMetric(), takeProfitHits: 0, stopLossHits: 0 }; }
+function updateTimingMetric(metric: TimingMetric, status: string) {
+  updateWinningRateMetric(metric, status);
+  if (status === "WIN") metric.takeProfitHits += 1;
+  if (status === "LOSS") metric.stopLossHits += 1;
+}
+function buildTimingGroups(rows: TimingSignalRow[], unit: "hour" | "day") {
+  const labels = unit === "hour" ? Array.from({ length: 24 }, (_, hour) => ({ key: String(hour), label: `${String(hour).padStart(2, "0")}:00 UTC` })) : ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((label, index) => ({ key: String(index), label }));
+  return WINNING_RATE_VERSIONS.flatMap((version) => WINNING_RATE_ASSETS.flatMap((asset) => WINNING_RATE_TIMEFRAMES.map((timeframe) => ({
+    version,
+    asset,
+    timeframe,
+    buckets: labels.map((bucket) => {
+      const metric = emptyTimingMetric();
+      rows.filter((row) => row.version === version && row.asset === asset && row.timeframe === timeframe).forEach((row) => {
+        const date = new Date(row.openedAt);
+        const key = unit === "hour" ? String(date.getUTCHours()) : String((date.getUTCDay() + 6) % 7);
+        if (key === bucket.key) updateTimingMetric(metric, row.status);
+      });
+      return { ...bucket, ...metric };
+    }),
+  }))));
+}
+export function summarizeBestTimeToTrade(rows: TimingSignalRow[]) { return { unit: "hour" as const, timezone: "UTC", groups: buildTimingGroups(rows, "hour"), versions: [...WINNING_RATE_VERSIONS], assets: [...WINNING_RATE_ASSETS], timeframes: [...WINNING_RATE_TIMEFRAMES] }; }
+export function summarizeBestDaysToTrade(rows: TimingSignalRow[]) { return { unit: "day" as const, timezone: "UTC", groups: buildTimingGroups(rows, "day"), versions: [...WINNING_RATE_VERSIONS], assets: [...WINNING_RATE_ASSETS], timeframes: [...WINNING_RATE_TIMEFRAMES] }; }
+async function getTimingStats(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, status: generatedSignals.status, openedAt: generatedSignals.openedAt }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), or(eq(generatedSignals.intelligenceVersion, "replacement-forex-v1"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v3"))));
+}
+export async function getBestTimeToTradeStats(userId: number) { return summarizeBestTimeToTrade((await getTimingStats(userId)).map((row) => ({ ...row, version: row.version ?? "" }))); }
+export async function getBestDaysToTradeStats(userId: number) { return summarizeBestDaysToTrade((await getTimingStats(userId)).map((row) => ({ ...row, version: row.version ?? "" }))); }

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { calculateMarketContext } from "./market-context";
 
-const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, createIntelligenceVersion, createIntelligenceComponent, insert, db } = vi.hoisted(() => {
+const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, insert, db } = vi.hoisted(() => {
   const fetchMarketSeriesBatch = vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); });
   const generateScannerDecisions = vi.fn();
   const createStrategyDecision = vi.fn(async (input: any) => ({ id: 99, ...input }));
@@ -13,6 +13,7 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
   const activateIntelligenceVersion = vi.fn();
   const listIntelligenceComponents = vi.fn(async () => []);
   const listStrategyRules = vi.fn(async () => [{ id: 1, title: "Rules", content: "Use confirmation." }]);
+  const listAcceptedStrategyLessons = vi.fn(async () => []);
   const createIntelligenceVersion = vi.fn(async (input: any) => ({ id: 1, ...input }));
   const createIntelligenceComponent = vi.fn();
   const sendTelegramMessage = vi.fn();
@@ -24,12 +25,13 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
     })),
   }));
   const db = { select, insert, update: vi.fn() };
-  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, createIntelligenceVersion, createIntelligenceComponent, insert, db };
+  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, insert, db };
 });
 
 vi.mock("./db", () => ({
   getDb: vi.fn(async () => db),
   listStrategyRules,
+  listAcceptedStrategyLessons,
   getActiveIntelligenceVersion,
   activateIntelligenceVersion,
   listIntelligenceComponents,

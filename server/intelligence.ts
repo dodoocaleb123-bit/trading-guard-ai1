@@ -100,11 +100,18 @@ export function compileExecutableComponents(rules: Array<Pick<StrategyRule, "id"
 }
 
 export function buildLessonPromotionPlan(lessons: Array<{ id: number; outcome: "WIN" | "LOSS" | "INVALIDATED"; status: string; lessonJson: string }>) {
-  const proposed = lessons.filter((lesson) => lesson.status === "PROPOSED");
-  const wins = proposed.filter((lesson) => lesson.outcome === "WIN");
-  const losses = proposed.filter((lesson) => lesson.outcome === "LOSS");
-  const promote = (group: typeof proposed) => group.length >= 3 ? group : [];
-  return { eligible: [...promote(wins), ...promote(losses)], requiredRepeatedOutcomes: 3, proposedCount: proposed.length, explanation: proposed.length < 3 ? "Collect at least three comparable paper outcomes before promoting a lesson." : "Repeated paper outcomes are eligible for a new intelligence version; no automatic profitability claim is made." };
+  const proposed = lessons.filter((lesson) => lesson.status === "PROPOSED" && (lesson.outcome === "WIN" || lesson.outcome === "LOSS"));
+  const groups = new Map<string, typeof proposed>();
+  for (const lesson of proposed) {
+    let parsed: Record<string, unknown> = {};
+    try { parsed = JSON.parse(lesson.lessonJson) as Record<string, unknown>; } catch { /* use explicit unknown bucket */ }
+    const patternKey = typeof parsed.patternKey === "string" ? parsed.patternKey : `UNKNOWN|${lesson.outcome}`;
+    const key = `${lesson.outcome}|${patternKey}`;
+    groups.set(key, [...(groups.get(key) ?? []), lesson]);
+  }
+  const patterns = Array.from(groups.entries()).map(([key, group]) => ({ key, outcome: group[0]?.outcome ?? "LOSS", count: group.length, lessonIds: group.map((lesson) => lesson.id), eligible: group.length >= 3 }));
+  const eligible = patterns.filter((pattern) => pattern.eligible).flatMap((pattern) => groups.get(pattern.key) ?? []);
+  return { eligible, patterns, requiredRepeatedOutcomes: 3, proposedCount: proposed.length, explanation: eligible.length === 0 ? "Collect at least three comparable paper outcomes with the same pattern key before promoting a lesson." : "Repeated comparable paper outcomes are eligible for review; accepted lessons remain paper-only and are applied with provenance." };
 }
 
 export function buildIntelligenceModel(components: ExecutableComponent[]) {

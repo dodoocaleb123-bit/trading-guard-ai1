@@ -372,3 +372,12 @@
 - [x] Replace automatic WIN/LOSS replies with the requested compact linked-outcome format
 - [x] Add secure inbound group-message handling so a reply containing “Reason” returns the detailed v3 explanation as a reply
 - [x] Preserve asset routing, signal linkage, authorization, paper-only labeling, and add regression tests before publishing
+
+- [x] Audit loss recording, loss analysis, lesson generation, review-gate promotion, and future-decision application for v2 and v3
+- [x] Inspect live evidence for resolved losses, lessons, review status, and whether promoted lessons affect v3 decisions
+- [x] Run focused regression/runtime checks and report the actual learning status and any gaps
+
+- [x] Add structured, source-linked loss lesson fields with asset, timeframe, regime, component, failure cause, and guardrail provenance
+- [x] Generate and group recurring loss patterns into review-ready lesson proposals without changing active v3 automatically
+- [x] Apply only accepted lessons to a rollback-safe v3-derived version and expose review controls/status in the dashboard
+- [x] Add migrations, tests, paper-mode validation, responsive verification, and publish the loss-learning release

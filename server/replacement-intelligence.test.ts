@@ -65,6 +65,16 @@ describe("replacement PDF-derived intelligence", () => {
     expect(decision.explanation).toContain("Downtrend is lower peaks and lower troughs");
   });
 
+  it("applies an accepted lesson with explicit provenance only to its matching context", () => {
+    const marketContext = calculateMarketContext(candles)!;
+    const lesson = { id: 77, outcome: "LOSS" as const, lessonJson: JSON.stringify({ patternKey: "EUR/USD|1H|BUY", asset: "EUR/USD", timeframe: "1H", lesson: "Repeated BUY losses in this pattern require stronger confirmation.", adaptiveAdjustment: { buyDelta: 0, sellDelta: 1.5 } }) };
+    const matched = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext, acceptedLessons: [lesson] }, buildReplacementKnowledgeModelV3());
+    const unmatched = evaluateReplacementIntelligence({ asset: "GBP/USD", close: candles.at(-1)!.close, interval: "1h", marketContext, acceptedLessons: [lesson] }, buildReplacementKnowledgeModelV3());
+    expect(matched.sellScore).toBeGreaterThan(unmatched.sellScore);
+    expect(matched.adjustments).toContain("Accepted lesson #77");
+    expect(unmatched.adjustments).toContain("No accepted lesson adjustments matched");
+  });
+
   it("documents a source-grounded tie break rather than silently defaulting to BUY", () => {
     const marketContext = calculateMarketContext(candles);
     const decision = evaluateReplacementIntelligence({ close: candles.at(-1)!.close, interval: "1h", marketContext: { ...marketContext!, multiTimeframeAlignment: { companionInterval: "15min", structure: "ALIGNED", momentum: "ALIGNED", breakout: "ALIGNED" } } });

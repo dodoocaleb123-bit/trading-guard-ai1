@@ -28,6 +28,23 @@ export type FundamentalContext = {
   interestRateDifferential?: number | null;
 };
 
+export type AcceptedLesson = {
+  id: number;
+  outcome: "WIN" | "LOSS" | "INVALIDATED";
+  lessonJson: string;
+};
+
+type ParsedAcceptedLesson = {
+  id: number;
+  patternKey?: string;
+  asset?: string;
+  timeframe?: string;
+  marketRegime?: string;
+  buyDelta: number;
+  sellDelta: number;
+  summary: string;
+};
+
 export type ReplacementDecision = {
   direction: "BUY" | "SELL";
   entry: number;
@@ -91,7 +108,7 @@ export function buildReplacementKnowledgeModelV3(): ReplacementKnowledgeModel {
     sourceDocument: "Forex trading.docx + What_moves_the_currency_market.pdf",
     nodes: [...base.nodes, ...MACRO_FUNDAMENTAL_KNOWLEDGE_NODES],
     decisionPolicy: "Evaluate all combined-document v2 technical, price-action, timeframe, intermarket, and risk concepts first; then incorporate current macro/fundamental evidence from the new PDF layer when available. Preserve conflicts, never fabricate unavailable macro data, select a paper BUY or SELL direction, and remain UNVALIDATED.",
-    learningPolicy: "WIN/LOSS observations remain proposed lessons. v3 may only be promoted or revised after repeated comparable paper evidence and user review.",
+    learningPolicy: "WIN/LOSS observations become structured, source-linked proposals. Only repeated comparable outcomes reviewed and accepted by the user may adjust v3 paper scoring, with pattern matching, provenance, and rollback.",
   };
 }
 
@@ -105,7 +122,35 @@ export function buildReplacementKnowledgeModel(): ReplacementKnowledgeModel {
   };
 }
 
-export function evaluateReplacementIntelligence(market: { close: number; interval?: string; marketContext: MarketContext; fundamentalContext?: FundamentalContext }, model = buildReplacementKnowledgeModel()): ReplacementDecision {
+function marketContextMatchesRegime(regime: string, context: MarketContext) {
+  const [structure, volatility, breakout] = regime.split("/");
+  return (!structure || structure === context.marketStructure) && (!volatility || volatility === context.volatility.regime) && (!breakout || breakout === context.breakoutState);
+}
+
+function parseAcceptedLesson(lesson: AcceptedLesson): ParsedAcceptedLesson | null {
+  try {
+    const parsed = JSON.parse(lesson.lessonJson) as Record<string, unknown>;
+    const adjustment = parsed.adaptiveAdjustment as Record<string, unknown> | undefined;
+    if (!adjustment) return null;
+    const buyDelta = Number(adjustment.buyDelta ?? 0);
+    const sellDelta = Number(adjustment.sellDelta ?? 0);
+    if (!Number.isFinite(buyDelta) || !Number.isFinite(sellDelta) || (buyDelta === 0 && sellDelta === 0)) return null;
+    return {
+      id: lesson.id,
+      patternKey: typeof parsed.patternKey === "string" ? parsed.patternKey : undefined,
+      asset: typeof parsed.asset === "string" ? parsed.asset : undefined,
+      timeframe: typeof parsed.timeframe === "string" ? parsed.timeframe : undefined,
+      marketRegime: typeof parsed.marketRegime === "string" ? parsed.marketRegime : undefined,
+      buyDelta,
+      sellDelta,
+      summary: typeof parsed.lesson === "string" ? parsed.lesson : typeof parsed.reinforcement === "string" ? parsed.reinforcement : "Accepted lesson adjustment applied.",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function evaluateReplacementIntelligence(market: { asset?: string; close: number; interval?: string; marketContext: MarketContext; fundamentalContext?: FundamentalContext; acceptedLessons?: AcceptedLesson[] }, model = buildReplacementKnowledgeModel()): ReplacementDecision {
   const context = market.marketContext;
   const fundamentalContext = market.fundamentalContext;
   const matched: Array<KnowledgeNode & { observation: string; contribution: number }> = [];
@@ -145,8 +190,25 @@ export function evaluateReplacementIntelligence(market: { close: number; interva
   const alignment = context.multiTimeframeAlignment;
   if (alignment?.structure === "ALIGNED" && alignment.momentum !== "OPPOSED") add("higher-timeframe-alignment", "Higher-timeframe structure and momentum align with the working direction.", context.marketStructure === "RISING" ? 2 : context.marketStructure === "FALLING" ? -2 : 0);
   if (alignment?.structure === "OPPOSED" || alignment?.momentum === "OPPOSED") add("higher-timeframe-alignment", "Higher-timeframe context opposes the local structure or momentum.", context.marketStructure === "RISING" ? -2 : context.marketStructure === "FALLING" ? 2 : 0);
-  const buy = matched.reduce((sum, node) => sum + Math.max(0, node.contribution), 0);
-  const sell = matched.reduce((sum, node) => sum + Math.max(0, -node.contribution), 0);
+  let buy = matched.reduce((sum, node) => sum + Math.max(0, node.contribution), 0);
+  let sell = matched.reduce((sum, node) => sum + Math.max(0, -node.contribution), 0);
+  const lessonAdjustments: string[] = [];
+  const appliedLessonPatterns = new Set<string>();
+  if (model.id === "forex-trading-combined-document-v3") {
+    for (const rawLesson of market.acceptedLessons ?? []) {
+      const lesson = parseAcceptedLesson(rawLesson);
+      if (!lesson) continue;
+      const lessonPattern = lesson.patternKey ?? `lesson:${lesson.id}`;
+      if (appliedLessonPatterns.has(lessonPattern)) continue;
+      if (lesson.asset && market.asset && lesson.asset !== market.asset) continue;
+      if (lesson.timeframe && market.interval && lesson.timeframe !== market.interval.toUpperCase()) continue;
+      if (lesson.marketRegime && !marketContextMatchesRegime(lesson.marketRegime, context)) continue;
+      appliedLessonPatterns.add(lessonPattern);
+      buy += lesson.buyDelta;
+      sell += lesson.sellDelta;
+      lessonAdjustments.push(`Accepted lesson #${lesson.id}: BUY ${lesson.buyDelta >= 0 ? "+" : ""}${lesson.buyDelta}, SELL ${lesson.sellDelta >= 0 ? "+" : ""}${lesson.sellDelta} — ${lesson.summary}`);
+    }
+  }
   const tieBreakDirection: "BUY" | "SELL" = context.marketStructure === "FALLING" || (context.marketStructure === "RANGE_BOUND" && context.momentum.direction === "BEARISH") || (context.marketStructure === "RANGE_BOUND" && context.latestCandle.direction === "BEARISH") ? "SELL" : "BUY";
   const direction: "BUY" | "SELL" = buy === sell ? tieBreakDirection : buy > sell ? "BUY" : "SELL";
   const tieBreakNote = buy === sell ? `Directional scores tied at ${buy}-${sell}; source-grounded tie-break selected ${direction} from ${context.marketStructure} structure and ${context.momentum.direction} momentum.` : "";
@@ -165,7 +227,7 @@ export function evaluateReplacementIntelligence(market: { close: number; interva
   const ruleFindings = matched.slice(0, 8).map((node) => ({ title: node.concept, stance: node.contribution >= 0 ? "BUY" as const : "SELL" as const, weight: Math.max(1, Math.abs(node.contribution)) }));
   const familyToTrigger = (family: KnowledgeNode["family"]): IntelligenceTrigger => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : family === "FUNDAMENTAL" ? "CANDLE" : "CANDLE";
   const matchedComponents = matched.slice(0, 8).map((node) => ({ title: node.concept, sourceRuleIds: [], sourceConcept: node.source.passage, trigger: familyToTrigger(node.family), stance: node.contribution >= 0 ? "BUY" as const : "SELL" as const, weight: Math.max(1, Math.abs(node.contribution)), match: node.observation }));
-  const explanation = `Replacement PDF-derived intelligence selected ${direction} from ${matched.length} source-linked observations: ${matched.map((node) => `${node.concept} (${node.observation})`).join("; ") || "no matched directional observations"}.${tieBreakNote ? ` ${tieBreakNote}` : ""}`;
+  const explanation = `Replacement PDF-derived intelligence selected ${direction} from ${matched.length} source-linked observations: ${matched.map((node) => `${node.concept} (${node.observation})`).join("; ") || "no matched directional observations"}.${tieBreakNote ? ` ${tieBreakNote}` : ""}${lessonAdjustments.length ? ` Accepted loss-learning adjustments were applied: ${lessonAdjustments.join("; ")}.` : ""}`;
   const decisionTrace: IntelligenceDecisionTrace = {
     matchedComponents,
     supportingComponents: matched.filter((node) => Math.sign(node.contribution) === (direction === "BUY" ? 1 : -1)).map((node) => node.concept),
@@ -175,6 +237,6 @@ export function evaluateReplacementIntelligence(market: { close: number; interva
   };
   const marketRegime = `${context.marketStructure}/${context.volatility.regime}/${context.breakoutState}/${alignment?.structure ?? "UNAVAILABLE"}`;
   const macroNote = model.id === "forex-trading-combined-document-v3" ? ` Macro/fundamental layer: ${fundamentalContext?.status === "AVAILABLE" ? fundamentalContext.summary : "UNAVAILABLE; no macro direction was fabricated, so the complete v2 intelligence remains the decision base."}` : "";
-  const adjustments = `${explanation} Regime-aware confluence used ${context.marketStructure} structure, ${context.volatility.regime} volatility, ${context.breakoutState} breakout state, EMA/oscillator alignment, and ${alignment?.structure ?? "UNAVAILABLE"} higher-timeframe context. ${conflicts.length ? `Conflicts were retained for audit: ${conflicts.join("; ")}.` : "No opposing source-linked components were matched."}${macroNote} Source-linked replacement ${model.id.endsWith("v3") ? "v3" : "v2"} is authoritative for this paper outcome; validation remains UNVALIDATED.`;
+  const adjustments = `${explanation} Regime-aware confluence used ${context.marketStructure} structure, ${context.volatility.regime} volatility, ${context.breakoutState} breakout state, EMA/oscillator alignment, and ${alignment?.structure ?? "UNAVAILABLE"} higher-timeframe context. ${conflicts.length ? `Conflicts were retained for audit: ${conflicts.join("; ")}.` : "No opposing source-linked components were matched."}${lessonAdjustments.length ? ` Learning trace: ${lessonAdjustments.join("; ")}.` : " No accepted lesson adjustments matched this context."}${macroNote} Source-linked replacement ${model.id.endsWith("v3") ? "v3" : "v2"} is authoritative for this paper outcome; validation remains UNVALIDATED.`;
   return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: 2, marketRegime, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace, fundamentalContext };
 }

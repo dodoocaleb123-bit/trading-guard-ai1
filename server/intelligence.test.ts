@@ -20,12 +20,13 @@ describe("executable trading intelligence", () => {
     expect(model.learningPolicy).toContain("WIN/LOSS");
   });
 
-  it("does not promote a lesson until repeated paper outcomes exist", () => {
-    const lesson = (id: number, outcome: "WIN" | "LOSS") => ({ id, outcome, status: "PROPOSED", lessonJson: JSON.stringify({ outcome }) });
+  it("does not promote a lesson until three comparable paper outcomes exist", () => {
+    const lesson = (id: number, outcome: "WIN" | "LOSS", patternKey = "EUR/USD|1H|RISING/STABLE/WITHIN_RANGE|BUY") => ({ id, outcome, status: "PROPOSED", lessonJson: JSON.stringify({ outcome, patternKey }) });
     expect(buildLessonPromotionPlan([lesson(1, "WIN"), lesson(2, "WIN")]).eligible).toHaveLength(0);
     const plan = buildLessonPromotionPlan([lesson(1, "WIN"), lesson(2, "WIN"), lesson(3, "WIN")]);
     expect(plan.eligible.map((item) => item.id)).toEqual([1, 2, 3]);
-    expect(plan.explanation).toContain("Repeated paper outcomes");
+    expect(plan.patterns[0]).toMatchObject({ count: 3, eligible: true });
+    expect(plan.explanation).toContain("Repeated comparable paper outcomes");
   });
 
   it("selects the better-supported direction from matching compiled components", () => {

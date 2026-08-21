@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, getTelegramDeliveryForSignal, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, getTelegramDeliveryForSignal, listAcceptedStrategyLessons, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
@@ -51,7 +51,7 @@ type ScanUserResult = { created: number; tracked: number; marketData: ScanMarket
 
 async function ensureReplacementIntelligenceVersion(userId: number) {
   const active = await getActiveIntelligenceVersion(userId);
-  if (active?.versionLabel === "forex-trading-combined-document-v3") return active;
+  if (active?.versionLabel?.startsWith("forex-trading-combined-document-v3")) return active;
   const model = buildReplacementKnowledgeModelV3();
   const version = await createIntelligenceVersion({ userId, versionLabel: model.id, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: 0, algorithmJson: JSON.stringify(model), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Replacement intelligence v2 is newly activated and requires forward paper validation." }), activatedAt: new Date() });
   const triggerFor = (family: string) => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : "CANDLE";
@@ -95,6 +95,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 6_000);
   await ensureReplacementIntelligenceVersion(userId);
   const replacementModel = buildReplacementKnowledgeModelV3();
+  const acceptedLessons = await listAcceptedStrategyLessons(userId);
   const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series)).map((candidate) => ({ ...candidate, cooldownKey: `${candidate.asset}:${candidate.timeframe}:${(candidate.series.close ?? 0).toFixed(4)}` }));
   console.info(`[Scanner] Forwarding ${candidates.length} raw market snapshots to the strategy-rules algorithm.`);
   let decisions: Array<any> & { metrics?: { snapshots: number; completeResponses: number; retries: number } };
@@ -128,7 +129,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext, multiTimeframeAlignment } : null,
         };
         const fundamentalContext = await fetchOfficialMacroContext(asset);
-        const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext }, replacementModel) : undefined;
+        const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementModel) : undefined;
         if (!replacementIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
         return {
           asset,
@@ -227,14 +228,27 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
       await db.update(generatedSignals).set({ status, closedAt: new Date(), outcomeNote: note }).where(eq(generatedSignals.id, signal.id));
       await mirrorToSupabase("trade_outcomes", { signal_id: signal.id, user_id: userId, status, close_price: price, note });
       const activeVersion = await getActiveIntelligenceVersion(userId);
-      let lesson: Record<string, unknown> = { outcome: status, reinforcement: status === "WIN" ? "Reinforce the compiled components that supported this direction after forward validation." : "Do not promote this failure into active intelligence without repeated evidence." };
+      const sourceComponents = (() => { try { return JSON.parse(signal.intelligenceComponents ?? "[]") as string[]; } catch { return []; } })();
+      const patternKey = `${signal.asset}|${signal.timeframe}|${signal.marketRegime ?? "UNKNOWN"}|${signal.direction}`;
+      let lesson: Record<string, unknown> = {
+        outcome: status,
+        patternKey,
+        asset: signal.asset,
+        timeframe: signal.timeframe,
+        marketRegime: signal.marketRegime ?? "UNKNOWN",
+        direction: signal.direction,
+        sourceComponents,
+        observation: note,
+        reinforcement: status === "WIN" ? "Reinforce the compiled components that supported this direction after forward validation." : "Do not promote this failure into active intelligence without repeated evidence.",
+        adaptiveAdjustment: status === "WIN" ? { buyDelta: signal.direction === "BUY" ? 0.5 : 0, sellDelta: signal.direction === "SELL" ? 0.5 : 0 } : { buyDelta: signal.direction === "BUY" ? 0 : 1.5, sellDelta: signal.direction === "SELL" ? 0 : 1.5 },
+      };
       if (status === "LOSS") {
         try {
           const forensics = await forensicAnalysis({ asset: signal.asset, direction: signal.direction, entry: String(signal.entry), stopLoss: String(signal.stopLoss), takeProfit: String(signal.takeProfit) }, market, await getAllRulesText(userId));
-          lesson = { ...lesson, rootCause: forensics.rootCause, lesson: forensics.lesson, guardrail: forensics.guardrail };
+          lesson = { ...lesson, rootCause: forensics.rootCause, lesson: forensics.lesson, guardrail: forensics.guardrail, forensicStatus: "AVAILABLE" };
           await db.update(generatedSignals).set({ outcomeNote: `${note} Proposed lesson: ${forensics.rootCause}` }).where(eq(generatedSignals.id, signal.id));
         } catch (forensicError) {
-          lesson = { ...lesson, forensicStatus: "UNAVAILABLE", error: forensicError instanceof Error ? forensicError.message : String(forensicError) };
+          lesson = { ...lesson, forensicStatus: "UNAVAILABLE", rootCause: "Forensic analysis unavailable; use only the structured signal pattern and outcome until reviewed.", guardrail: "Do not apply this lesson automatically.", error: forensicError instanceof Error ? forensicError.message : String(forensicError) };
         }
       }
       await createStrategyLesson({ userId, signalId: signal.id, sourceVersionId: activeVersion?.id ?? null, outcome: status, status: "PROPOSED", observation: note, lessonJson: JSON.stringify(lesson) });

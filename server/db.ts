@@ -143,6 +143,12 @@ export async function listStrategyLessons(userId: number) {
   return db.select().from(strategyLessons).where(eq(strategyLessons.userId, userId)).orderBy(desc(strategyLessons.createdAt)).limit(100);
 }
 
+export async function listAcceptedStrategyLessons(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(strategyLessons).where(and(eq(strategyLessons.userId, userId), eq(strategyLessons.status, "ACCEPTED"))).orderBy(desc(strategyLessons.validatedAt));
+}
+
 export async function updateStrategyLessonStatus(userId: number, lessonId: number, status: "PROPOSED" | "VALIDATING" | "ACCEPTED" | "REJECTED", sourceVersionId?: number | null) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");

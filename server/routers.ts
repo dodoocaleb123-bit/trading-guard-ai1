@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getWinningRateStats, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getWinningRateStats, listAcceptedStrategyLessons, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents } from "./intelligence";
@@ -74,7 +74,8 @@ export const appRouter = router({
       const versions = await listIntelligenceVersions(ctx.user.id);
       const components = active ? await listIntelligenceComponents(ctx.user.id, active.id) : [];
       const lessons = await listStrategyLessons(ctx.user.id);
-      return { active, versions, components, lessons };
+      const promotionPlan = buildLessonPromotionPlan(lessons);
+      return { active, versions, components, lessons, promotionPlan, acceptedLessonCount: lessons.filter((lesson) => lesson.status === "ACCEPTED").length };
     }),
     replacementPreview: protectedProcedure.query(async ({ ctx }) => {
       const model = buildReplacementKnowledgeModelV3();
@@ -93,7 +94,7 @@ export const appRouter = router({
       if (plan.eligible.length === 0) return { promoted: false, ...plan };
       const rules = await listStrategyRules(ctx.user.id);
       const components = compileExecutableComponents(rules);
-      const version = await createIntelligenceVersion({ userId: ctx.user.id, versionLabel: `intelligence-lesson-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`, status: "ACTIVE", sourceRuleCount: rules.length, componentCount: components.length, lessonCount: plan.eligible.length, algorithmJson: JSON.stringify({ ...buildIntelligenceModel(components), promotedLessonIds: plan.eligible.map((lesson) => lesson.id) }), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Lesson promotion is still paper-validation; repeated outcomes do not guarantee profitability." }), activatedAt: new Date() });
+      const version = await createIntelligenceVersion({ userId: ctx.user.id, versionLabel: `forex-trading-combined-document-v3-lessons-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`, status: "ACTIVE", sourceRuleCount: 0, componentCount: buildReplacementKnowledgeModelV3().nodes.length, lessonCount: plan.eligible.length, algorithmJson: JSON.stringify({ ...buildReplacementKnowledgeModelV3(), promotedLessonIds: plan.eligible.map((lesson) => lesson.id), learning: { status: "paper-only", application: "accepted-lessons-are-applied-by-v3-with-pattern-matching" } }), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Accepted loss-learning adjustments remain paper-validation only and can be rolled back by retiring this version." }), activatedAt: new Date() });
       for (const component of components) await createIntelligenceComponent({ userId: ctx.user.id, versionId: version.id, title: component.title, sourceRuleIds: JSON.stringify(component.sourceRuleIds), trigger: component.trigger, stance: component.stance, conditionJson: JSON.stringify(component.condition), weight: String(component.weight), enabled: true });
       await activateIntelligenceVersion(ctx.user.id, version.id);
       for (const lesson of plan.eligible) await updateStrategyLessonStatus(ctx.user.id, lesson.id, "ACCEPTED", version.id);
@@ -139,7 +140,8 @@ export const appRouter = router({
         if (!series.marketContext) throw new Error("Latest scanner market context is unavailable");
         const fundamentalContext = await fetchOfficialMacroContext(asset);
         const market: MarketSnapshot = { symbol: series.symbol, price: series.close, close: series.close, fetchedAt: series.fetchedAt, interval: timeframe === "1H" ? "1h" : "15min", trend: series.trend, values: series.values, marketContext: series.marketContext, fundamentalContext };
-        const decision = evaluateReplacementIntelligence({ close: series.close, interval: series.interval, marketContext: series.marketContext, fundamentalContext }, buildReplacementKnowledgeModelV3());
+        const acceptedLessons = await listAcceptedStrategyLessons(ctx.user.id);
+        const decision = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: series.marketContext, fundamentalContext, acceptedLessons }, buildReplacementKnowledgeModelV3());
         const result = buildReplacementManualAuditResult(input.signal, asset, timeframe, market, decision);
         const assistantText = formatAuditResult(result, market);
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });

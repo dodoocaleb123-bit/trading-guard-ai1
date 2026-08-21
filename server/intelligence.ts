@@ -114,6 +114,13 @@ export function buildLessonPromotionPlan(lessons: Array<{ id: number; outcome: "
   return { eligible, patterns, requiredRepeatedOutcomes: 3, proposedCount: proposed.length, explanation: eligible.length === 0 ? "Collect at least three comparable paper outcomes with the same pattern key before promoting a lesson." : "Repeated comparable paper outcomes are eligible for review; accepted lessons remain paper-only and are applied with provenance." };
 }
 
+export function resolveLessonPatternReview(plan: ReturnType<typeof buildLessonPromotionPlan>, input: { outcome: "WIN" | "LOSS"; patternKey: string; decision: "ACCEPT" | "REJECT" }) {
+  const pattern = plan.patterns.find((candidate) => candidate.outcome === input.outcome && candidate.key === `${input.outcome}|${input.patternKey}`);
+  if (!pattern) return { ok: false as const, error: "Lesson pattern was not found." };
+  if (!pattern.eligible) return { ok: false as const, error: "A lesson pattern must contain at least three repeated paper outcomes before review." };
+  return { ok: true as const, status: input.decision === "ACCEPT" ? "ACCEPTED" as const : "REJECTED" as const, lessonIds: pattern.lessonIds, pattern };
+}
+
 export function buildIntelligenceModel(components: ExecutableComponent[]) {
   return {
     kind: "pdf-derived-trading-intelligence",

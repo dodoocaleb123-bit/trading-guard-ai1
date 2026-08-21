@@ -3,10 +3,10 @@ import { z } from "zod";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getWinningRateStats, listAcceptedStrategyLessons, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getWinningRateStats, listAcceptedStrategyLessons, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
-import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents } from "./intelligence";
+import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, resolveLessonPatternReview } from "./intelligence";
 import { buildReplacementKnowledgeModelV3, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { storagePut } from "./storage";
@@ -87,6 +87,15 @@ export const appRouter = router({
     macroStatus: protectedProcedure.query(async () => {
       const assets = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
       return Promise.all(assets.map(async (asset) => ({ asset, context: await fetchOfficialMacroContext(asset) })));
+    }),
+    reviewLessonPattern: protectedProcedure.input(z.object({ outcome: z.enum(["WIN", "LOSS"]), patternKey: z.string().min(1), decision: z.enum(["ACCEPT", "REJECT"]) })).mutation(async ({ ctx, input }) => {
+      const lessons = await listStrategyLessons(ctx.user.id);
+      const plan = buildLessonPromotionPlan(lessons);
+      const reviewDecision = resolveLessonPatternReview(plan, input);
+      if (!reviewDecision.ok) throw new Error(reviewDecision.error);
+      const status = reviewDecision.status;
+      const result = await updateStrategyLessonPatternStatus(ctx.user.id, input.outcome, input.patternKey, status);
+      return { ...result, outcome: input.outcome, patternKey: input.patternKey, status, explanation: input.decision === "ACCEPT" ? "Pattern accepted for paper-only v3 learning; it remains UNVALIDATED." : "Pattern rejected; its proposed lessons will not influence future v3 decisions." };
     }),
     promoteLessons: protectedProcedure.mutation(async ({ ctx }) => {
       const lessons = await listStrategyLessons(ctx.user.id);

@@ -155,6 +155,17 @@ export async function updateStrategyLessonStatus(userId: number, lessonId: numbe
   await db.update(strategyLessons).set({ status, sourceVersionId: sourceVersionId ?? undefined, validatedAt: status === "ACCEPTED" ? new Date() : null }).where(and(eq(strategyLessons.userId, userId), eq(strategyLessons.id, lessonId)));
 }
 
+export async function updateStrategyLessonPatternStatus(userId: number, outcome: "WIN" | "LOSS", patternKey: string, status: "ACCEPTED" | "REJECTED", sourceVersionId?: number | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const lessons = await db.select({ id: strategyLessons.id, lessonJson: strategyLessons.lessonJson }).from(strategyLessons).where(and(eq(strategyLessons.userId, userId), eq(strategyLessons.outcome, outcome), eq(strategyLessons.status, "PROPOSED")));
+  const matchingIds = lessons.filter((lesson) => {
+    try { return (JSON.parse(lesson.lessonJson) as { patternKey?: unknown }).patternKey === patternKey; } catch { return false; }
+  }).map((lesson) => lesson.id);
+  for (const lessonId of matchingIds) await updateStrategyLessonStatus(userId, lessonId, status, sourceVersionId);
+  return { updated: matchingIds.length, lessonIds: matchingIds };
+}
+
 export async function listStrategyRules(userId: number) {
   const db = await getDb();
   if (!db) return [];

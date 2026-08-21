@@ -381,3 +381,12 @@
 - [x] Generate and group recurring loss patterns into review-ready lesson proposals without changing active v3 automatically
 - [x] Apply only accepted lessons to a rollback-safe v3-derived version and expose review controls/status in the dashboard
 - [x] Add migrations, tests, paper-mode validation, responsive verification, and publish the loss-learning release
+
+- [x] Show recurring loss-learning patterns with review status and evidence counts
+- [x] Add explicit accept/reject controls for individual lesson patterns with safe persistence
+- [x] Add tests, responsive verification, and publish only these two review features
+
+- [x] Add explicit Accept/Reject mutations and dashboard controls for eligible recurring loss-learning lesson patterns
+- [x] Ensure pattern decisions update every associated lesson safely
+- [x] Add regression tests and verify the review workflow on desktop and mobile
+- [x] Finalize explicit lesson review controls after implementation

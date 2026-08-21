@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, evaluateExecutableIntelligence } from "./intelligence";
+import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, evaluateExecutableIntelligence, resolveLessonPatternReview } from "./intelligence";
 
 describe("executable trading intelligence", () => {
   it("compiles source rules into executable components with provenance", () => {
@@ -27,6 +27,15 @@ describe("executable trading intelligence", () => {
     expect(plan.eligible.map((item) => item.id)).toEqual([1, 2, 3]);
     expect(plan.patterns[0]).toMatchObject({ count: 3, eligible: true });
     expect(plan.explanation).toContain("Repeated comparable paper outcomes");
+  });
+
+  it("accepts or rejects only an eligible recurring lesson pattern", () => {
+    const lesson = (id: number, status = "PROPOSED", patternKey = "EUR/USD|1H|RISING/STABLE/WITHIN_RANGE|BUY") => ({ id, outcome: "LOSS" as const, status, lessonJson: JSON.stringify({ patternKey }) });
+    const eligiblePlan = buildLessonPromotionPlan([lesson(1), lesson(2), lesson(3)]);
+    expect(resolveLessonPatternReview(eligiblePlan, { outcome: "LOSS", patternKey: "EUR/USD|1H|RISING/STABLE/WITHIN_RANGE|BUY", decision: "ACCEPT" })).toMatchObject({ ok: true, status: "ACCEPTED", lessonIds: [1, 2, 3] });
+    expect(resolveLessonPatternReview(eligiblePlan, { outcome: "LOSS", patternKey: "EUR/USD|1H|RISING/STABLE/WITHIN_RANGE|BUY", decision: "REJECT" })).toMatchObject({ ok: true, status: "REJECTED" });
+    const incompletePlan = buildLessonPromotionPlan([lesson(1), lesson(2)]);
+    expect(resolveLessonPatternReview(incompletePlan, { outcome: "LOSS", patternKey: "EUR/USD|1H|RISING/STABLE/WITHIN_RANGE|BUY", decision: "ACCEPT" })).toMatchObject({ ok: false, error: expect.stringContaining("three repeated") });
   });
 
   it("selects the better-supported direction from matching compiled components", () => {

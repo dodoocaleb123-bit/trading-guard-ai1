@@ -165,6 +165,14 @@ export function AIChatBox({
     }
   };
 
+  useEffect(() => {
+    if (!displayMessages.length) return;
+    requestAnimationFrame(() => {
+      const viewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement | null;
+      if (viewport) viewport.scrollTop = viewport.scrollHeight;
+    });
+  }, [displayMessages.length, isLoading]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedInput = input.trim();
@@ -191,13 +199,13 @@ export function AIChatBox({
     <div
       ref={containerRef}
       className={cn(
-        "flex flex-col bg-card text-card-foreground rounded-lg border shadow-sm",
+        "flex min-w-0 max-w-full flex-col overflow-hidden bg-card text-card-foreground rounded-lg border shadow-sm",
         className
       )}
       style={{ height }}
     >
       {/* Messages Area */}
-      <div ref={scrollAreaRef} className="flex-1 overflow-hidden">
+      <div ref={scrollAreaRef} className="min-w-0 max-w-full flex-1 overflow-hidden">
         {displayMessages.length === 0 ? (
           <div className="flex h-full flex-col p-4">
             <div className="flex flex-1 flex-col items-center justify-center gap-6 text-muted-foreground">
@@ -223,8 +231,8 @@ export function AIChatBox({
             </div>
           </div>
         ) : (
-          <ScrollArea className="h-full w-full min-w-0 max-w-full overflow-hidden">
-            <div className="flex w-full min-w-0 max-w-full flex-col space-y-4 overflow-x-hidden p-4">
+          <ScrollArea className="h-full w-0 min-w-full max-w-full overflow-hidden">
+            <div className="flex w-0 min-w-full max-w-full flex-col space-y-4 overflow-x-hidden p-4">
               {displayMessages.map((message, index) => {
                 // Apply min-height to last message only if NOT loading (when loading, the loading indicator gets it)
                 const isLastMessage = index === displayMessages.length - 1;

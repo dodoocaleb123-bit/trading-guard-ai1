@@ -404,3 +404,6 @@
 - [x] Add explicit Ask and Audit mode controls to Chat Audit
 - [x] Add conversation export and clear-history controls to Chat Audit
 - [x] Add regression tests and desktop/mobile verification for the combined Chat Audit update
+- [x] Fix persistent Chat Audit mobile message clipping at the actual scroll viewport width
+- [x] Automatically scroll Chat Audit to the newest message after reload/history load and after new responses
+- [x] Add regression coverage and desktop/mobile verification for the chat behavior correction

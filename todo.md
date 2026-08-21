@@ -395,3 +395,4 @@
 - [x] Add Best Days to Trade tab with weekday generated, resolved, take-profit, stop-loss, and win-rate analytics for assets, timeframes, and intelligence v1/v2/v3
 - [x] Add protected backend aggregations, navigation entries, responsive UI, regression tests, and visual verification for the new analytics tabs
 - [x] Register the new Best Time to Trade and Best Days to Trade paths in the top-level router so direct navigation works
+- [x] Fix missing win-rate visibility in Best Time to Trade and Best Days to Trade tables and verify the rendered metrics

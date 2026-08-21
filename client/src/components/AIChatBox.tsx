@@ -235,7 +235,7 @@ export function AIChatBox({
                   <div
                     key={index}
                     className={cn(
-                      "flex gap-3",
+                      "flex min-w-0 gap-3",
                       message.role === "user"
                         ? "justify-end items-start"
                         : "justify-start items-start"
@@ -254,18 +254,18 @@ export function AIChatBox({
 
                     <div
                       className={cn(
-                        "max-w-[80%] rounded-lg px-4 py-2.5",
+                        "min-w-0 max-w-[80%] rounded-lg px-4 py-2.5 break-words [overflow-wrap:anywhere]",
                         message.role === "user"
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-foreground"
                       )}
                     >
                       {message.role === "assistant" ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <div className="prose prose-sm dark:prose-invert max-w-none break-words [overflow-wrap:anywhere]">
                           <Streamdown>{message.content}</Streamdown>
                         </div>
                       ) : (
-                        <p className="whitespace-pre-wrap text-sm">
+                        <p className="whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">
                           {message.content}
                         </p>
                       )}
@@ -282,7 +282,7 @@ export function AIChatBox({
 
               {isLoading && (
                 <div
-                  className="flex items-start gap-3"
+                  className="flex min-w-0 items-start gap-3"
                   style={
                     minHeightForLastMessage > 0
                       ? { minHeight: `${minHeightForLastMessage}px` }
@@ -292,7 +292,7 @@ export function AIChatBox({
                   <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
                     <Sparkles className="size-4 text-primary" />
                   </div>
-                  <div className="rounded-lg bg-muted px-4 py-2.5">
+                  <div className="min-w-0 max-w-[80%] break-words rounded-lg bg-muted px-4 py-2.5 [overflow-wrap:anywhere]">
                     <Loader2 className="size-4 animate-spin text-muted-foreground" />
                   </div>
                 </div>
@@ -306,7 +306,7 @@ export function AIChatBox({
       <form
         ref={inputAreaRef}
         onSubmit={handleSubmit}
-        className="flex gap-2 p-4 border-t bg-background/50 items-end"
+        className="flex min-w-0 gap-2 border-t bg-background/50 p-4 items-end"
       >
         <Textarea
           ref={textareaRef}

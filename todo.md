@@ -398,3 +398,5 @@
 - [x] Fix missing win-rate visibility in Best Time to Trade and Best Days to Trade tables and verify the rendered metrics
 - [x] Change Best Time to Trade and Best Days to Trade win rate to (take-profit hits / resolved signals) × 100 and update tests and display wording
 - [x] Fix Chat Audit mobile horizontal overflow so message text, audit details, and composer remain visible
+- [x] Rebuild Chat Audit as an interactive trading assistant with conversational capabilities and live app context
+- [x] Fix Chat Audit mobile horizontal overflow by ensuring message bubbles and conversation area wrap correctly

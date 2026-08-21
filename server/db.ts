@@ -197,6 +197,12 @@ export async function listGeneratedSignals(userId: number) {
   return attachTelegramDelivery(signals, deliveries, "SIGNAL", "signalId");
 }
 
+export async function listGeneratedSignalsSince(userId: number, since: Date, limit = 250) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ id: generatedSignals.id, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, direction: generatedSignals.direction, status: generatedSignals.status, confidence: generatedSignals.confidence, intelligenceVersion: generatedSignals.intelligenceVersion, openedAt: generatedSignals.openedAt, closedAt: generatedSignals.closedAt }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), gte(generatedSignals.openedAt, since))).orderBy(desc(generatedSignals.openedAt)).limit(limit);
+}
+
 export async function listAuditTrades(userId: number) {
   const db = await getDb();
   if (!db) return [];

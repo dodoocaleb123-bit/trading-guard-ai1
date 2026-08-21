@@ -3,15 +3,27 @@ import { z } from "zod";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getWinningRateStats, getBestTimeToTradeStats, getBestDaysToTradeStats, listAcceptedStrategyLessons, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getWinningRateStats, getBestTimeToTradeStats, getBestDaysToTradeStats, listAcceptedStrategyLessons, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, resolveLessonPatternReview } from "./intelligence";
 import { buildReplacementKnowledgeModelV3, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
+import { invokeLLM } from "./_core/llm";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { storagePut } from "./storage";
 import { createHeartbeatJob } from "./_core/heartbeat";
 import { getSessionCookieOptions } from "./_core/cookies";
+
+const CHAT_ASSETS = [{ symbol: "EUR/USD", label: "Euro / US dollar" }, { symbol: "XAU/USD", label: "Gold / US dollar" }, { symbol: "GBP/USD", label: "Pound / US dollar" }, { symbol: "BTC/USD", label: "Bitcoin / US dollar" }] as const;
+
+export function summarizeChatSignals(signals: Array<{ asset: string; status: string }>) {
+  return Array.from(new Set(signals.map((signal) => signal.asset))).map((asset) => {
+    const rows = signals.filter((signal) => signal.asset === asset);
+    const resolved = rows.filter((signal) => signal.status === "WIN" || signal.status === "LOSS");
+    const wins = rows.filter((signal) => signal.status === "WIN").length;
+    return { asset, generated: rows.length, resolved: resolved.length, wins, losses: rows.filter((signal) => signal.status === "LOSS").length, winRate: resolved.length ? Math.round((wins / resolved.length) * 100) : null };
+  });
+}
 import { systemRouter } from "./_core/systemRouter";
 
 export function buildStrategyRuleRecord(input: { userId: number; title: string; sourceType: "pdf" | "docx" | "text"; fileName: string; content: string; storageKey: string; supabaseId: string | null }) {
@@ -165,6 +177,31 @@ export const appRouter = router({
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content, verdict: "DENIED", confidence: "0", asset });
         return { role: "assistant" as const, content, verdict: "DENIED" as const, confidence: 0, error: error instanceof Error ? error.message : "Audit unavailable" };
       }
+    }),
+    conversation: protectedProcedure.input(z.object({ messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(12000) })).min(1).max(24) })).mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+      const latest = input.messages[input.messages.length - 1].content;
+      await db.insert(auditMessages).values({ userId: ctx.user.id, role: "user", content: latest });
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const assetMatch = latest.match(/\b(EUR\/?USD|GBP\/?USD|XAU\/?USD|BTC\/?USD)\b/i);
+      const requestedAsset = assetMatch ? normalizeAsset(assetMatch[1]) : null;
+      const [signals, rulesText, judgment] = await Promise.all([listGeneratedSignalsSince(ctx.user.id, since, 500), getRelevantRulesText(ctx.user.id, latest, 12000), getStrategyDecisionSummary(ctx.user.id)]);
+      let marketText = "No live market snapshot was requested or available.";
+      if (requestedAsset) {
+        try {
+          const series = await fetchMarketSeries(requestedAsset, latest.toLowerCase().includes("1h") || latest.toLowerCase().includes("hour") ? "1h" : "15min");
+          marketText = JSON.stringify({ symbol: series.symbol, close: series.close, trend: series.trend, interval: series.interval, fetchedAt: series.fetchedAt, marketContext: series.marketContext });
+        } catch (error) { marketText = `Live snapshot unavailable for ${requestedAsset}: ${error instanceof Error ? error.message : "provider error"}`; }
+      }
+      const assetPerformance = summarizeChatSignals(signals).map((item) => `${item.asset}: ${item.generated} generated, ${item.resolved} resolved, ${item.wins} TP hits, ${item.winRate == null ? "—" : `${item.winRate}%`} win rate`).join("; ") || "No signals recorded in the last 24 hours.";
+      const system = `You are TradingGuardAI's interactive trading assistant. Have a natural, useful conversation about trading, market structure, risk, the user's ingested rules, and this app's paper-trading records. Answer questions such as which asset appears more predictable from the available sample, the current paper context for gold, and recent wins. Never invent live prices or performance. Distinguish clearly between live market observations, persisted paper outcomes, and general educational explanations. Use the supplied strategy-rule excerpts as the user's source of truth when relevant. Every response must state or preserve that this is analysis only, paper trading only, and UNVALIDATED; never place trades, promise accuracy, or present financial advice. If a requested fact is unavailable, say so plainly.
+
+Matched strategy rules:\n${rulesText || "No matching rule excerpt was found."}\n\nPaper outcomes in last 24 hours:\n${assetPerformance}\n\nStrategy judgment totals:\n${JSON.stringify(judgment)}\n\nRequested live market context:\n${marketText}`;
+      const response = await invokeLLM({ model: "gpt-5-mini", messages: [{ role: "system", content: system }, ...input.messages] , maxTokens: 1400 });
+      const content = typeof response.choices[0]?.message.content === "string" ? response.choices[0].message.content : JSON.stringify(response.choices[0]?.message.content ?? "I could not produce a response.");
+      await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content });
+      return { role: "assistant" as const, content, verdict: null, confidence: null, telegramDelivered: false };
     }),
   }),
   signals: router({

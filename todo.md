@@ -400,3 +400,7 @@
 - [x] Fix Chat Audit mobile horizontal overflow so message text, audit details, and composer remain visible
 - [x] Rebuild Chat Audit as an interactive trading assistant with conversational capabilities and live app context
 - [x] Fix Chat Audit mobile horizontal overflow by ensuring message bubbles and conversation area wrap correctly
+- [x] Fix the persistent Chat Audit mobile overflow at the scroll viewport/container level
+- [x] Add explicit Ask and Audit mode controls to Chat Audit
+- [x] Add conversation export and clear-history controls to Chat Audit
+- [x] Add regression tests and desktop/mobile verification for the combined Chat Audit update

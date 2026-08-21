@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
@@ -150,6 +151,7 @@ export const appRouter = router({
   }),
   audit: router({
     history: protectedProcedure.query(({ ctx }) => listAuditMessages(ctx.user.id)),
+    clearConversation: protectedProcedure.mutation(async ({ ctx }) => { const db = await getDb(); if (!db) throw new Error("Database unavailable"); await db.delete(auditMessages).where(eq(auditMessages.userId, ctx.user.id)); return { cleared: true }; }),
     run: protectedProcedure.input(z.object({ signal: z.string().min(8) })).mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");

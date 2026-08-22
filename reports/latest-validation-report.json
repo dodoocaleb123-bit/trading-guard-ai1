@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-18T20:33:58.726Z",
+  "generatedAt": "2026-08-22T20:20:20.752Z",
   "protocol": {
     "assets": [
       "EUR/USD",
@@ -12,9 +12,9 @@
       "1h"
     ],
     "candlesPerSeries": 200,
-    "outcomeHorizon": "one subsequent candle",
+    "outcomeHorizon": "one subsequent candle for baseline; up to three subsequent candles for reversal sample",
     "mode": "paper-validation",
-    "scope": "trend direction and 1:2 risk geometry baseline; not a complete evaluation of all prose PDF rules"
+    "scope": "real-data mechanics baseline plus separate reversal breakout sample; not a profitability claim"
   },
   "results": [
     {
@@ -23,8 +23,8 @@
       "candles": 200,
       "evaluated": 197,
       "wins": 0,
-      "losses": 1,
-      "pending": 196,
+      "losses": 7,
+      "pending": 190,
       "winRateOnClosed": 0
     },
     {
@@ -32,10 +32,10 @@
       "interval": "15min",
       "candles": 200,
       "evaluated": 197,
-      "wins": 3,
-      "losses": 21,
-      "pending": 173,
-      "winRateOnClosed": 12.5
+      "wins": 6,
+      "losses": 35,
+      "pending": 156,
+      "winRateOnClosed": 14.63
     },
     {
       "asset": "GBP/USD",
@@ -52,30 +52,30 @@
       "interval": "15min",
       "candles": 200,
       "evaluated": 197,
-      "wins": 1,
-      "losses": 0,
-      "pending": 196,
-      "winRateOnClosed": 100
+      "wins": 7,
+      "losses": 20,
+      "pending": 170,
+      "winRateOnClosed": 25.93
     },
     {
       "asset": "EUR/USD",
       "interval": "1h",
       "candles": 200,
       "evaluated": 197,
-      "wins": 0,
-      "losses": 2,
-      "pending": 195,
-      "winRateOnClosed": 0
+      "wins": 1,
+      "losses": 15,
+      "pending": 181,
+      "winRateOnClosed": 6.25
     },
     {
       "asset": "XAU/USD",
       "interval": "1h",
       "candles": 200,
       "evaluated": 197,
-      "wins": 16,
-      "losses": 34,
-      "pending": 147,
-      "winRateOnClosed": 32
+      "wins": 34,
+      "losses": 53,
+      "pending": 110,
+      "winRateOnClosed": 39.08
     },
     {
       "asset": "GBP/USD",
@@ -83,19 +83,93 @@
       "candles": 200,
       "evaluated": 197,
       "wins": 0,
-      "losses": 0,
-      "pending": 197,
-      "winRateOnClosed": null
+      "losses": 10,
+      "pending": 187,
+      "winRateOnClosed": 0
     },
     {
       "asset": "BTC/USD",
       "interval": "1h",
       "candles": 200,
       "evaluated": 197,
+      "wins": 15,
+      "losses": 31,
+      "pending": 151,
+      "winRateOnClosed": 32.61
+    }
+  ],
+  "reversalResults": [
+    {
+      "asset": "EUR/USD",
+      "interval": "15min",
+      "reversalCandidates": 0,
       "wins": 0,
-      "losses": 6,
-      "pending": 191,
+      "losses": 0,
+      "pending": 0,
+      "winRateOnClosed": null
+    },
+    {
+      "asset": "XAU/USD",
+      "interval": "15min",
+      "reversalCandidates": 0,
+      "wins": 0,
+      "losses": 0,
+      "pending": 0,
+      "winRateOnClosed": null
+    },
+    {
+      "asset": "GBP/USD",
+      "interval": "15min",
+      "reversalCandidates": 0,
+      "wins": 0,
+      "losses": 0,
+      "pending": 0,
+      "winRateOnClosed": null
+    },
+    {
+      "asset": "BTC/USD",
+      "interval": "15min",
+      "reversalCandidates": 2,
+      "wins": 0,
+      "losses": 1,
+      "pending": 1,
       "winRateOnClosed": 0
+    },
+    {
+      "asset": "EUR/USD",
+      "interval": "1h",
+      "reversalCandidates": 1,
+      "wins": 0,
+      "losses": 1,
+      "pending": 0,
+      "winRateOnClosed": 0
+    },
+    {
+      "asset": "XAU/USD",
+      "interval": "1h",
+      "reversalCandidates": 3,
+      "wins": 1,
+      "losses": 2,
+      "pending": 0,
+      "winRateOnClosed": 33.33
+    },
+    {
+      "asset": "GBP/USD",
+      "interval": "1h",
+      "reversalCandidates": 2,
+      "wins": 0,
+      "losses": 2,
+      "pending": 0,
+      "winRateOnClosed": 0
+    },
+    {
+      "asset": "BTC/USD",
+      "interval": "1h",
+      "reversalCandidates": 2,
+      "wins": 0,
+      "losses": 0,
+      "pending": 2,
+      "winRateOnClosed": null
     }
   ]
 }

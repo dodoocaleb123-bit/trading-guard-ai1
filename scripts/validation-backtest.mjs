@@ -2,9 +2,8 @@ import fs from "node:fs/promises";
 
 /**
  * Trading Guard AI validation protocol.
- * This is a mechanics baseline: it uses real Twelve Data OHLCV candles,
- * the app's trend direction, and its 1:2 risk geometry. It does not claim
- * to reproduce every prose PDF rule or prove profitability.
+ * Uses real Twelve Data OHLCV candles. It reports mechanics only: it does not
+ * prove profitability, certainty, or reproduce every prose PDF rule.
  */
 const keys = [process.env.TWELVE_DATA_API_KEY_2, process.env.TWELVE_DATA_API_KEY_3, process.env.TWELVE_DATA_API_KEY_4, process.env.TWELVE_DATA_API_KEY_5, process.env.TWELVE_DATA_API_KEY].filter(Boolean);
 const assets = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"];
@@ -17,6 +16,7 @@ const levels = (asset, close, trend) => {
   const risk = Number((entry * (asset === "BTC/USD" ? 0.004 : 0.0012)).toFixed(p));
   return { direction, entry, stopLoss: Number((direction === "BUY" ? entry - risk : entry + risk).toFixed(p)), takeProfit: Number((direction === "BUY" ? entry + risk * 2 : entry - risk * 2).toFixed(p)) };
 };
+const outcomeFor = (setup, candle) => setup.direction === "BUY" ? (Number(candle.high) >= setup.takeProfit ? "WIN" : Number(candle.low) <= setup.stopLoss ? "LOSS" : "PENDING") : (Number(candle.low) <= setup.takeProfit ? "WIN" : Number(candle.high) >= setup.stopLoss ? "LOSS" : "PENDING");
 async function fetchBatch(interval) {
   let last;
   for (const key of keys) {
@@ -34,29 +34,57 @@ async function fetchBatch(interval) {
   throw new Error(String(last ?? "No Twelve Data key available"));
 }
 const results = [];
+const reversalResults = [];
 for (const interval of intervals) {
   const batch = await fetchBatch(interval);
   for (const asset of assets) {
     const values = batch[asset]?.values ?? [];
     let evaluated = 0, wins = 0, losses = 0;
-    for (let i = 2; i < values.length; i += 1) {
+    for (let i = 2; i < values.length - 1; i += 1) {
       const prior = Number(values[i - 1].close);
       const close = Number(values[i].close);
-      const next = Number(values[i + 1]?.close);
-      if (![prior, close, next].every(Number.isFinite)) continue;
+      const next = values[i + 1];
+      if (![prior, close, Number(next?.high), Number(next?.low)].every(Number.isFinite)) continue;
       const setup = levels(asset, close, close >= prior ? "UP" : "DOWN");
-      const outcome = setup.direction === "BUY" ? (next >= setup.takeProfit ? "WIN" : next <= setup.stopLoss ? "LOSS" : "PENDING") : (next <= setup.takeProfit ? "WIN" : next >= setup.stopLoss ? "LOSS" : "PENDING");
+      const outcome = outcomeFor(setup, next);
       evaluated += 1;
       if (outcome === "WIN") wins += 1;
       if (outcome === "LOSS") losses += 1;
     }
     results.push({ asset, interval, candles: values.length, evaluated, wins, losses, pending: evaluated - wins - losses, winRateOnClosed: wins + losses ? Number((wins / (wins + losses) * 100).toFixed(2)) : null });
+
+    let candidates = 0, reversalWins = 0, reversalLosses = 0, reversalPending = 0;
+    for (let i = 22; i < values.length - 3; i += 1) {
+      const window = values.slice(i - 20, i);
+      const current = values[i];
+      const prior = Number(values[i - 1].close);
+      const close = Number(current.close);
+      const highs = window.map((c) => Number(c.high)).filter(Number.isFinite);
+      const lows = window.map((c) => Number(c.low)).filter(Number.isFinite);
+      const atr = window.slice(-14).reduce((sum, candle) => sum + Math.abs(Number(candle.high) - Number(candle.low)), 0) / 14;
+      const priorTrend = Number(window.at(-1)?.close) >= Number(window[0]?.close) ? "UP" : "DOWN";
+      const brokeUp = close > Math.max(...highs) && priorTrend === "DOWN";
+      const brokeDown = close < Math.min(...lows) && priorTrend === "UP";
+      if ((!brokeUp && !brokeDown) || !Number.isFinite(atr) || atr <= 0 || !Number.isFinite(prior) || !Number.isFinite(close)) continue;
+      const direction = brokeUp ? "BUY" : "SELL";
+      const risk = Math.max(atr, Math.abs(close) * (asset === "BTC/USD" ? 0.004 : 0.0012));
+      const setup = { direction, entry: close, stopLoss: direction === "BUY" ? close - risk : close + risk, takeProfit: direction === "BUY" ? close + risk * 2 : close - risk * 2 };
+      candidates += 1;
+      const future = values.slice(i + 1, i + 4);
+      const outcomes = future.map((candle) => outcomeFor(setup, candle));
+      const outcome = outcomes.find((item) => item === "WIN" || item === "LOSS") ?? "PENDING";
+      if (outcome === "WIN") reversalWins += 1;
+      else if (outcome === "LOSS") reversalLosses += 1;
+      else reversalPending += 1;
+    }
+    reversalResults.push({ asset, interval, reversalCandidates: candidates, wins: reversalWins, losses: reversalLosses, pending: reversalPending, winRateOnClosed: reversalWins + reversalLosses ? Number((reversalWins / (reversalWins + reversalLosses) * 100).toFixed(2)) : null });
   }
 }
 const report = {
   generatedAt: new Date().toISOString(),
-  protocol: { assets, intervals, candlesPerSeries: 200, outcomeHorizon: "one subsequent candle", mode: "paper-validation", scope: "trend direction and 1:2 risk geometry baseline; not a complete evaluation of all prose PDF rules" },
+  protocol: { assets, intervals, candlesPerSeries: 200, outcomeHorizon: "one subsequent candle for baseline; up to three subsequent candles for reversal sample", mode: "paper-validation", scope: "real-data mechanics baseline plus separate reversal breakout sample; not a profitability claim" },
   results,
+  reversalResults,
 };
 await fs.mkdir("reports", { recursive: true });
 await fs.writeFile("reports/latest-validation-report.json", JSON.stringify(report, null, 2));

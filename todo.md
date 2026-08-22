@@ -421,19 +421,19 @@
 - [x] Define measurable exhaustion evidence after bullish and bearish liquidity-state breakouts
 - [x] Define reversal-entry, target-zone, and stop-invalidation logic from market structure
 - [x] Combine exhaustion detection with event-aware and setup-ranking paper intelligence
-- [ ] Validate reversal behavior separately without claiming any price level is certain or unreachable
+- [x] Validate reversal behavior separately without claiming any price level is certain or unreachable; fresh Twelve Data sample added to reports/latest-validation-report.json with separate reversalResults by asset/timeframe, including sparse candidates and unresolved outcomes
 - [x] Ensure candidate ranking is evaluated immediately per scan and never waits for all signals in an hour
 - [x] Preserve the first qualifying setup while later scans confirm, maintain, or invalidate it instead of extending its target
 
 - [x] Define a defensible invalidation stop beyond structure with a volatility buffer, without claiming it can never be hit
 - [x] Select realistic target zones first, then verify whether the resulting geometry supports 1:2 risk-to-reward
-- [ ] Reject or downgrade paper setups whose structural stop and target cannot coherently preserve the requested geometry
+- [x] Reject or downgrade paper setups whose structural stop and target cannot coherently preserve the requested geometry; v3 retains deterministic BUY/SELL paper output, falls back to minimum 2R geometry when the opposing zone is too close, and downgrades confidence with an explicit trace
 
 - [x] Verify whether Forex Factory offers a permitted, stable automated calendar access method
 - [x] Compare Forex Factory access with reliable structured calendar alternatives
 - [x] Do not integrate or publish a calendar source until the user approves the selected method
 
-- [ ] Connect the user-approved permitted structured Forex Factory-sourced calendar API after secure API-key validation
+- [x] Connect the user-approved permitted structured Forex Factory-sourced calendar API after secure API-key validation; superseded by the validated user-supplied weekly JSON export path, so no API key is required or requested
 - [x] Cache and normalize calendar events for USD, EUR, and GBP without increasing scanner polling pressure
 
 - [x] Replace the direct Forex Factory API-key assumption with a permitted export-ingestion or approved calendar-provider path

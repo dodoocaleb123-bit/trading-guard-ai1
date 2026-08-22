@@ -20,12 +20,25 @@ export type ReplacementKnowledgeModel = {
   learningPolicy: string;
 };
 
+export type CalendarEventContext = {
+  title: string;
+  country: string;
+  date: string;
+  impact: string;
+  forecast: string;
+  previous: string;
+  actual?: string;
+};
+
 export type FundamentalContext = {
   status: "AVAILABLE" | "UNAVAILABLE";
   bias: "BUY" | "SELL" | "NEUTRAL";
   summary: string;
   eventRisk?: "HIGH" | "NORMAL";
   interestRateDifferential?: number | null;
+  calendarEvents?: CalendarEventContext[];
+  calendarStatus?: "AVAILABLE" | "UNAVAILABLE";
+  calendarFetchedAt?: string | null;
 };
 
 export type AcceptedLesson = {

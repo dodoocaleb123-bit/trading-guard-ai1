@@ -9,18 +9,33 @@ export type OfficialMacroObservation = {
   observedAt: string;
 };
 
+export type ForexFactoryCalendarEvent = {
+  title: string;
+  country: string;
+  date: string;
+  impact: "High" | "Medium" | "Low" | "Holiday" | string;
+  forecast: string;
+  previous: string;
+  actual?: string;
+};
+
 export type OfficialMacroContext = FundamentalContext & {
   observations: OfficialMacroObservation[];
+  calendarEvents: ForexFactoryCalendarEvent[];
+  calendarStatus: "AVAILABLE" | "UNAVAILABLE";
+  calendarFetchedAt: string | null;
   fetchedAt: string;
   stale: boolean;
 };
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const MAX_AGE_MS = 45 * 24 * 60 * 60 * 1000;
+const FOREX_FACTORY_CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json";
 const cache = new Map<string, { expiresAt: number; context: OfficialMacroContext }>();
+const calendarCache = new Map<string, { expiresAt: number; events: ForexFactoryCalendarEvent[]; fetchedAt: string }>();
 
 function unavailable(summary: string): OfficialMacroContext {
-  return { status: "UNAVAILABLE", bias: "NEUTRAL", summary, eventRisk: "NORMAL", interestRateDifferential: null, observations: [], fetchedAt: new Date().toISOString(), stale: true };
+  return { status: "UNAVAILABLE", bias: "NEUTRAL", summary, eventRisk: "NORMAL", interestRateDifferential: null, observations: [], calendarEvents: [], calendarStatus: "UNAVAILABLE", calendarFetchedAt: null, fetchedAt: new Date().toISOString(), stale: true };
 }
 
 function parseCsvRows(text: string) {
@@ -81,16 +96,64 @@ async function fetchOfficialObservations() {
   return observations;
 }
 
+async function fetchForexFactoryCalendar() {
+  const cacheKey = "forex-factory-weekly";
+  const cached = calendarCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached;
+  try {
+    const response = await axios.get(FOREX_FACTORY_CALENDAR_URL, { timeout: 9000, responseType: "json" });
+    const raw = Array.isArray(response.data) ? response.data : [];
+    const events = raw.map((event: any) => {
+      const parsedDate = new Date(String(event.date ?? ""));
+      if (!Number.isFinite(parsedDate.getTime())) return null;
+      return {
+        title: String(event.title ?? "").trim(),
+        country: String(event.country ?? "").trim().toUpperCase(),
+        date: parsedDate.toISOString(),
+        impact: String(event.impact ?? "").trim(),
+        forecast: String(event.forecast ?? ""),
+        previous: String(event.previous ?? ""),
+        ...(event.actual != null ? { actual: String(event.actual) } : {}),
+      } satisfies ForexFactoryCalendarEvent;
+    }).filter((event): event is ForexFactoryCalendarEvent => Boolean(event?.title && event.country));
+    const value = { expiresAt: Date.now() + CACHE_TTL_MS, events, fetchedAt: new Date().toISOString() };
+    calendarCache.set(cacheKey, value);
+    return value;
+  } catch (error) {
+    throw new Error(`Forex Factory calendar retrieval failed: ${error instanceof Error ? error.message : "provider unavailable"}`);
+  }
+}
+
+function currenciesForAsset(asset: string) {
+  if (asset === "EUR/USD") return ["EUR", "USD"];
+  if (asset === "GBP/USD") return ["GBP", "USD"];
+  return ["USD"];
+}
+
+function withAssetCalendar(context: OfficialMacroContext, asset: string, calendar: { events: ForexFactoryCalendarEvent[]; fetchedAt: string } | null): OfficialMacroContext {
+  const events = calendar?.events.filter((event) => currenciesForAsset(asset).includes(event.country)) ?? [];
+  const now = Date.now();
+  const highImpactWindow = events.some((event) => event.impact === "High" && Math.abs(new Date(event.date).getTime() - now) <= 60 * 60 * 1000);
+  return { ...context, calendarEvents: events, calendarStatus: calendar ? "AVAILABLE" : "UNAVAILABLE", calendarFetchedAt: calendar?.fetchedAt ?? null, eventRisk: highImpactWindow ? "HIGH" : context.eventRisk ?? "NORMAL" };
+}
+
 export async function fetchOfficialMacroContext(asset: string): Promise<OfficialMacroContext> {
   const cacheKey = "official-macro-composite";
   const cached = cache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.context;
+  if (cached && cached.expiresAt > Date.now()) {
+    let calendar: { events: ForexFactoryCalendarEvent[]; fetchedAt: string } | null = null;
+    try { calendar = await fetchForexFactoryCalendar(); } catch { /* preserve official context when calendar is unavailable */ }
+    return withAssetCalendar(cached.context, asset, calendar);
+  }
   try {
-    const observations = await fetchOfficialObservations();
+    const [observations, calendarResult] = await Promise.all([
+      fetchOfficialObservations(),
+      fetchForexFactoryCalendar().catch(() => null),
+    ]);
     if (!observations.length) {
       const context = unavailable("Official macro sources returned no current observations; the complete v2 intelligence remains the decision base.");
       cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, context });
-      return context;
+      return withAssetCalendar(context, asset, calendarResult);
     }
     const stale = observations.some((observation) => Date.now() - new Date(observation.observedAt).getTime() > MAX_AGE_MS);
     const sources = Array.from(new Set(observations.map((observation) => observation.source))).join(", ");
@@ -101,11 +164,14 @@ export async function fetchOfficialMacroContext(asset: string): Promise<Official
       eventRisk: "NORMAL",
       interestRateDifferential: null,
       observations,
+      calendarEvents: calendarResult?.events ?? [],
+      calendarStatus: calendarResult ? "AVAILABLE" : "UNAVAILABLE",
+      calendarFetchedAt: calendarResult?.fetchedAt ?? null,
       fetchedAt: new Date().toISOString(),
       stale,
     };
     cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, context });
-    return context;
+    return withAssetCalendar(context, asset, calendarResult);
   } catch (error) {
     const context = unavailable(`Official macro retrieval failed for ${asset}; ${error instanceof Error ? error.message : "provider unavailable"}.`);
     cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, context });
@@ -115,4 +181,5 @@ export async function fetchOfficialMacroContext(asset: string): Promise<Official
 
 export function clearOfficialMacroCache() {
   cache.clear();
+  calendarCache.clear();
 }

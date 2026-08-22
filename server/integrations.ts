@@ -322,6 +322,10 @@ export function formatReasonTelegramMessage(input: {
     if (macro) {
       lines.push("", "Macro context", `Status: ${macro.status ?? "UNKNOWN"} · Bias: ${macro.bias ?? "NEUTRAL"}`, macro.summary ?? "No macro summary stored.");
       if (Array.isArray(macro.observations) && macro.observations.length) lines.push(...macro.observations.slice(0, 6).map((observation: any) => `• ${observation.source} ${observation.series}: ${observation.value} (${String(observation.observedAt ?? "").slice(0, 10)})`));
+      if (Array.isArray(macro.calendarEvents) && macro.calendarEvents.length) {
+        lines.push(`Calendar events: ${macro.calendarStatus ?? "UNKNOWN"}`);
+        lines.push(...macro.calendarEvents.slice(0, 6).map((event: any) => `• ${event.country} ${event.impact}: ${event.title} (${String(event.date ?? "").replace("T", " ").slice(0, 16)} UTC; forecast ${event.forecast || "—"}; previous ${event.previous || "—"})`));
+      }
     }
     if (snapshot?.replacementIntelligence?.decisionTrace?.scoreSummary) {
       const score = snapshot.replacementIntelligence.decisionTrace.scoreSummary;

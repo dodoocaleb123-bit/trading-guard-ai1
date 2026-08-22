@@ -1,12 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculateMarketContext } from "./market-context";
 
-const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, insert, db } = vi.hoisted(() => {
+const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, insert, db } = vi.hoisted(() => {
   const fetchMarketSeriesBatch = vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); });
   const generateScannerDecisions = vi.fn();
   const createStrategyDecision = vi.fn(async (input: any) => ({ id: 99, ...input }));
   const getSettings = vi.fn(async () => ({ setupCooldownMinutes: 30 }));
   const hasRecentStrategyDecision = vi.fn(async () => false);
+  const hasOpenGeneratedSignal = vi.fn(async () => false);
   const updateStrategyEngineStatus = vi.fn();
   const recordStrategyEngineHealth = vi.fn();
   const getActiveIntelligenceVersion = vi.fn(async () => ({ id: 1, versionLabel: "forex-trading-combined-document-v2" }));
@@ -25,7 +26,7 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
     })),
   }));
   const db = { select, insert, update: vi.fn() };
-  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, insert, db };
+  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, insert, db };
 });
 
 vi.mock("./db", () => ({
@@ -41,6 +42,7 @@ vi.mock("./db", () => ({
   createStrategyDecision,
   getSettings,
   hasRecentStrategyDecision,
+  hasOpenGeneratedSignal,
   updateStrategyEngineStatus,
   recordStrategyEngineHealth,
   getRelevantRulesText: vi.fn(async () => "## Rules\nUse confirmation."),
@@ -86,6 +88,11 @@ describe("scanner context bounds", () => {
 });
 
 describe("scanner paper routing without evidence gate", () => {
+  beforeEach(() => {
+    hasOpenGeneratedSignal.mockReset();
+    hasOpenGeneratedSignal.mockResolvedValue(false);
+  });
+
   it("allows only approved outcomes to reach the notification branch", () => {
     expect(shouldNotifyScannerSignal("APPROVED")).toBe(true);
     expect(shouldNotifyScannerSignal("DENIED")).toBe(false);
@@ -156,6 +163,20 @@ describe("scanner paper routing without evidence gate", () => {
     expect(sendTelegramMessage).toHaveBeenCalled();
     expect(recordTelegramDelivery).toHaveBeenCalled();
     expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "APPROVED", generatedDirection: expect.stringMatching(/BUY|SELL/), generatedEntry: expect.any(String) }));
+  });
+
+  it("suppresses overlapping active setups without waiting for future scans", async () => {
+    fetchMarketSeriesBatch.mockResolvedValue(allSeries());
+    hasOpenGeneratedSignal.mockResolvedValue(true);
+    sendTelegramMessage.mockClear();
+    insert.mockClear();
+
+    const result = await scanUser(1);
+
+    expect(result.created).toBe(0);
+    expect(hasOpenGeneratedSignal).toHaveBeenCalledTimes(8);
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    hasOpenGeneratedSignal.mockResolvedValue(false);
   });
 
   it("routes complete replacement paper outcomes without evidence thresholds", async () => {

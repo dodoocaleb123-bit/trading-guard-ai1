@@ -408,25 +408,25 @@
 - [x] Automatically scroll Chat Audit to the newest message after reload/history load and after new responses
 - [x] Add regression coverage and desktop/mobile verification for the chat behavior correction
 
-- [ ] Evaluate setup-aware stable take-profit targets instead of recalculating targets on every scan
-- [ ] Add best-signal selection and duplicate/overlapping setup controls for repeated 10–15 minute scans
+- [x] Evaluate setup-aware stable take-profit targets instead of recalculating targets on every scan
+- [x] Add best-signal selection and duplicate/overlapping setup controls for repeated 10–15 minute scans
 - [x] Verify Forex Factory data access and permitted integration options before using it for macro context
 - [x] Preserve paper-only and UNVALIDATED labeling while validating any new behavior with fresh outcomes
 
-- [ ] Define measurable economic-event-aware inputs for likely direction, event risk, and target zones
-- [ ] Define structure/liquidity breakout anticipation inputs that do not depend on oversized confirmation candles
-- [ ] Design stable take-profit and stop-loss rules tied to target zones and setup identity
-- [ ] Keep all new decisions paper-only and UNVALIDATED until fresh validation evidence exists
+- [x] Define measurable economic-event-aware inputs for likely direction, event risk, and target zones
+- [x] Define structure/liquidity breakout anticipation inputs that do not depend on oversized confirmation candles
+- [x] Design stable take-profit and stop-loss rules tied to target zones and setup identity
+- [x] Keep all new decisions paper-only and UNVALIDATED until fresh validation evidence exists
 
-- [ ] Define measurable exhaustion evidence after bullish and bearish liquidity-state breakouts
-- [ ] Define reversal-entry, target-zone, and stop-invalidation logic from market structure
-- [ ] Combine exhaustion detection with event-aware and setup-ranking paper intelligence
+- [x] Define measurable exhaustion evidence after bullish and bearish liquidity-state breakouts
+- [x] Define reversal-entry, target-zone, and stop-invalidation logic from market structure
+- [x] Combine exhaustion detection with event-aware and setup-ranking paper intelligence
 - [ ] Validate reversal behavior separately without claiming any price level is certain or unreachable
-- [ ] Ensure candidate ranking is evaluated immediately per scan and never waits for all signals in an hour
-- [ ] Preserve the first qualifying setup while later scans confirm, maintain, or invalidate it instead of extending its target
+- [x] Ensure candidate ranking is evaluated immediately per scan and never waits for all signals in an hour
+- [x] Preserve the first qualifying setup while later scans confirm, maintain, or invalidate it instead of extending its target
 
-- [ ] Define a defensible invalidation stop beyond structure with a volatility buffer, without claiming it can never be hit
-- [ ] Select realistic target zones first, then verify whether the resulting geometry supports 1:2 risk-to-reward
+- [x] Define a defensible invalidation stop beyond structure with a volatility buffer, without claiming it can never be hit
+- [x] Select realistic target zones first, then verify whether the resulting geometry supports 1:2 risk-to-reward
 - [ ] Reject or downgrade paper setups whose structural stop and target cannot coherently preserve the requested geometry
 
 - [x] Verify whether Forex Factory offers a permitted, stable automated calendar access method
@@ -434,7 +434,7 @@
 - [x] Do not integrate or publish a calendar source until the user approves the selected method
 
 - [ ] Connect the user-approved permitted structured Forex Factory-sourced calendar API after secure API-key validation
-- [ ] Cache and normalize calendar events for USD, EUR, and GBP without increasing scanner polling pressure
+- [x] Cache and normalize calendar events for USD, EUR, and GBP without increasing scanner polling pressure
 
 - [x] Replace the direct Forex Factory API-key assumption with a permitted export-ingestion or approved calendar-provider path
 - [x] Confirm the selected source before requesting credentials or implementing production calendar access

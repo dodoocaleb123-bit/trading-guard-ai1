@@ -163,6 +163,36 @@ function parseAcceptedLesson(lesson: AcceptedLesson): ParsedAcceptedLesson | nul
   }
 }
 
+function pricePrecision(asset?: string) {
+  return asset === "BTC/USD" ? 2 : asset === "XAU/USD" ? 4 : 5;
+}
+
+function deriveStructureAwareLevels(asset: string | undefined, entry: number, direction: "BUY" | "SELL", context: MarketContext) {
+  const precision = pricePrecision(asset);
+  const atr = Math.max(0, context.volatility.atr);
+  const volatilityFloor = Math.abs(entry * 0.0012);
+  const minimumRisk = Math.max(atr, volatilityFloor);
+  const buffer = Math.max(atr * 0.25, Math.abs(entry) * 0.0002);
+  const structuralStop = direction === "BUY" ? context.supportResistance.support - buffer : context.supportResistance.resistance + buffer;
+  const structureDistance = direction === "BUY" ? entry - structuralStop : structuralStop - entry;
+  const riskDistance = Math.max(minimumRisk, Number.isFinite(structureDistance) && structureDistance > 0 ? structureDistance : minimumRisk);
+  const stopLoss = Number((direction === "BUY" ? entry - riskDistance : entry + riskDistance).toFixed(precision));
+  const structureTarget = direction === "BUY" ? context.supportResistance.resistance : context.supportResistance.support;
+  const minimumTarget = direction === "BUY" ? entry + riskDistance * 2 : entry - riskDistance * 2;
+  const targetDistance = direction === "BUY" ? structureTarget - entry : entry - structureTarget;
+  const structureTargetSupportsTwoR = Number.isFinite(targetDistance) && targetDistance >= riskDistance * 2;
+  const takeProfit = Number((structureTargetSupportsTwoR ? structureTarget : minimumTarget).toFixed(precision));
+  return {
+    stopLoss,
+    takeProfit,
+    riskDistance: Number(riskDistance.toFixed(precision)),
+    riskReward: Number(((direction === "BUY" ? takeProfit - entry : entry - takeProfit) / riskDistance).toFixed(2)),
+    stopDescription: `Structure invalidation beyond ${direction === "BUY" ? "support" : "resistance"} with ATR buffer ${Number(buffer.toFixed(precision))}; minimum risk floor ${Number(minimumRisk.toFixed(precision))}.`,
+    targetDescription: structureTargetSupportsTwoR ? `Next opposing ${direction === "BUY" ? "resistance" : "support"} zone supports at least 2R.` : `Next opposing zone is too close for 2R; retained a minimum 2R paper target instead of forcing a structurally crowded target.`,
+    usedFallbackTarget: !structureTargetSupportsTwoR,
+  };
+}
+
 export function evaluateReplacementIntelligence(market: { asset?: string; close: number; interval?: string; marketContext: MarketContext; fundamentalContext?: FundamentalContext; acceptedLessons?: AcceptedLesson[] }, model = buildReplacementKnowledgeModel()): ReplacementDecision {
   const context = market.marketContext;
   const fundamentalContext = market.fundamentalContext;
@@ -198,6 +228,10 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
   if (context.breakoutState !== "WITHIN_RANGE") add("reversal-confirmation", `${context.breakoutState} confirms a level event.`, context.breakoutState === "ABOVE_RESISTANCE" ? 2 : -2);
   if (context.priceAction.breakoutOrFakeout === "BREAKOUT") add("bollinger-breakout", "Price-action breakout state is confirmed by the snapshot.", context.priceAction.trendDirection === "UP" ? 1 : -1);
   if (context.priceAction.breakoutOrFakeout === "FAKEOUT") add("fakeout-warning", "The latest price-action event is classified as a fakeout; continuation conviction is reduced.", context.priceAction.trendDirection === "UP" ? -2 : 2);
+  const bullishBreakoutExhaustion = context.breakoutState === "ABOVE_RESISTANCE" && (context.latestCandle.upperWick > context.latestCandle.body * 1.5 || context.momentum.direction !== "BULLISH" || context.latestCandle.direction === "BEARISH");
+  const bearishBreakoutExhaustion = context.breakoutState === "BELOW_SUPPORT" && (context.latestCandle.lowerWick > context.latestCandle.body * 1.5 || context.momentum.direction !== "BEARISH" || context.latestCandle.direction === "BULLISH");
+  if (bullishBreakoutExhaustion) add("fakeout-warning", "Upward liquidity breakout shows exhaustion evidence: rejection wick, weakened momentum, or a bearish latest candle.", 2);
+  if (bearishBreakoutExhaustion) add("fakeout-warning", "Downward liquidity breakout shows exhaustion evidence: rejection wick, weakened momentum, or a bullish latest candle.", -2);
   if (context.volatility.regime === "EXPANDING" && context.priceAction.breakoutOrFakeout === "BREAKOUT") add("volatility-regime", "Volatility is expanding during a confirmed breakout.", context.priceAction.trendDirection === "UP" ? 1 : -1);
   if (context.volatility.regime === "CONTRACTING") add("volatility-regime", "Volatility is contracting; risk geometry is retained but directional conviction is moderated.", 0);
   const alignment = context.multiTimeframeAlignment;
@@ -226,16 +260,19 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
   const direction: "BUY" | "SELL" = buy === sell ? tieBreakDirection : buy > sell ? "BUY" : "SELL";
   const tieBreakNote = buy === sell ? `Directional scores tied at ${buy}-${sell}; source-grounded tie-break selected ${direction} from ${context.marketStructure} structure and ${context.momentum.direction} momentum.` : "";
   const conflicts = matched.filter((node) => node.contribution > 0 && direction === "SELL" || node.contribution < 0 && direction === "BUY").map((node) => node.concept);
-  const entry = Number(market.close.toFixed(5));
-  const risk = Math.max(context.volatility.atr, Math.abs(entry * 0.0012));
-  const stopLoss = Number((direction === "BUY" ? entry - risk : entry + risk).toFixed(5));
-  const takeProfit = Number((direction === "BUY" ? entry + risk * 2 : entry - risk * 2).toFixed(5));
+  const entry = Number(market.close.toFixed(pricePrecision(market.asset)));
+  const levels = deriveStructureAwareLevels(market.asset, entry, direction, context);
+  const risk = levels.riskDistance;
+  const stopLoss = levels.stopLoss;
+  const takeProfit = levels.takeProfit;
   const dominant = Math.max(buy, sell);
   const total = buy + sell;
   const confluenceScore = total ? Math.round((dominant / total) * 100) : 0;
   const alignmentBonus = alignment?.structure === "ALIGNED" && alignment?.momentum !== "OPPOSED" ? 5 : alignment?.structure === "OPPOSED" || alignment?.momentum === "OPPOSED" ? -4 : 0;
   const conflictPenalty = Math.min(10, conflicts.length * 2);
-  const confidence = Math.max(40, Math.min(94, Math.round(50 + Math.min(30, dominant * 3) + (confluenceScore >= 70 ? 7 : 0) + alignmentBonus - conflictPenalty)));
+  const eventRiskPenalty = model.id === "forex-trading-combined-document-v3" && fundamentalContext?.eventRisk === "HIGH" ? 8 : 0;
+  const geometryDowngrade = levels.usedFallbackTarget ? 6 : 0;
+  const confidence = Math.max(40, Math.min(94, Math.round(50 + Math.min(30, dominant * 3) + (confluenceScore >= 70 ? 7 : 0) + alignmentBonus - conflictPenalty - eventRiskPenalty - geometryDowngrade)));
   const ruleEvidence = matched.filter((node) => Math.sign(node.contribution) === (direction === "BUY" ? 1 : -1)).slice(0, 8).map((node) => `${node.source.section}: ${node.concept}`);
   const ruleFindings = matched.slice(0, 8).map((node) => ({ title: node.concept, stance: node.contribution >= 0 ? "BUY" as const : "SELL" as const, weight: Math.max(1, Math.abs(node.contribution)) }));
   const familyToTrigger = (family: KnowledgeNode["family"]): IntelligenceTrigger => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : family === "FUNDAMENTAL" ? "CANDLE" : "CANDLE";
@@ -246,10 +283,10 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
     supportingComponents: matched.filter((node) => Math.sign(node.contribution) === (direction === "BUY" ? 1 : -1)).map((node) => node.concept),
     conflictingComponents: conflicts,
     scoreSummary: { buyScore: buy, sellScore: sell, dominantDirection: direction, confluenceScore },
-    levelDerivation: { entry: "Latest enriched raw close rounded to provider precision.", stopLoss: `One ATR or 0.12% volatility floor from the replacement risk geometry (${risk}).`, takeProfit: "Two risk distances for 1:2 paper geometry.", riskDistance: risk, riskReward: 2 },
+    levelDerivation: { entry: "Latest enriched raw close rounded to provider precision.", stopLoss: levels.stopDescription, takeProfit: levels.targetDescription, riskDistance: risk, riskReward: levels.riskReward },
   };
   const marketRegime = `${context.marketStructure}/${context.volatility.regime}/${context.breakoutState}/${alignment?.structure ?? "UNAVAILABLE"}`;
   const macroNote = model.id === "forex-trading-combined-document-v3" ? ` Macro/fundamental layer: ${fundamentalContext?.status === "AVAILABLE" ? fundamentalContext.summary : "UNAVAILABLE; no macro direction was fabricated, so the complete v2 intelligence remains the decision base."}` : "";
-  const adjustments = `${explanation} Regime-aware confluence used ${context.marketStructure} structure, ${context.volatility.regime} volatility, ${context.breakoutState} breakout state, EMA/oscillator alignment, and ${alignment?.structure ?? "UNAVAILABLE"} higher-timeframe context. ${conflicts.length ? `Conflicts were retained for audit: ${conflicts.join("; ")}.` : "No opposing source-linked components were matched."}${lessonAdjustments.length ? ` Learning trace: ${lessonAdjustments.join("; ")}.` : " No accepted lesson adjustments matched this context."}${macroNote} Source-linked replacement ${model.id.endsWith("v3") ? "v3" : "v2"} is authoritative for this paper outcome; validation remains UNVALIDATED.`;
-  return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: 2, marketRegime, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace, fundamentalContext };
+  const adjustments = `${explanation} Regime-aware confluence used ${context.marketStructure} structure, ${context.volatility.regime} volatility, ${context.breakoutState} breakout state, EMA/oscillator alignment, and ${alignment?.structure ?? "UNAVAILABLE"} higher-timeframe context.${eventRiskPenalty ? ` High-impact calendar risk reduced confidence by ${eventRiskPenalty} points; event volatility may overshoot and correct.` : ""}${geometryDowngrade ? ` Structural target space was insufficient for 2R, so confidence was downgraded by ${geometryDowngrade} points and the target fell back to the minimum 2R paper geometry.` : ""} ${conflicts.length ? `Conflicts were retained for audit: ${conflicts.join("; ")}.` : "No opposing source-linked components were matched."}${lessonAdjustments.length ? ` Learning trace: ${lessonAdjustments.join("; ")}.` : " No accepted lesson adjustments matched this context."}${macroNote} Target/stop geometry: ${levels.stopDescription} ${levels.targetDescription} Source-linked replacement ${model.id.endsWith("v3") ? "v3" : "v2"} is authoritative for this paper outcome; validation remains UNVALIDATED.`;
+  return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: levels.riskReward, marketRegime, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace, fundamentalContext };
 }

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, getTelegramDeliveryForSignal, listAcceptedStrategyLessons, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, listAcceptedStrategyLessons, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
@@ -20,6 +20,10 @@ export function shouldNotifyScannerSignal(verdict: string) {
 
 export function shouldCreateCandidate(ruleCount: number, series: { close?: number; trend?: string } | null) {
   return ruleCount > 0 && Boolean(series && Number.isFinite(series.close) && (series.trend === "UP" || series.trend === "DOWN"));
+}
+
+export function buildSetupIdentity(asset: string, timeframe: string, direction: "BUY" | "SELL", marketRegime: string | null | undefined, breakoutState: string | null | undefined) {
+  return `${asset}:${timeframe}:${direction}:${marketRegime ?? "UNKNOWN"}:${breakoutState ?? "UNKNOWN"}`;
 }
 
 export function resolveOutcome(direction: "BUY" | "SELL", price: number, stop: number, target: number, high = price, low = price): "WIN" | "LOSS" | null {
@@ -96,7 +100,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   await ensureReplacementIntelligenceVersion(userId);
   const replacementModel = buildReplacementKnowledgeModelV3();
   const acceptedLessons = await listAcceptedStrategyLessons(userId);
-  const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series)).map((candidate) => ({ ...candidate, cooldownKey: `${candidate.asset}:${candidate.timeframe}:${(candidate.series.close ?? 0).toFixed(4)}` }));
+  const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series)).map((candidate) => ({ ...candidate, cooldownKey: `${candidate.asset}:${candidate.timeframe}:PENDING` }));
   console.info(`[Scanner] Forwarding ${candidates.length} raw market snapshots to the strategy-rules algorithm.`);
   let decisions: Array<any> & { metrics?: { snapshots: number; completeResponses: number; retries: number } };
   try {
@@ -165,7 +169,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   for (const gated of decisions) {
     const { asset, timeframe, market } = gated;
     const sourceCandidate = candidates.find((candidate) => candidate.asset === asset && candidate.timeframe === timeframe);
-    const cooldownKey = sourceCandidate?.cooldownKey ?? `${asset}:${timeframe}:unknown:${(market.close ?? market.price).toFixed(4)}`;
+    const cooldownKey = buildSetupIdentity(asset, timeframe, gated.direction as "BUY" | "SELL", gated.marketRegime, market.marketContext?.breakoutState);
     await createStrategyDecision({
       userId,
       asset,
@@ -193,6 +197,10 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         continue;
       }
       const approvedLevels = { asset, timeframe, direction: gated.direction, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: 2, confidence: gated.confidence };
+      if (await hasOpenGeneratedSignal(userId, asset, timeframe)) {
+        console.info(`[Scanner] ${asset} ${timeframe} already has an active paper setup; current candidate evaluated immediately but duplicate suppressed.`);
+        continue;
+      }
       const rationale = formatAuditResult(gated, market);
       const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), rationale, intelligenceVersion: replacementModel.id, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
       const signal = { id: Number(result.insertId), ...approvedLevels };

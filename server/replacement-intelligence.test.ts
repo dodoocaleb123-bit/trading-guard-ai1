@@ -39,6 +39,15 @@ describe("replacement PDF-derived intelligence", () => {
     expect(available.sourceTrace.some((source) => source.document === "What_moves_the_currency_market.pdf")).toBe(true);
   });
 
+  it("reduces v3 confidence around high-impact events while retaining a direction", () => {
+    const marketContext = calculateMarketContext(candles)!;
+    const normal = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext, fundamentalContext: { status: "AVAILABLE", bias: "NEUTRAL", summary: "Verified calendar context", eventRisk: "NORMAL" } }, buildReplacementKnowledgeModelV3());
+    const highRisk = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext, fundamentalContext: { status: "AVAILABLE", bias: "NEUTRAL", summary: "Verified high-impact calendar event", eventRisk: "HIGH" } }, buildReplacementKnowledgeModelV3());
+    expect(highRisk.direction).toMatch(/BUY|SELL/);
+    expect(highRisk.confidence).toBeLessThan(normal.confidence);
+    expect(highRisk.adjustments).toContain("High-impact calendar risk reduced confidence");
+  });
+
   it("makes a paper direction from enriched market context and preserves a source trace", () => {
     const marketContext = calculateMarketContext(candles);
     expect(marketContext?.indicators.rsi14).toBeDefined();
@@ -73,6 +82,30 @@ describe("replacement PDF-derived intelligence", () => {
     expect(matched.sellScore).toBeGreaterThan(unmatched.sellScore);
     expect(matched.adjustments).toContain("Accepted lesson #77");
     expect(unmatched.adjustments).toContain("No accepted lesson adjustments matched");
+  });
+
+  it("derives structure-aware levels and preserves at least 1:2 paper geometry", () => {
+    const marketContext = calculateMarketContext(candles)!;
+    const decision = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext });
+    const risk = Math.abs(decision.entry - decision.stopLoss);
+    const reward = decision.direction === "BUY" ? decision.takeProfit - decision.entry : decision.entry - decision.takeProfit;
+    expect(risk).toBeGreaterThan(0);
+    expect(reward / risk).toBeGreaterThanOrEqual(2);
+    expect(decision.decisionTrace.levelDerivation.stopLoss).toContain("Structure invalidation");
+    expect(decision.adjustments).toContain("Target/stop geometry");
+  });
+
+  it("records early exhaustion evidence after an upward liquidity breakout", () => {
+    const base = calculateMarketContext(candles)!;
+    const marketContext = {
+      ...base,
+      breakoutState: "ABOVE_RESISTANCE" as const,
+      latestCandle: { ...base.latestCandle, direction: "BEARISH" as const, body: 0.0002, upperWick: 0.002 },
+      momentum: { ...base.momentum, direction: "BEARISH" as const },
+    };
+    const decision = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext }, buildReplacementKnowledgeModelV3());
+    expect(decision.matchedNodes.some((node) => node.concept.includes("fakeout") || node.observation.includes("exhaustion"))).toBe(true);
+    expect(decision.explanation).toContain("exhaustion");
   });
 
   it("documents a source-grounded tie break rather than silently defaulting to BUY", () => {

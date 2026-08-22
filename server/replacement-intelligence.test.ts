@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReplacementKnowledgeModel, buildReplacementKnowledgeModelV3, evaluateReplacementIntelligence } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModel, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { calculateMarketContext } from "./market-context";
 
 describe("replacement PDF-derived intelligence", () => {
@@ -37,6 +37,19 @@ describe("replacement PDF-derived intelligence", () => {
     expect(unavailable.adjustments).toContain("Macro/fundamental layer: UNAVAILABLE");
     expect(available.matchedNodes.some((node) => node.id === "macro-technical-alignment")).toBe(true);
     expect(available.sourceTrace.some((source) => source.document === "What_moves_the_currency_market.pdf")).toBe(true);
+  });
+
+  it("builds v4 additively with document-derived provenance and bounded context", () => {
+    const v3 = buildReplacementKnowledgeModelV3();
+    const v4 = buildReplacementKnowledgeModelV4();
+    expect(v4.id).toBe("forex-trading-combined-document-v4");
+    expect(v4.nodes.length).toBeGreaterThan(v3.nodes.length);
+    expect(v4.sourceDocument).toContain("v4 normalized concept catalog");
+    expect(v4.nodes.find((node) => node.id === "v4-fibonacci-pullback")?.source.document).toBe("Forex trading.docx");
+    const decision = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext: calculateMarketContext(candles)! }, v4);
+    expect(decision.direction).toMatch(/BUY|SELL/);
+    expect(decision.matchedNodes.some((node) => node.id === "v4-intermarket-availability")).toBe(true);
+    expect(decision.explanation).toContain("Correlated indicators are one evidence family");
   });
 
   it("reduces v3 confidence around high-impact events while retaining a direction", () => {

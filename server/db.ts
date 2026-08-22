@@ -429,7 +429,7 @@ export async function getRelevantRulesText(userId: number, query: string, maxCha
 
 type ReplacementOutcomeRow = { status: string; intelligenceComponents: string | null; marketRegime: string | null; confidence?: string | number | null };
 type ReplacementOutcomeBucket = { key: string; total: number; wins: number; losses: number; pending: number; invalidated: number };
-export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], version: "replacement-forex-v2" | "replacement-forex-v3" = "replacement-forex-v2") {
+export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], version: "replacement-forex-v2" | "replacement-forex-v3" | "replacement-forex-v4" = "replacement-forex-v2") {
   const componentMap = new Map<string, ReplacementOutcomeBucket>();
   const regimeMap = new Map<string, ReplacementOutcomeBucket>();
   const confidenceMap = new Map<string, ReplacementOutcomeBucket>();
@@ -470,7 +470,7 @@ export type WinningRateBucket = WinningRateMetric & { key: string };
 const WINNING_RATE_ASSETS = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
 const WINNING_RATE_TIMEFRAMES = ["15MIN", "1H"] as const;
 const WINNING_RATE_BANDS = ["100-90", "89-80", "79-70", "69-60", "59-40"] as const;
-const WINNING_RATE_VERSIONS = ["replacement-forex-v1", "forex-trading-combined-document-v2", "forex-trading-combined-document-v3"] as const;
+const WINNING_RATE_VERSIONS = ["replacement-forex-v1", "forex-trading-combined-document-v2", "forex-trading-combined-document-v3", "forex-trading-combined-document-v4"] as const;
 
 function emptyWinningRateMetric(): WinningRateMetric { return { generated: 0, resolved: 0, wins: 0, losses: 0, winRate: null }; }
 function updateWinningRateMetric(metric: WinningRateMetric, status: string) {

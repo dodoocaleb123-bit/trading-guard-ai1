@@ -445,3 +445,14 @@
 
 - [x] Validate supplied Forex Factory weekly JSON export URL and inspect its event schema before integration
 - [x] Configure the validated export URL with caching, UTC normalization, and official-data fallback
+
+
+## Replacement Intelligence v4
+
+- [x] Receive and audit the user-provided combined Forex trading document before changing the authoritative v3 path; initial audit saved to reports/v4-document-audit.md
+- [x] Extract v4 concepts, conditions, exceptions, timeframe rules, risk rules, and relationships with source provenance; normalized catalog saved to reports/v4-concept-catalog.md
+- [x] Design v4 as an additive, versioned model built on v3 plus validated document-derived improvements; correlated evidence families are capped and unavailable inputs remain neutral
+- [x] Preserve immediate setup selection, active-setup suppression, stable targets, structure-aware stops, exhaustion logic, and Forex Factory event context in the v3-authoritative scanner path and v4 shadow evaluation
+- [x] Add v4 decision traces, version-separated statistics, and rollback-safe paper-only activation; v4 traces persist in the strategy snapshot while v3 remains the delivered signal version
+- [x] Validate v4 with fresh market samples and separate reversal/outcome analysis without claiming guaranteed accuracy; fresh comparison saved to reports/latest-v4-shadow-validation.json and review notes saved to reports/v4-validation-notes.md
+- [x] Run typecheck, tests, production build, visual verification, and publish only after the v4 validation review; v4 remains shadow-only and v3 remains the delivered paper intelligence

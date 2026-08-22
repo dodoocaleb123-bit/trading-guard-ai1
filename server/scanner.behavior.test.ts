@@ -131,6 +131,7 @@ describe("scanner paper routing without evidence gate", () => {
     expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "AVAILABLE" });
     expect(generateScannerDecisions).not.toHaveBeenCalled();
     expect(createStrategyDecision.mock.calls[0][0].marketSnapshot).toContain("replacementIntelligence");
+    expect(createStrategyDecision.mock.calls[0][0].marketSnapshot).toContain("v4ShadowIntelligence");
   });
 
   it("forwards every retrieved raw snapshot without scanner-side trend or cooldown filtering", async () => {

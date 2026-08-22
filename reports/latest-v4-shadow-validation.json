@@ -1,0 +1,255 @@
+{
+  "generatedAt": "2026-08-22T20:44:36.956Z",
+  "protocol": {
+    "assets": [
+      "EUR/USD",
+      "XAU/USD",
+      "GBP/USD",
+      "BTC/USD"
+    ],
+    "intervals": [
+      "15min",
+      "1h"
+    ],
+    "candlesPerSeries": 200,
+    "warmupCandles": 60,
+    "outcomeHorizon": 6,
+    "mode": "paper-validation",
+    "macro": "UNAVAILABLE / neutral by design",
+    "scope": "walk-forward comparison of exact v3 and v4 deterministic evaluators; not a profitability claim"
+  },
+  "comparison": [
+    {
+      "asset": "EUR/USD",
+      "interval": "15min",
+      "v3": {
+        "evaluated": 134,
+        "wins": 0,
+        "losses": 3,
+        "pending": 131,
+        "buy": 67,
+        "sell": 67,
+        "confidenceTotal": 8172,
+        "confidenceAverage": 60.99,
+        "winRateOnClosed": 0
+      },
+      "v4": {
+        "evaluated": 134,
+        "wins": 0,
+        "losses": 3,
+        "pending": 131,
+        "buy": 67,
+        "sell": 67,
+        "confidenceTotal": 8223,
+        "confidenceAverage": 61.37,
+        "winRateOnClosed": 0
+      },
+      "directionAgreement": 134,
+      "directionDisagreements": 0,
+      "v4FibonacciMatches": 17
+    },
+    {
+      "asset": "XAU/USD",
+      "interval": "15min",
+      "v3": {
+        "evaluated": 134,
+        "wins": 0,
+        "losses": 0,
+        "pending": 134,
+        "buy": 80,
+        "sell": 54,
+        "confidenceTotal": 8369,
+        "confidenceAverage": 62.46,
+        "winRateOnClosed": null
+      },
+      "v4": {
+        "evaluated": 134,
+        "wins": 0,
+        "losses": 0,
+        "pending": 134,
+        "buy": 80,
+        "sell": 54,
+        "confidenceTotal": 8411,
+        "confidenceAverage": 62.77,
+        "winRateOnClosed": null
+      },
+      "directionAgreement": 134,
+      "directionDisagreements": 0,
+      "v4FibonacciMatches": 14
+    },
+    {
+      "asset": "GBP/USD",
+      "interval": "15min",
+      "v3": {
+        "evaluated": 134,
+        "wins": 0,
+        "losses": 0,
+        "pending": 134,
+        "buy": 60,
+        "sell": 74,
+        "confidenceTotal": 8000,
+        "confidenceAverage": 59.7,
+        "winRateOnClosed": null
+      },
+      "v4": {
+        "evaluated": 134,
+        "wins": 0,
+        "losses": 0,
+        "pending": 134,
+        "buy": 60,
+        "sell": 74,
+        "confidenceTotal": 8051,
+        "confidenceAverage": 60.08,
+        "winRateOnClosed": null
+      },
+      "directionAgreement": 134,
+      "directionDisagreements": 0,
+      "v4FibonacciMatches": 17
+    },
+    {
+      "asset": "BTC/USD",
+      "interval": "15min",
+      "v3": {
+        "evaluated": 134,
+        "wins": 0,
+        "losses": 13,
+        "pending": 121,
+        "buy": 73,
+        "sell": 61,
+        "confidenceTotal": 8182,
+        "confidenceAverage": 61.06,
+        "winRateOnClosed": 0
+      },
+      "v4": {
+        "evaluated": 134,
+        "wins": 0,
+        "losses": 13,
+        "pending": 121,
+        "buy": 74,
+        "sell": 60,
+        "confidenceTotal": 8243,
+        "confidenceAverage": 61.51,
+        "winRateOnClosed": 0
+      },
+      "directionAgreement": 133,
+      "directionDisagreements": 1,
+      "v4FibonacciMatches": 22
+    },
+    {
+      "asset": "EUR/USD",
+      "interval": "1h",
+      "v3": {
+        "evaluated": 134,
+        "wins": 3,
+        "losses": 1,
+        "pending": 130,
+        "buy": 85,
+        "sell": 49,
+        "confidenceTotal": 8360,
+        "confidenceAverage": 62.39,
+        "winRateOnClosed": 75
+      },
+      "v4": {
+        "evaluated": 134,
+        "wins": 3,
+        "losses": 1,
+        "pending": 130,
+        "buy": 85,
+        "sell": 49,
+        "confidenceTotal": 8399,
+        "confidenceAverage": 62.68,
+        "winRateOnClosed": 75
+      },
+      "directionAgreement": 134,
+      "directionDisagreements": 0,
+      "v4FibonacciMatches": 13
+    },
+    {
+      "asset": "XAU/USD",
+      "interval": "1h",
+      "v3": {
+        "evaluated": 134,
+        "wins": 3,
+        "losses": 9,
+        "pending": 122,
+        "buy": 93,
+        "sell": 41,
+        "confidenceTotal": 8847,
+        "confidenceAverage": 66.02,
+        "winRateOnClosed": 25
+      },
+      "v4": {
+        "evaluated": 134,
+        "wins": 3,
+        "losses": 9,
+        "pending": 122,
+        "buy": 93,
+        "sell": 41,
+        "confidenceTotal": 8871,
+        "confidenceAverage": 66.2,
+        "winRateOnClosed": 25
+      },
+      "directionAgreement": 134,
+      "directionDisagreements": 0,
+      "v4FibonacciMatches": 8
+    },
+    {
+      "asset": "GBP/USD",
+      "interval": "1h",
+      "v3": {
+        "evaluated": 134,
+        "wins": 3,
+        "losses": 4,
+        "pending": 127,
+        "buy": 97,
+        "sell": 37,
+        "confidenceTotal": 8478,
+        "confidenceAverage": 63.27,
+        "winRateOnClosed": 42.86
+      },
+      "v4": {
+        "evaluated": 134,
+        "wins": 3,
+        "losses": 4,
+        "pending": 127,
+        "buy": 97,
+        "sell": 37,
+        "confidenceTotal": 8530,
+        "confidenceAverage": 63.66,
+        "winRateOnClosed": 42.86
+      },
+      "directionAgreement": 134,
+      "directionDisagreements": 0,
+      "v4FibonacciMatches": 15
+    },
+    {
+      "asset": "BTC/USD",
+      "interval": "1h",
+      "v3": {
+        "evaluated": 134,
+        "wins": 5,
+        "losses": 6,
+        "pending": 123,
+        "buy": 113,
+        "sell": 21,
+        "confidenceTotal": 8893,
+        "confidenceAverage": 66.37,
+        "winRateOnClosed": 45.45
+      },
+      "v4": {
+        "evaluated": 134,
+        "wins": 5,
+        "losses": 6,
+        "pending": 123,
+        "buy": 113,
+        "sell": 21,
+        "confidenceTotal": 8923,
+        "confidenceAverage": 66.59,
+        "winRateOnClosed": 45.45
+      },
+      "directionAgreement": 134,
+      "directionDisagreements": 0,
+      "v4FibonacciMatches": 10
+    }
+  ]
+}

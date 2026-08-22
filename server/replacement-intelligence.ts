@@ -13,7 +13,7 @@ export type KnowledgeNode = {
 };
 
 export type ReplacementKnowledgeModel = {
-  id: "forex-trading-combined-document-v2" | "forex-trading-combined-document-v3";
+  id: "forex-trading-combined-document-v2" | "forex-trading-combined-document-v3" | "forex-trading-combined-document-v4";
   sourceDocument: string;
   nodes: KnowledgeNode[];
   decisionPolicy: string;
@@ -105,6 +105,13 @@ export const FOREX_KNOWLEDGE_NODES: KnowledgeNode[] = [
   { id: "risk-geometry", concept: "Risk must be defined before a position", family: "RISK", rule: "Every paper outcome requires a finite stop and target derived from observed range/volatility", prerequisites: ["atr"], conflictsWith: [], source: source("Chapter 1, Trading in Action", "Trading decisions must account for the cost and risk of the position before entry.") },
 ];
 
+export const V4_KNOWLEDGE_NODES: KnowledgeNode[] = [
+  { id: "v4-fibonacci-pullback", concept: "Fibonacci retracement is secondary pullback context", family: "LEVELS", rule: "A pullback near a deterministic 38.2%–61.8% swing retracement can qualify an existing structural direction but cannot decide alone", prerequisites: ["supportResistance", "marketStructure"], conflictsWith: ["v4-no-fib-signal"], source: source("Fibonacci Retracement", "Retracement levels are contextual reference points and should be interpreted with the broader trend and other evidence.") },
+  { id: "v4-evidence-family-cap", concept: "Correlated indicators are one evidence family", family: "RISK", rule: "Moving averages, oscillators, and band readings must be capped so correlated measurements do not create artificial confluence", prerequisites: ["indicators"], conflictsWith: [], source: source("Chapter IV, Major Technical Indicators", "Indicators help identify and confirm trend and momentum, but a trading plan must avoid conflicting or excessive information.") },
+  { id: "v4-intermarket-availability", concept: "Intermarket context is conditional", family: "INTERMARKET", rule: "Related-market evidence is neutral unless timestamp-aligned proxy data is actually available", prerequisites: ["relatedPairs"], conflictsWith: [], source: source("Intermarket Analysis", "Related markets can provide early warnings, but the analysis depends on actual related-market data.") },
+  { id: "v4-session-context", concept: "Session activity is a context modifier", family: "TIMEFRAME", rule: "Higher-activity sessions may modify confidence and execution context but never determine direction", prerequisites: ["timestamp"], conflictsWith: [], source: source("Chapter 1, When?", "The European session is described as more active than the American and Asian sessions.") },
+];
+
 export const MACRO_FUNDAMENTAL_KNOWLEDGE_NODES: KnowledgeNode[] = [
   { id: "macro-interest-rates", concept: "Interest-rate decisions drive currency demand", family: "FUNDAMENTAL", rule: "A current interest-rate differential or policy surprise can confirm or oppose the technical direction", prerequisites: ["macro.interestRates"], conflictsWith: [], source: macroSource("Fundamentals for long-term trading", "Analysts consider interest rates when forecasting currency markets; interest-rate decisions can indicate changes in the economic environment.") },
   { id: "macro-employment-inflation", concept: "Employment and inflation are major currency catalysts", family: "FUNDAMENTAL", rule: "Current employment and inflation surprises can strengthen or weaken the directional case", prerequisites: ["macro.employment", "macro.inflation"], conflictsWith: [], source: macroSource("Fundamentals for short-term trading", "Economic releases including unemployment and inflation can impact exchange rates rapidly.") },
@@ -112,6 +119,18 @@ export const MACRO_FUNDAMENTAL_KNOWLEDGE_NODES: KnowledgeNode[] = [
   { id: "macro-event-reaction", concept: "Economic-release reactions can be rapid and overextended", family: "FUNDAMENTAL", rule: "Near-event conditions require caution because the initial move may overshoot and correct", prerequisites: ["macro.eventRisk"], conflictsWith: [], source: macroSource("Fundamentals for short-term trading", "Exchange-rate adjustment after releases can be very rapid, and reactions beyond the immediate window may reflect overreaction or customer flow.") },
   { id: "macro-carry-trade", concept: "Interest-rate differentials support carry context", family: "FUNDAMENTAL", rule: "Carry context is directional only when current rate differential and risk conditions are available", prerequisites: ["macro.interestDifferential", "macro.riskAppetite"], conflictsWith: [], source: macroSource("Fundamentals for long-term trading", "The carry trade exploits the interest-rate differential between currencies while seeking capital appreciation.") },
 ];
+
+export function buildReplacementKnowledgeModelV4(): ReplacementKnowledgeModel {
+  const v3 = buildReplacementKnowledgeModelV3();
+  return {
+    ...v3,
+    id: "forex-trading-combined-document-v4",
+    sourceDocument: "Forex trading.docx + What_moves_the_currency_market.pdf + v4 normalized concept catalog",
+    nodes: [...v3.nodes, ...V4_KNOWLEDGE_NODES],
+    decisionPolicy: "Evaluate the complete v3 technical, macro, event, exhaustion, setup-identity, and structure-aware risk foundation; add only bounded v4 document-derived context with family caps, preserve conflicts, keep unavailable intermarket data neutral, and emit paper BUY or SELL output with full provenance.",
+    learningPolicy: "WIN/LOSS observations remain proposed, source-linked lessons. Only repeated comparable paper outcomes reviewed and accepted by the user may create a rollback-safe v4-derived version.",
+  };
+}
 
 export function buildReplacementKnowledgeModelV3(): ReplacementKnowledgeModel {
   const base = buildReplacementKnowledgeModel();
@@ -202,7 +221,7 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
     if (node) matched.push({ ...node, observation, contribution });
   };
   if (context.marketStructure === "RISING") add("structure-uptrend", "Calculated structure is RISING.", 3);
-  if (model.id === "forex-trading-combined-document-v3" && fundamentalContext?.status === "AVAILABLE") {
+  if ((model.id === "forex-trading-combined-document-v3" || model.id === "forex-trading-combined-document-v4") && fundamentalContext?.status === "AVAILABLE") {
     if (fundamentalContext.bias === "BUY") add("macro-technical-alignment", `Verified macro context supports BUY: ${fundamentalContext.summary}`, 2);
     if (fundamentalContext.bias === "SELL") add("macro-technical-alignment", `Verified macro context supports SELL: ${fundamentalContext.summary}`, -2);
     if (fundamentalContext.eventRisk === "HIGH") add("macro-event-reaction", "A verified high-impact economic event is active; initial reactions may overshoot and correct.", 0);
@@ -210,6 +229,14 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
   }
   if (context.marketStructure === "FALLING") add("structure-downtrend", "Calculated structure is FALLING.", -3);
   if (context.marketStructure === "RANGE_BOUND") add("structure-sideways", "Calculated structure is RANGE_BOUND.", 0);
+  if (model.id === "forex-trading-combined-document-v4") {
+    const range = context.supportResistance.resistance - context.supportResistance.support;
+    const retracement = range > 0 ? (market.close - context.supportResistance.support) / range : 0.5;
+    if (retracement >= 0.382 && retracement <= 0.618 && context.marketStructure === "RISING") add("v4-fibonacci-pullback", `Price sits in a deterministic 38.2%–61.8% pullback zone of the calculated range (${retracement.toFixed(3)}).`, 1);
+    if (retracement >= 0.382 && retracement <= 0.618 && context.marketStructure === "FALLING") add("v4-fibonacci-pullback", `Price sits in a deterministic 38.2%–61.8% pullback zone of the calculated range (${retracement.toFixed(3)}).`, -1);
+    add("v4-evidence-family-cap", "Technical indicators are treated as correlated evidence families rather than independent guarantees.", 0);
+    add("v4-intermarket-availability", "No timestamp-aligned related-market proxy was supplied; intermarket evidence remains neutral.", 0);
+  }
   const nearSupport = Math.abs(market.close - context.supportResistance.support) <= context.volatility.atr;
   const nearResistance = Math.abs(market.close - context.supportResistance.resistance) <= context.volatility.atr;
   if (nearSupport) add("support-resistance", "Price is within one ATR of calculated support.", 2);
@@ -241,7 +268,7 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
   let sell = matched.reduce((sum, node) => sum + Math.max(0, -node.contribution), 0);
   const lessonAdjustments: string[] = [];
   const appliedLessonPatterns = new Set<string>();
-  if (model.id === "forex-trading-combined-document-v3") {
+  if (model.id === "forex-trading-combined-document-v3" || model.id === "forex-trading-combined-document-v4") {
     for (const rawLesson of market.acceptedLessons ?? []) {
       const lesson = parseAcceptedLesson(rawLesson);
       if (!lesson) continue;
@@ -270,7 +297,7 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
   const confluenceScore = total ? Math.round((dominant / total) * 100) : 0;
   const alignmentBonus = alignment?.structure === "ALIGNED" && alignment?.momentum !== "OPPOSED" ? 5 : alignment?.structure === "OPPOSED" || alignment?.momentum === "OPPOSED" ? -4 : 0;
   const conflictPenalty = Math.min(10, conflicts.length * 2);
-  const eventRiskPenalty = model.id === "forex-trading-combined-document-v3" && fundamentalContext?.eventRisk === "HIGH" ? 8 : 0;
+  const eventRiskPenalty = (model.id === "forex-trading-combined-document-v3" || model.id === "forex-trading-combined-document-v4") && fundamentalContext?.eventRisk === "HIGH" ? 8 : 0;
   const geometryDowngrade = levels.usedFallbackTarget ? 6 : 0;
   const confidence = Math.max(40, Math.min(94, Math.round(50 + Math.min(30, dominant * 3) + (confluenceScore >= 70 ? 7 : 0) + alignmentBonus - conflictPenalty - eventRiskPenalty - geometryDowngrade)));
   const ruleEvidence = matched.filter((node) => Math.sign(node.contribution) === (direction === "BUY" ? 1 : -1)).slice(0, 8).map((node) => `${node.source.section}: ${node.concept}`);
@@ -286,7 +313,7 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
     levelDerivation: { entry: "Latest enriched raw close rounded to provider precision.", stopLoss: levels.stopDescription, takeProfit: levels.targetDescription, riskDistance: risk, riskReward: levels.riskReward },
   };
   const marketRegime = `${context.marketStructure}/${context.volatility.regime}/${context.breakoutState}/${alignment?.structure ?? "UNAVAILABLE"}`;
-  const macroNote = model.id === "forex-trading-combined-document-v3" ? ` Macro/fundamental layer: ${fundamentalContext?.status === "AVAILABLE" ? fundamentalContext.summary : "UNAVAILABLE; no macro direction was fabricated, so the complete v2 intelligence remains the decision base."}` : "";
-  const adjustments = `${explanation} Regime-aware confluence used ${context.marketStructure} structure, ${context.volatility.regime} volatility, ${context.breakoutState} breakout state, EMA/oscillator alignment, and ${alignment?.structure ?? "UNAVAILABLE"} higher-timeframe context.${eventRiskPenalty ? ` High-impact calendar risk reduced confidence by ${eventRiskPenalty} points; event volatility may overshoot and correct.` : ""}${geometryDowngrade ? ` Structural target space was insufficient for 2R, so confidence was downgraded by ${geometryDowngrade} points and the target fell back to the minimum 2R paper geometry.` : ""} ${conflicts.length ? `Conflicts were retained for audit: ${conflicts.join("; ")}.` : "No opposing source-linked components were matched."}${lessonAdjustments.length ? ` Learning trace: ${lessonAdjustments.join("; ")}.` : " No accepted lesson adjustments matched this context."}${macroNote} Target/stop geometry: ${levels.stopDescription} ${levels.targetDescription} Source-linked replacement ${model.id.endsWith("v3") ? "v3" : "v2"} is authoritative for this paper outcome; validation remains UNVALIDATED.`;
+  const macroNote = (model.id === "forex-trading-combined-document-v3" || model.id === "forex-trading-combined-document-v4") ? ` Macro/fundamental layer: ${fundamentalContext?.status === "AVAILABLE" ? fundamentalContext.summary : "UNAVAILABLE; no macro direction was fabricated, so the complete v2 intelligence remains the decision base."}` : "";
+  const adjustments = `${explanation} Regime-aware confluence used ${context.marketStructure} structure, ${context.volatility.regime} volatility, ${context.breakoutState} breakout state, EMA/oscillator alignment, and ${alignment?.structure ?? "UNAVAILABLE"} higher-timeframe context.${eventRiskPenalty ? ` High-impact calendar risk reduced confidence by ${eventRiskPenalty} points; event volatility may overshoot and correct.` : ""}${geometryDowngrade ? ` Structural target space was insufficient for 2R, so confidence was downgraded by ${geometryDowngrade} points and the target fell back to the minimum 2R paper geometry.` : ""} ${conflicts.length ? `Conflicts were retained for audit: ${conflicts.join("; ")}.` : "No opposing source-linked components were matched."}${lessonAdjustments.length ? ` Learning trace: ${lessonAdjustments.join("; ")}.` : " No accepted lesson adjustments matched this context."}${macroNote} Target/stop geometry: ${levels.stopDescription} ${levels.targetDescription} Source-linked replacement ${model.id.endsWith("v4") ? "v4" : model.id.endsWith("v3") ? "v3" : "v2"} is authoritative for this paper outcome; validation remains UNVALIDATED.`;
   return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: levels.riskReward, marketRegime, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace, fundamentalContext };
 }

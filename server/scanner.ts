@@ -55,9 +55,9 @@ type ScanUserResult = { created: number; tracked: number; marketData: ScanMarket
 
 async function ensureReplacementIntelligenceVersion(userId: number) {
   const active = await getActiveIntelligenceVersion(userId);
-  if (active?.versionLabel?.startsWith("forex-trading-combined-document-v3")) return active;
-  const model = buildReplacementKnowledgeModelV3();
-  const version = await createIntelligenceVersion({ userId, versionLabel: model.id, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: 0, algorithmJson: JSON.stringify(model), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Replacement intelligence v2 is newly activated and requires forward paper validation." }), activatedAt: new Date() });
+  if (active?.versionLabel?.startsWith("forex-trading-combined-document-v4")) return active;
+  const model = buildReplacementKnowledgeModelV4();
+  const version = await createIntelligenceVersion({ userId, versionLabel: model.id, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: 0, algorithmJson: JSON.stringify(model), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Replacement intelligence v4 is active for paper signals by user instruction; forward validation remains ongoing." }), activatedAt: new Date() });
   const triggerFor = (family: string) => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : "CANDLE";
   for (const node of model.nodes) await createIntelligenceComponent({ userId, versionId: version.id, title: node.concept, sourceRuleIds: JSON.stringify([]), trigger: triggerFor(node.family) as any, stance: "NEUTRAL", conditionJson: JSON.stringify({ values: node.prerequisites, description: node.rule }), weight: "1", enabled: true });
   await activateIntelligenceVersion(userId, version.id);
@@ -98,8 +98,8 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   const mirroredRules = await fetchStrategyRulesFromSupabase();
   const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 6_000);
   await ensureReplacementIntelligenceVersion(userId);
-  const replacementModel = buildReplacementKnowledgeModelV3();
-  const replacementShadowModel = buildReplacementKnowledgeModelV4();
+  const replacementModel = buildReplacementKnowledgeModelV4();
+  const replacementBaselineModel = buildReplacementKnowledgeModelV3();
   const acceptedLessons = await listAcceptedStrategyLessons(userId);
   const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series)).map((candidate) => ({ ...candidate, cooldownKey: `${candidate.asset}:${candidate.timeframe}:PENDING` }));
   console.info(`[Scanner] Forwarding ${candidates.length} raw market snapshots to the strategy-rules algorithm.`);
@@ -135,8 +135,8 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         };
         const fundamentalContext = await fetchOfficialMacroContext(asset);
         const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementModel) : undefined;
-        const v4ShadowIntelligence = market.marketContext ? evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementShadowModel) : undefined;
-        if (!replacementIntelligence || !v4ShadowIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
+        const v3BaselineIntelligence = market.marketContext ? evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementBaselineModel) : undefined;
+        if (!replacementIntelligence || !v3BaselineIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
         return {
           asset,
           timeframe,
@@ -152,7 +152,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           ruleEvidence: replacementIntelligence.ruleEvidence,
           ruleFindings: replacementIntelligence.ruleFindings,
           decisionTrace: replacementIntelligence.decisionTrace,
-          market: { ...market, fundamentalContext, intelligenceSeed: replacementIntelligence, replacementIntelligence, v4ShadowIntelligence, replacementMarketRegime: replacementIntelligence.marketRegime },
+          market: { ...market, fundamentalContext, intelligenceSeed: replacementIntelligence, replacementIntelligence, v3BaselineIntelligence, replacementMarketRegime: replacementIntelligence.marketRegime },
         };
       }));
     decisions.metrics = { snapshots: candidates.length, completeResponses: decisions.length, retries: 0 };

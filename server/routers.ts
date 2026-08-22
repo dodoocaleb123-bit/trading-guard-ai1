@@ -8,7 +8,7 @@ import { activateIntelligenceVersion, createIntelligenceComponent, createIntelli
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, resolveLessonPatternReview } from "./intelligence";
-import { buildReplacementKnowledgeModelV3, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModelV4, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
 import { invokeLLM } from "./_core/llm";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { storagePut } from "./storage";
@@ -36,11 +36,11 @@ export function buildReplacementManualAuditResult(signal: string, asset: string,
   const directionMatches = !submittedDirection || submittedDirection === decision.direction;
   const directionReason = submittedDirection
     ? directionMatches
-      ? `Submitted ${submittedDirection} direction matches Replacement Intelligence v3.`
-      : `Submitted ${submittedDirection} direction conflicts with Replacement Intelligence v3 ${decision.direction} judgment.`
+      ? `Submitted ${submittedDirection} direction matches Replacement Intelligence v4.`
+      : `Submitted ${submittedDirection} direction conflicts with Replacement Intelligence v4 ${decision.direction} judgment.`
     : `No explicit direction was detected in the submitted signal; the audit uses the intelligence direction ${decision.direction}.`;
   const trace = `Score: BUY ${decision.score.buy} vs SELL ${decision.score.sell}; confluence ${decision.confluenceScore}%; market regime ${decision.marketRegime}. ${decision.conflicts.length ? `Conflicting components: ${decision.conflicts.join("; ")}.` : "No conflicting components were matched."}`;
-  const adjustments = `${directionReason} ${decision.explanation} ${trace} Additive source-linked replacement v3 is authoritative for this paper audit; it retains the complete v2 foundation and uses verified macro/fundamental evidence when available. Validation remains UNVALIDATED.`;
+  const adjustments = `${directionReason} ${decision.explanation} ${trace} Additive source-linked replacement v4 is authoritative for this paper audit; it retains the complete v2 foundation and uses verified macro/fundamental evidence when available. Validation remains UNVALIDATED.`;
   return {
     verdict: directionMatches ? "APPROVED" as const : "DENIED" as const,
     confidence: decision.confidence,
@@ -91,9 +91,9 @@ export const appRouter = router({
       return { active, versions, components, lessons, promotionPlan, acceptedLessonCount: lessons.filter((lesson) => lesson.status === "ACCEPTED").length };
     }),
     replacementPreview: protectedProcedure.query(async ({ ctx }) => {
-      const model = buildReplacementKnowledgeModelV3();
+      const model = buildReplacementKnowledgeModelV4();
       const active = await getActiveIntelligenceVersion(ctx.user.id);
-      return { id: model.id, sourceDocument: model.sourceDocument, nodeCount: model.nodes.length, nodes: model.nodes, decisionPolicy: model.decisionPolicy, learningPolicy: model.learningPolicy, active: active?.versionLabel === model.id, activeVersionId: active?.id ?? null };
+      return { id: model.id, sourceDocument: model.sourceDocument, nodeCount: model.nodes.length, nodes: model.nodes, decisionPolicy: model.decisionPolicy, learningPolicy: model.learningPolicy, active: active?.versionLabel?.startsWith(model.id) ?? false, activeVersionId: active?.id ?? null };
     }),
     replacementOutcomeStats: protectedProcedure.query(({ ctx }) => getReplacementOutcomeStats(ctx.user.id)),
     winningRateStats: protectedProcedure.query(({ ctx }) => getWinningRateStats(ctx.user.id)),
@@ -116,10 +116,10 @@ export const appRouter = router({
       const lessons = await listStrategyLessons(ctx.user.id);
       const plan = buildLessonPromotionPlan(lessons);
       if (plan.eligible.length === 0) return { promoted: false, ...plan };
-      const rules = await listStrategyRules(ctx.user.id);
-      const components = compileExecutableComponents(rules);
-      const version = await createIntelligenceVersion({ userId: ctx.user.id, versionLabel: `forex-trading-combined-document-v3-lessons-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`, status: "ACTIVE", sourceRuleCount: 0, componentCount: buildReplacementKnowledgeModelV3().nodes.length, lessonCount: plan.eligible.length, algorithmJson: JSON.stringify({ ...buildReplacementKnowledgeModelV3(), promotedLessonIds: plan.eligible.map((lesson) => lesson.id), learning: { status: "paper-only", application: "accepted-lessons-are-applied-by-v3-with-pattern-matching" } }), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Accepted loss-learning adjustments remain paper-validation only and can be rolled back by retiring this version." }), activatedAt: new Date() });
-      for (const component of components) await createIntelligenceComponent({ userId: ctx.user.id, versionId: version.id, title: component.title, sourceRuleIds: JSON.stringify(component.sourceRuleIds), trigger: component.trigger, stance: component.stance, conditionJson: JSON.stringify(component.condition), weight: String(component.weight), enabled: true });
+      const model = buildReplacementKnowledgeModelV4();
+      const version = await createIntelligenceVersion({ userId: ctx.user.id, versionLabel: `forex-trading-combined-document-v4-lessons-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: plan.eligible.length, algorithmJson: JSON.stringify({ ...model, promotedLessonIds: plan.eligible.map((lesson) => lesson.id), learning: { status: "paper-only", application: "accepted-lessons-are-applied-by-v4-with-pattern-matching" } }), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Accepted loss-learning adjustments remain paper-validation only and can be rolled back by retiring this version." }), activatedAt: new Date() });
+      const triggerFor = (family: string) => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : "CANDLE";
+      for (const node of model.nodes) await createIntelligenceComponent({ userId: ctx.user.id, versionId: version.id, title: node.concept, sourceRuleIds: JSON.stringify([]), trigger: triggerFor(node.family) as any, stance: "NEUTRAL", conditionJson: JSON.stringify({ values: node.prerequisites, description: node.rule }), weight: "1", enabled: true });
       await activateIntelligenceVersion(ctx.user.id, version.id);
       for (const lesson of plan.eligible) await updateStrategyLessonStatus(ctx.user.id, lesson.id, "ACCEPTED", version.id);
       return { promoted: true, versionId: version.id, promotedLessonIds: plan.eligible.map((lesson) => lesson.id), explanation: plan.explanation };
@@ -166,7 +166,7 @@ export const appRouter = router({
         const fundamentalContext = await fetchOfficialMacroContext(asset);
         const market: MarketSnapshot = { symbol: series.symbol, price: series.close, close: series.close, fetchedAt: series.fetchedAt, interval: timeframe === "1H" ? "1h" : "15min", trend: series.trend, values: series.values, marketContext: series.marketContext, fundamentalContext };
         const acceptedLessons = await listAcceptedStrategyLessons(ctx.user.id);
-        const decision = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: series.marketContext, fundamentalContext, acceptedLessons }, buildReplacementKnowledgeModelV3());
+        const decision = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: series.marketContext, fundamentalContext, acceptedLessons }, buildReplacementKnowledgeModelV4());
         const result = buildReplacementManualAuditResult(input.signal, asset, timeframe, market, decision);
         const assistantText = formatAuditResult(result, market);
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });

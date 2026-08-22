@@ -460,8 +460,8 @@ export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], vers
 export async function getReplacementOutcomeStats(userId: number) {
   const db = await getDb();
   if (!db) return summarizeReplacementOutcomes([]);
-  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v3")));
-  return summarizeReplacementOutcomes(rows, "replacement-forex-v3");
+  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4")));
+  return summarizeReplacementOutcomes(rows, "replacement-forex-v4");
 }
 
 type WinningRateRow = { version: string; asset: string; timeframe: string; confidence: string | number | null; status: string };

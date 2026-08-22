@@ -456,3 +456,12 @@
 - [x] Add v4 decision traces, version-separated statistics, and rollback-safe paper-only activation; v4 traces persist in the strategy snapshot while v3 remains the delivered signal version
 - [x] Validate v4 with fresh market samples and separate reversal/outcome analysis without claiming guaranteed accuracy; fresh comparison saved to reports/latest-v4-shadow-validation.json and review notes saved to reports/v4-validation-notes.md
 - [x] Run typecheck, tests, production build, visual verification, and publish only after the v4 validation review; v4 remains shadow-only and v3 remains the delivered paper intelligence
+
+
+## Immediate Replacement Intelligence v4 Activation
+
+- [x] Make Replacement Intelligence v4 the active authoritative paper-decision model for scanner Telegram signals; scanner auto-activates v4 on its next cycle and delivers v4-generated paper signals
+- [x] Route manual audits, stored signal provenance, outcome lessons, and Telegram explanations through v4 version labeling
+- [x] Update dashboard wording and version-separated analytics to distinguish active v4 from historical v3
+- [x] Run direct v4 validation, SELL-direction verification, full tests, production build, and responsive visual verification without adding a promotion gate
+- [x] Save and publish the active v4 release while preserving paper-only and UNVALIDATED safeguards

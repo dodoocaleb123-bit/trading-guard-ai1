@@ -465,3 +465,12 @@
 - [x] Update dashboard wording and version-separated analytics to distinguish active v4 from historical v3
 - [x] Run direct v4 validation, SELL-direction verification, full tests, production build, and responsive visual verification without adding a promotion gate
 - [x] Save and publish the active v4 release while preserving paper-only and UNVALIDATED safeguards
+
+
+## v4 Operational Monitoring Follow-up
+
+- [x] Add a compact `v4 active` provenance marker to every newly delivered Telegram paper signal
+- [ ] Verify the first v4 signal delivery and persisted provenance trace across Telegram routing records; live check at 2026-08-22 21:21 UTC confirmed v4 ACTIVE but 0 v4 signals and 0 v4 deliveries so far
+- [x] Add v4 outcome monitoring dimensions for asset, timeframe, direction, event risk, and geometry fallback
+- [x] Run routing tests, full regression suite, production build, and responsive visual verification
+- [x] Save and publish the operational monitoring update while preserving paper-only and UNVALIDATED safeguards; v4 is live in the database and remains paper-only/UNVALIDATED

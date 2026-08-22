@@ -17,7 +17,7 @@ describe("approved Telegram signal formatting", () => {
 
   it("renders the requested compact signal format", () => {
     const message = formatApprovedTelegramMessage({ asset: "EUR/USD", timeframe: "1H", direction: "SELL", entry: 1.16736, stopLoss: 1.16876, takeProfit: 1.16456, confidence: 84, confluenceScore: 80, decisionTrace: { matchedComponents: [], supportingComponents: [], conflictingComponents: [], scoreSummary: { buyScore: 2, sellScore: 8, dominantDirection: "SELL", confluenceScore: 80 }, levelDerivation: { entry: "", stopLoss: "", takeProfit: "", riskDistance: 0.0014, riskReward: 2 } } });
-    expect(message).toBe(["SELL", "EUR/USD · 1H", "Entry: 1.16736", "Stop loss: 1.16876", "Take profit: 1.16456", "Confidence: 84% · Confluence: 80%", "Score: BUY 2 vs SELL 8", "Paper only · UNVALIDATED"].join("\n"));
+    expect(message).toBe(["SELL", "EUR/USD · 1H", "Entry: 1.16736", "Stop loss: 1.16876", "Take profit: 1.16456", "Confidence: 84% · Confluence: 80%", "Score: BUY 2 vs SELL 8", "Paper only · UNVALIDATED · v4 active"].join("\n"));
     expect(message).not.toContain("Decision summary");
     expect(message).not.toContain("<b>");
   });

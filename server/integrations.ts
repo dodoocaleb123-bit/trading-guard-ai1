@@ -266,7 +266,7 @@ export function formatApprovedTelegramMessage(input: { asset: string; timeframe:
     `Take profit: ${optional(input.takeProfit)}`,
     `Confidence: ${input.confidence}%${confluence == null ? "" : ` · Confluence: ${confluence}%`}`,
     score,
-    "Paper only · UNVALIDATED",
+    "Paper only · UNVALIDATED · v4 active",
   ].join("\n");
 }
 

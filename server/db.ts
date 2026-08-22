@@ -548,3 +548,50 @@ async function getTimingStats(userId: number) {
 }
 export async function getBestTimeToTradeStats(userId: number) { return summarizeBestTimeToTrade((await getTimingStats(userId)).map((row) => ({ ...row, version: row.version ?? "" }))); }
 export async function getBestDaysToTradeStats(userId: number) { return summarizeBestDaysToTrade((await getTimingStats(userId)).map((row) => ({ ...row, version: row.version ?? "" }))); }
+
+
+export type V4MonitoringMetric = { key: string; generated: number; resolved: number; wins: number; losses: number; winRate: number | null };
+
+function emptyV4MonitoringMetric(key: string): V4MonitoringMetric { return { key, generated: 0, resolved: 0, wins: 0, losses: 0, winRate: null }; }
+function updateV4MonitoringMetric(metric: V4MonitoringMetric, status: string) {
+  metric.generated += 1;
+  if (status === "WIN") { metric.wins += 1; metric.resolved += 1; }
+  if (status === "LOSS") { metric.losses += 1; metric.resolved += 1; }
+  metric.winRate = metric.resolved ? Math.round((metric.wins / metric.resolved) * 100) : null;
+}
+
+export function summarizeV4Monitoring(rows: Array<{ asset: string; timeframe: string; direction: string; status: string; marketSnapshot: string | null }>) {
+  const dimensions = new Map<string, Map<string, V4MonitoringMetric>>();
+  const ensure = (dimension: string, key: string) => {
+    if (!dimensions.has(dimension)) dimensions.set(dimension, new Map());
+    const map = dimensions.get(dimension)!;
+    if (!map.has(key)) map.set(key, emptyV4MonitoringMetric(key));
+    return map.get(key)!;
+  };
+  for (const row of rows) {
+    let eventRisk = "UNKNOWN";
+    let geometry = "STANDARD";
+    try {
+      const snapshot = JSON.parse(row.marketSnapshot ?? "{}");
+      eventRisk = snapshot?.fundamentalContext?.eventRisk ?? snapshot?.replacementIntelligence?.fundamentalContext?.eventRisk ?? "UNKNOWN";
+      const targetDescription = snapshot?.replacementIntelligence?.decisionTrace?.levelDerivation?.takeProfit ?? "";
+      const adjustments = snapshot?.replacementIntelligence?.adjustments ?? "";
+      if (String(targetDescription).toLowerCase().includes("too close for 2r") || String(adjustments).toLowerCase().includes("fell back to the minimum 2r")) geometry = "2R_FALLBACK";
+    } catch {
+      // Older snapshots remain classified as UNKNOWN/STANDARD rather than inferred.
+    }
+    updateV4MonitoringMetric(ensure("asset", row.asset), row.status);
+    updateV4MonitoringMetric(ensure("timeframe", row.timeframe), row.status);
+    updateV4MonitoringMetric(ensure("direction", row.direction), row.status);
+    updateV4MonitoringMetric(ensure("eventRisk", String(eventRisk)), row.status);
+    updateV4MonitoringMetric(ensure("geometry", geometry), row.status);
+  }
+  return Object.fromEntries(Array.from(dimensions.entries()).map(([dimension, values]) => [dimension, Array.from(values.values()).sort((a, b) => a.key.localeCompare(b.key))]));
+}
+
+export async function getV4MonitoringStats(userId: number) {
+  const db = await getDb();
+  if (!db) return summarizeV4Monitoring([]);
+  const rows = await db.select({ asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, direction: generatedSignals.direction, status: generatedSignals.status, marketSnapshot: strategyDecisionLedger.marketSnapshot }).from(generatedSignals).leftJoin(strategyDecisionLedger, and(eq(strategyDecisionLedger.userId, generatedSignals.userId), eq(strategyDecisionLedger.asset, generatedSignals.asset), eq(strategyDecisionLedger.timeframe, generatedSignals.timeframe), eq(strategyDecisionLedger.generatedDirection, generatedSignals.direction), eq(strategyDecisionLedger.generatedEntry, generatedSignals.entry))).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4")));
+  return summarizeV4Monitoring(rows.map((row) => ({ ...row, marketSnapshot: row.marketSnapshot ?? null })));
+}

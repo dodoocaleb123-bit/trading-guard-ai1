@@ -79,6 +79,17 @@ export type ReplacementDecision = {
   sourceTrace: KnowledgeSource[];
   decisionTrace: IntelligenceDecisionTrace;
   fundamentalContext?: FundamentalContext;
+  setupIndicators: SetupIndicator[];
+};
+
+export type SetupIndicator = {
+  id: string;
+  family: KnowledgeNode["family"];
+  direction: "BUY" | "SELL" | "NEUTRAL";
+  strength: "STRONG" | "MODERATE" | "CONTEXT";
+  observation: string;
+  contribution: number;
+  source: KnowledgeSource;
 };
 
 const source = (section: string, passage: string): KnowledgeSource => ({ document: "Forex trading.docx", section, passage });
@@ -212,13 +223,13 @@ function deriveStructureAwareLevels(asset: string | undefined, entry: number, di
   };
 }
 
-export function evaluateReplacementIntelligence(market: { asset?: string; close: number; interval?: string; marketContext: MarketContext; fundamentalContext?: FundamentalContext; acceptedLessons?: AcceptedLesson[] }, model = buildReplacementKnowledgeModel()): ReplacementDecision {
-  const context = market.marketContext;
-  const fundamentalContext = market.fundamentalContext;
-  const matched: Array<KnowledgeNode & { observation: string; contribution: number }> = [];
-  const add = (id: string, observation: string, contribution: number) => {
+export function detectSetupIndicators(input: { market: { asset?: string; close: number; interval?: string }; context: MarketContext; fundamentalContext?: FundamentalContext }, model = buildReplacementKnowledgeModel()): SetupIndicator[] {
+  const { market, context, fundamentalContext } = input;
+  const indicators: SetupIndicator[] = [];
+  const add = (id: string, observation: string, contribution: number, strength: SetupIndicator["strength"] = Math.abs(contribution) >= 2 ? "STRONG" : contribution === 0 ? "CONTEXT" : "MODERATE") => {
     const node = model.nodes.find((candidate) => candidate.id === id);
-    if (node) matched.push({ ...node, observation, contribution });
+    if (!node) return;
+    indicators.push({ id, family: node.family, direction: contribution > 0 ? "BUY" : contribution < 0 ? "SELL" : "NEUTRAL", strength, observation, contribution, source: node.source });
   };
   if (context.marketStructure === "RISING") add("structure-uptrend", "Calculated structure is RISING.", 3);
   if ((model.id === "forex-trading-combined-document-v3" || model.id === "forex-trading-combined-document-v4") && fundamentalContext?.status === "AVAILABLE") {
@@ -264,6 +275,20 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
   const alignment = context.multiTimeframeAlignment;
   if (alignment?.structure === "ALIGNED" && alignment.momentum !== "OPPOSED") add("higher-timeframe-alignment", "Higher-timeframe structure and momentum align with the working direction.", context.marketStructure === "RISING" ? 2 : context.marketStructure === "FALLING" ? -2 : 0);
   if (alignment?.structure === "OPPOSED" || alignment?.momentum === "OPPOSED") add("higher-timeframe-alignment", "Higher-timeframe context opposes the local structure or momentum.", context.marketStructure === "RISING" ? -2 : context.marketStructure === "FALLING" ? 2 : 0);
+  return indicators;
+}
+
+export function evaluateReplacementIntelligence(market: { asset?: string; close: number; interval?: string; marketContext: MarketContext; fundamentalContext?: FundamentalContext; acceptedLessons?: AcceptedLesson[] }, model = buildReplacementKnowledgeModel()): ReplacementDecision {
+  const context = market.marketContext;
+  const fundamentalContext = market.fundamentalContext;
+  const setupIndicators = detectSetupIndicators({ market, context, fundamentalContext }, model);
+  const matched: Array<KnowledgeNode & { observation: string; contribution: number }> = setupIndicators.flatMap((indicator) => {
+    const node = model.nodes.find((candidate) => candidate.id === indicator.id);
+    return node ? [{ ...node, observation: indicator.observation, contribution: indicator.contribution }] : [];
+  });
+  const directionalIndicators = setupIndicators.filter((indicator) => indicator.direction !== "NEUTRAL");
+  if (!directionalIndicators.length) throw new Error("No directional setup indicators detected");
+  const alignment = context.multiTimeframeAlignment;
   let buy = matched.reduce((sum, node) => sum + Math.max(0, node.contribution), 0);
   let sell = matched.reduce((sum, node) => sum + Math.max(0, -node.contribution), 0);
   const lessonAdjustments: string[] = [];
@@ -315,5 +340,5 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
   const marketRegime = `${context.marketStructure}/${context.volatility.regime}/${context.breakoutState}/${alignment?.structure ?? "UNAVAILABLE"}`;
   const macroNote = (model.id === "forex-trading-combined-document-v3" || model.id === "forex-trading-combined-document-v4") ? ` Macro/fundamental layer: ${fundamentalContext?.status === "AVAILABLE" ? fundamentalContext.summary : "UNAVAILABLE; no macro direction was fabricated, so the complete v2 intelligence remains the decision base."}` : "";
   const adjustments = `${explanation} Regime-aware confluence used ${context.marketStructure} structure, ${context.volatility.regime} volatility, ${context.breakoutState} breakout state, EMA/oscillator alignment, and ${alignment?.structure ?? "UNAVAILABLE"} higher-timeframe context.${eventRiskPenalty ? ` High-impact calendar risk reduced confidence by ${eventRiskPenalty} points; event volatility may overshoot and correct.` : ""}${geometryDowngrade ? ` Structural target space was insufficient for 2R, so confidence was downgraded by ${geometryDowngrade} points and the target fell back to the minimum 2R paper geometry.` : ""} ${conflicts.length ? `Conflicts were retained for audit: ${conflicts.join("; ")}.` : "No opposing source-linked components were matched."}${lessonAdjustments.length ? ` Learning trace: ${lessonAdjustments.join("; ")}.` : " No accepted lesson adjustments matched this context."}${macroNote} Target/stop geometry: ${levels.stopDescription} ${levels.targetDescription} Source-linked replacement ${model.id.endsWith("v4") ? "v4" : model.id.endsWith("v3") ? "v3" : "v2"} is authoritative for this paper outcome; validation remains UNVALIDATED.`;
-  return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: levels.riskReward, marketRegime, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace, fundamentalContext };
+  return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: levels.riskReward, marketRegime, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace, fundamentalContext, setupIndicators };
 }

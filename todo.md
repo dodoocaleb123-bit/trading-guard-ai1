@@ -525,3 +525,21 @@
 - [x] Persist the number of independent strong setup families used for each emitted paper signal
 - [x] Expose emitted one-indicator versus two-or-more-indicator counts in v4 monitoring
 - [x] Add regression coverage and verify the monitoring-only change without changing thresholds
+
+
+## Indicator-First v4 Pipeline Redesign
+
+- [x] Audit and document the current v4 evaluator-versus-entry-locator ordering
+- [x] Define explicit document-derived setup-indicator objects with direction, strength, family, prerequisites, and provenance
+- [x] Construct v4 candidate judgments only from detected setup indicators and their combined evidence
+- [x] Resolve compatible and contradictory indicator directions deterministically before candidate construction
+- [x] Integrate indicator-first evidence into the stateful locator, decision trace, monitoring, and Telegram paper signal
+- [x] Add regression coverage and run full verification without claiming certain outcomes
+
+
+## Corrected Indicator-First Causal Order
+
+- [x] Make setup indicators explicit first-class outputs derived from scanner measurements before any candidate direction or levels are constructed
+- [x] Ensure one or more compatible detected indicators form the sole evidence basis for the v4 candidate judgment
+- [x] Preserve explicit conflict resolution, freshness, event-risk, geometry, locator, provenance, and Telegram safeguards after the causal refactor
+- [x] Add tests proving no candidate is constructed from absent indicators and that multi-indicator judgments reflect the detected evidence

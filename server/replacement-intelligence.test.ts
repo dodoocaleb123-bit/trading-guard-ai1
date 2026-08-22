@@ -52,6 +52,20 @@ describe("replacement PDF-derived intelligence", () => {
     expect(decision.explanation).toContain("Correlated indicators are one evidence family");
   });
 
+  it("constructs candidate evidence from explicit setup indicators first", () => {
+    const model = buildReplacementKnowledgeModelV4();
+    const decision = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext: calculateMarketContext(candles)! }, model);
+    expect(decision.setupIndicators.length).toBeGreaterThan(0);
+    expect(decision.setupIndicators.every((indicator) => indicator.source.document === "Forex trading.docx" || indicator.source.document === "What_moves_the_currency_market.pdf")).toBe(true);
+    expect(decision.matchedNodes.map((node) => node.id)).toEqual(decision.setupIndicators.map((indicator) => indicator.id));
+    expect(decision.explanation).toContain("source-linked observations");
+  });
+
+  it("does not construct a candidate when no setup-indicator catalog is available", () => {
+    const model = buildReplacementKnowledgeModelV4();
+    expect(() => evaluateReplacementIntelligence({ close: candles.at(-1)!.close, interval: "1h", marketContext: calculateMarketContext(candles)! }, { ...model, nodes: [] })).toThrow("No directional setup indicators detected");
+  });
+
   it("reduces v3 confidence around high-impact events while retaining a direction", () => {
     const marketContext = calculateMarketContext(candles)!;
     const normal = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext, fundamentalContext: { status: "AVAILABLE", bias: "NEUTRAL", summary: "Verified calendar context", eventRisk: "NORMAL" } }, buildReplacementKnowledgeModelV3());

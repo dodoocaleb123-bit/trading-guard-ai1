@@ -55,6 +55,7 @@ vi.mock("./db", () => ({
 }));
 
 vi.mock("./entry-locator", () => ({
+  countStrongSetupIndicators: vi.fn(() => 2),
   advanceEntryLocator: vi.fn(({ observation }: any) => ({ ready: true, reason: "Test locator ready", selectedObservation: observation, state: { status: "WAITING", snapshotCount: 2, lastSnapshotAt: observation.observedAt, lastEmittedFingerprint: null, snapshots: [observation], waitReason: "Test locator ready" } })),
   markEntryLocatorEmitted: vi.fn((state: any, fingerprint: string) => ({ ...state, status: "EMITTED", lastEmittedFingerprint: fingerprint })),
 }));

@@ -598,10 +598,12 @@ export function summarizeV4Monitoring(rows: Array<{ asset: string; timeframe: st
   for (const row of rows) {
     let eventRisk = "UNKNOWN";
     let geometry = "STANDARD";
+    let indicatorCount = "UNKNOWN";
     try {
       const snapshot = JSON.parse(row.marketSnapshot ?? "{}");
       eventRisk = snapshot?.fundamentalContext?.eventRisk ?? snapshot?.replacementIntelligence?.fundamentalContext?.eventRisk ?? "UNKNOWN";
       const targetDescription = snapshot?.replacementIntelligence?.decisionTrace?.levelDerivation?.takeProfit ?? "";
+      indicatorCount = snapshot?.entryLocator?.indicatorBucket ?? (Number(snapshot?.entryLocator?.strongIndicatorCount) === 1 ? "ONE_STRONG" : Number(snapshot?.entryLocator?.strongIndicatorCount) >= 2 ? "TWO_PLUS" : "UNKNOWN");
       const adjustments = snapshot?.replacementIntelligence?.adjustments ?? "";
       if (String(targetDescription).toLowerCase().includes("too close for 2r") || String(adjustments).toLowerCase().includes("fell back to the minimum 2r")) geometry = "2R_FALLBACK";
     } catch {
@@ -612,6 +614,7 @@ export function summarizeV4Monitoring(rows: Array<{ asset: string; timeframe: st
     updateV4MonitoringMetric(ensure("direction", row.direction), row.status);
     updateV4MonitoringMetric(ensure("eventRisk", String(eventRisk)), row.status);
     updateV4MonitoringMetric(ensure("geometry", geometry), row.status);
+    updateV4MonitoringMetric(ensure("indicatorCount", indicatorCount), row.status);
   }
   return Object.fromEntries(Array.from(dimensions.entries()).map(([dimension, values]) => [dimension, Array.from(values.values()).sort((a, b) => a.key.localeCompare(b.key))]));
 }

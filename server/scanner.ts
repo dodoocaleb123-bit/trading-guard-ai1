@@ -5,7 +5,7 @@ import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
 import { buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, evaluateReplacementIntelligence } from "./replacement-intelligence";
-import { advanceEntryLocator, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
+import { advanceEntryLocator, countStrongSetupIndicators, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -194,7 +194,9 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
     const locatorResult = advanceEntryLocator({ previous: previousLocator, observation, hasOpenSignal });
     const locatorState = locatorResult.ready ? markEntryLocatorEmitted(locatorResult.state, observation.fingerprint) : locatorResult.state;
     await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null, lastDirection: observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify(locatorState), lastEmittedAt: locatorResult.ready ? new Date() : storedLocator?.lastEmittedAt ?? null });
-    const locatorMarket = { ...market, entryLocator: { status: locatorState.status, ready: locatorResult.ready, reason: locatorResult.reason, snapshotCount: locatorState.snapshotCount, fingerprint: observation.fingerprint } };
+    const strongIndicatorCount = countStrongSetupIndicators(observation.supportingComponents);
+    const indicatorBucket = strongIndicatorCount === 1 ? "ONE_STRONG" : strongIndicatorCount >= 2 ? "TWO_PLUS" : "NONE";
+    const locatorMarket = { ...market, entryLocator: { status: locatorState.status, ready: locatorResult.ready, reason: locatorResult.reason, snapshotCount: locatorState.snapshotCount, fingerprint: observation.fingerprint, strongIndicatorCount, indicatorBucket } };
     const decisionVerdict = locatorResult.ready ? gated.verdict : "SKIPPED" as const;
     await createStrategyDecision({
       userId,

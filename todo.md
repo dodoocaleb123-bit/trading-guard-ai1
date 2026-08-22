@@ -518,3 +518,10 @@
 - [x] Allow one or two strong setup indicators to qualify a paper setup without requiring every catalog condition
 - [x] Add regression coverage for one-indicator, two-indicator, contradictory, stale, event-risk, and geometry cases
 - [x] Run full verification and publish the revised locator while preserving paper-only and UNVALIDATED safeguards
+
+
+## One-versus-Two Indicator Emission Monitoring
+
+- [x] Persist the number of independent strong setup families used for each emitted paper signal
+- [x] Expose emitted one-indicator versus two-or-more-indicator counts in v4 monitoring
+- [x] Add regression coverage and verify the monitoring-only change without changing thresholds

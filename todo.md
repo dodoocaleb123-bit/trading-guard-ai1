@@ -509,3 +509,12 @@
 - [x] Preserve designated Telegram routing, compact provenance, paper-only status, and UNVALIDATED labeling
 - [x] Add monitoring for accumulated setup state, wait/suppress reasons, evidence conflicts, and emitted signals
 - [x] Test state transitions, conflict resolution, stale snapshots, and real paper delivery before publishing
+
+
+## Attached Catalog Qualification Change
+
+- [x] Audit Exhaustive_Entry-Signal_and_Good-Setup_Catalog.docx against current locator thresholds
+- [x] Define strong independent indicator families and deterministic conflict handling
+- [x] Allow one or two strong setup indicators to qualify a paper setup without requiring every catalog condition
+- [x] Add regression coverage for one-indicator, two-indicator, contradictory, stale, event-risk, and geometry cases
+- [x] Run full verification and publish the revised locator while preserving paper-only and UNVALIDATED safeguards

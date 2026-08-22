@@ -54,6 +54,18 @@ function isFresh(snapshot: EntryLocatorSnapshot, nowMs: number) {
   return time != null && nowMs - time <= MAX_OBSERVATION_AGE_MS && time <= nowMs + 5 * 60 * 1000;
 }
 
+const STRONG_INDICATOR_FAMILIES = [
+  /structure|trend|higher high|lower low/i,
+  /support|resistance|level|liquidity/i,
+  /breakout|fakeout|reversal|pullback|trendline|channel/i,
+  /momentum|macd|ema|moving average|rsi|stochastic|bollinger|volume|fibonacci/i,
+  /macro|fundamental|event|interest rate|employment|inflation/i,
+];
+
+export function countStrongSetupIndicators(components: string[]) {
+  return STRONG_INDICATOR_FAMILIES.reduce((count, family) => count + (components.some((component) => family.test(component)) ? 1 : 0), 0);
+}
+
 function majorityDirection(snapshots: EntryLocatorSnapshot[]): "BUY" | "SELL" | null {
   const buy = snapshots.filter((snapshot) => snapshot.direction === "BUY").length;
   const sell = snapshots.length - buy;
@@ -93,22 +105,23 @@ export function advanceEntryLocator(input: {
   const averageConfidence = sameDirection.length ? sameDirection.reduce((sum, item) => sum + item.confidence, 0) / sameDirection.length : 0;
   const averageConfluence = sameDirection.length ? sameDirection.reduce((sum, item) => sum + item.confluence, 0) / sameDirection.length : 0;
   const conflictCount = latest.conflictingComponents.length;
-  const hasRepeatedSetup = sameDirection.length >= 2;
-  const hasQuality = averageConfidence >= 65 && averageConfluence >= 55;
+  const strongIndicatorCount = countStrongSetupIndicators(latest.supportingComponents);
+  const hasEnoughIndicators = strongIndicatorCount >= 1;
+  const hasQuality = strongIndicatorCount >= 2 ? averageConfidence >= 60 && averageConfluence >= 45 : averageConfidence >= 68 && averageConfluence >= 45;
   const hasCoherentGeometry = !latest.geometryFallback;
   const hasHighImpactRisk = latest.eventRisk === "HIGH";
-  const riskReady = !hasHighImpactRisk || (averageConfidence >= 72 && sameDirection.length >= 3);
-  const ready = !input.hasOpenSignal && Boolean(direction) && hasRepeatedSetup && hasQuality && hasCoherentGeometry && riskReady && latest.direction === direction;
+  const riskReady = !hasHighImpactRisk || (averageConfidence >= 72 && sameDirection.length >= 2 && strongIndicatorCount >= 2);
+  const ready = !input.hasOpenSignal && Boolean(direction) && hasEnoughIndicators && hasQuality && hasCoherentGeometry && riskReady && latest.direction === direction;
 
   let reason = "Accumulating distinct snapshots until the same setup repeats with coherent evidence.";
   if (input.hasOpenSignal) reason = "Active paper setup already exists; new setup evidence is tracked but no duplicate is emitted.";
   else if (!direction) reason = "BUY and SELL evidence are currently tied or mixed; waiting for resolution.";
-  else if (!hasRepeatedSetup) reason = `Waiting for repeated ${direction} setup evidence (${sameDirection.length}/2 distinct snapshots).`;
-  else if (!hasQuality) reason = `Setup repeated, but average confidence/confluence remain below 65%/55% (${Math.round(averageConfidence)}%/${Math.round(averageConfluence)}%).`;
+  else if (!hasEnoughIndicators) reason = "Waiting for at least one strong setup indicator from the catalog-derived evidence families.";
+  else if (!hasQuality) reason = `Setup evidence found, but confidence/confluence remain below the ${strongIndicatorCount >= 2 ? "60%/45%" : "68%/45%"} threshold (${Math.round(averageConfidence)}%/${Math.round(averageConfluence)}%).`;
   else if (!hasCoherentGeometry) reason = "Setup repeated, but structural target geometry is crowded; waiting for coherent 2R space.";
-  else if (!riskReady) reason = "High-impact event risk is present; waiting for at least three consistent, higher-confidence observations.";
-  else if (conflictCount > 0) reason = `Setup is eligible after ranking, with ${conflictCount} conflicting component(s) retained in the audit trace.`;
-  else if (ready) reason = `Entry signal located from ${sameDirection.length} consistent snapshots with ranked evidence.`;
+  else if (!riskReady) reason = "High-impact event risk is present; waiting for two consistent observations and at least two independent setup families.";
+  else if (conflictCount > 0) reason = `Setup is eligible after ranking, with ${conflictCount} conflicting component(s) retained in the audit trace and ${strongIndicatorCount} supporting setup family/families.`;
+  else if (ready) reason = `Entry signal located from ${strongIndicatorCount} strong setup family/families without requiring every catalog indicator.`;
 
   const nextState: EntryLocatorState = {
     status: ready ? "READY" : input.hasOpenSignal ? "EMITTED" : "WAITING",

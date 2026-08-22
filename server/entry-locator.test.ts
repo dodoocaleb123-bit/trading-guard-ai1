@@ -18,13 +18,17 @@ const observation = (overrides: Partial<Parameters<typeof advanceEntryLocator>[0
 describe("entry locator", () => {
   const now = new Date("2026-08-22T12:05:00.000Z");
 
-  it("waits for repeated distinct setup observations", () => {
-    const first = advanceEntryLocator({ previous: createEmptyEntryLocatorState(), observation: observation({ fingerprint: "one" }), hasOpenSignal: false, now });
-    expect(first.ready).toBe(false);
-    expect(first.state.status).toBe("WAITING");
-    const second = advanceEntryLocator({ previous: first.state, observation: observation({ fingerprint: "two" }), hasOpenSignal: false, now });
-    expect(second.ready).toBe(true);
-    expect(second.selectedObservation?.direction).toBe("BUY");
+  it("qualifies immediately from two independent setup families", () => {
+    const result = advanceEntryLocator({ previous: createEmptyEntryLocatorState(), observation: observation({ fingerprint: "two-families" }), hasOpenSignal: false, now });
+    expect(result.ready).toBe(true);
+    expect(result.state.status).toBe("READY");
+    expect(result.selectedObservation?.direction).toBe("BUY");
+  });
+
+  it("qualifies with one strong setup family when the evidence is strong enough", () => {
+    const result = advanceEntryLocator({ previous: createEmptyEntryLocatorState(), observation: observation({ fingerprint: "one-strong", confidence: 82, confluence: 60, supportingComponents: ["MACD line/signal line crossover"] }), hasOpenSignal: false, now });
+    expect(result.ready).toBe(true);
+    expect(result.reason).toContain("without requiring every catalog indicator");
   });
 
   it("waits when BUY and SELL evidence are tied", () => {
@@ -34,15 +38,13 @@ describe("entry locator", () => {
     expect(second.reason).toContain("tied");
   });
 
-  it("does not emit during high-impact risk until three consistent observations exist", () => {
+  it("does not emit during high-impact risk until two consistent observations and two families exist", () => {
     let state = createEmptyEntryLocatorState();
-    for (const fingerprint of ["one", "two"]) {
-      const result = advanceEntryLocator({ previous: state, observation: observation({ fingerprint, eventRisk: "HIGH" }), hasOpenSignal: false, now });
-      state = result.state;
-      expect(result.ready).toBe(false);
-    }
-    const third = advanceEntryLocator({ previous: state, observation: observation({ fingerprint: "three", eventRisk: "HIGH" }), hasOpenSignal: false, now });
-    expect(third.ready).toBe(true);
+    const first = advanceEntryLocator({ previous: state, observation: observation({ fingerprint: "one", eventRisk: "HIGH", supportingComponents: ["structure", "momentum"] }), hasOpenSignal: false, now });
+    state = first.state;
+    expect(first.ready).toBe(false);
+    const second = advanceEntryLocator({ previous: state, observation: observation({ fingerprint: "two", eventRisk: "HIGH", supportingComponents: ["structure", "momentum"] }), hasOpenSignal: false, now });
+    expect(second.ready).toBe(true);
   });
 
   it("rejects stale observations without changing to ready", () => {

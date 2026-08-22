@@ -168,6 +168,24 @@ export const strategyLessons = mysqlTable("strategy_lessons", {
   validatedAt: timestamp("validatedAt"),
 });
 
+export const entryLocatorStates = mysqlTable("entry_locator_states", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  asset: varchar("asset", { length: 32 }).notNull(),
+  timeframe: varchar("timeframe", { length: 16 }).notNull(),
+  status: mysqlEnum("status", ["WAITING", "READY", "EMITTED"]).default("WAITING").notNull(),
+  snapshotCount: int("snapshotCount").default(0).notNull(),
+  lastSnapshotAt: timestamp("lastSnapshotAt"),
+  lastDirection: mysqlEnum("lastDirection", ["BUY", "SELL"]),
+  lastConfidence: decimal("lastConfidence", { precision: 5, scale: 2 }),
+  lastConfluence: decimal("lastConfluence", { precision: 5, scale: 2 }),
+  evidenceJson: mediumtext("evidenceJson"),
+  conflictJson: mediumtext("conflictJson"),
+  stateJson: mediumtext("stateJson"),
+  lastEmittedAt: timestamp("lastEmittedAt"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 export const appSettings = mysqlTable("app_settings", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().unique(),
@@ -194,3 +212,4 @@ export type CooldownChange = typeof cooldownChangeLog.$inferSelect;
 export type StrategyIntelligenceVersion = typeof strategyIntelligenceVersions.$inferSelect;
 export type StrategyIntelligenceComponent = typeof strategyIntelligenceComponents.$inferSelect;
 export type StrategyLesson = typeof strategyLessons.$inferSelect;
+export type EntryLocatorState = typeof entryLocatorStates.$inferSelect;

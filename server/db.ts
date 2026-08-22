@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, cooldownChangeLog, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, users } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
 
@@ -210,6 +210,31 @@ export async function hasOpenGeneratedSignal(userId: number, asset: string, time
   if (intelligenceVersion) filters.push(eq(generatedSignals.intelligenceVersion, intelligenceVersion));
   const rows = await db.select({ id: generatedSignals.id }).from(generatedSignals).where(and(...filters)).limit(1);
   return rows.length > 0;
+}
+
+export async function getEntryLocatorState(userId: number, asset: string, timeframe: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(entryLocatorStates).where(and(eq(entryLocatorStates.userId, userId), eq(entryLocatorStates.asset, asset), eq(entryLocatorStates.timeframe, timeframe))).limit(1);
+  return rows[0];
+}
+
+export async function saveEntryLocatorState(input: { userId: number; asset: string; timeframe: string; status: "WAITING" | "READY" | "EMITTED"; snapshotCount: number; lastSnapshotAt?: Date | null; lastDirection?: "BUY" | "SELL" | null; lastConfidence?: string | null; lastConfluence?: string | null; evidenceJson?: string | null; conflictJson?: string | null; stateJson?: string | null; lastEmittedAt?: Date | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const existing = await getEntryLocatorState(input.userId, input.asset, input.timeframe);
+  if (existing) {
+    await db.update(entryLocatorStates).set({ status: input.status, snapshotCount: input.snapshotCount, lastSnapshotAt: input.lastSnapshotAt ?? null, lastDirection: input.lastDirection ?? null, lastConfidence: input.lastConfidence ?? null, lastConfluence: input.lastConfluence ?? null, evidenceJson: input.evidenceJson ?? null, conflictJson: input.conflictJson ?? null, stateJson: input.stateJson ?? null, lastEmittedAt: input.lastEmittedAt ?? existing.lastEmittedAt ?? null }).where(eq(entryLocatorStates.id, existing.id));
+    return { ...existing, ...input };
+  }
+  const result = await db.insert(entryLocatorStates).values({ ...input, lastSnapshotAt: input.lastSnapshotAt ?? null, lastDirection: input.lastDirection ?? null, lastConfidence: input.lastConfidence ?? null, lastConfluence: input.lastConfluence ?? null, evidenceJson: input.evidenceJson ?? null, conflictJson: input.conflictJson ?? null, stateJson: input.stateJson ?? null, lastEmittedAt: input.lastEmittedAt ?? null });
+  return { id: Number(result[0].insertId), ...input };
+}
+
+export async function listEntryLocatorStates(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(entryLocatorStates).where(eq(entryLocatorStates.userId, userId)).orderBy(desc(entryLocatorStates.updatedAt));
 }
 
 export async function listAuditTrades(userId: number) {

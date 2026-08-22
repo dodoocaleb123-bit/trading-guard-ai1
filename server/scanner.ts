@@ -1,10 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, listAcceptedStrategyLessons, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, listAcceptedStrategyLessons, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
 import { buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, evaluateReplacementIntelligence } from "./replacement-intelligence";
+import { advanceEntryLocator, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -172,24 +173,51 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
     const { asset, timeframe, market } = gated;
     const sourceCandidate = candidates.find((candidate) => candidate.asset === asset && candidate.timeframe === timeframe);
     const cooldownKey = buildSetupIdentity(asset, timeframe, gated.direction as "BUY" | "SELL", gated.marketRegime, market.marketContext?.breakoutState);
+    const latestCandle = sourceCandidate?.series.values.at(-1);
+    const latestCandleDatetime = typeof latestCandle?.datetime === "string" ? latestCandle.datetime : undefined;
+    const observation: EntryLocatorObservation = {
+      fingerprint: `${asset}:${timeframe}:${gated.direction}:${gated.marketRegime}:${market.marketContext?.breakoutState ?? "UNKNOWN"}:${latestCandleDatetime ?? sourceCandidate?.series.fetchedAt}:${sourceCandidate?.series.close}`,
+      observedAt: latestCandleDatetime ? new Date(latestCandleDatetime.replace(" ", "T") + "Z").toISOString() : sourceCandidate?.series.fetchedAt ?? new Date().toISOString(),
+      direction: gated.direction,
+      confidence: Number(gated.confidence ?? 0),
+      confluence: Number(gated.confluenceScore ?? 0),
+      marketRegime: gated.marketRegime ?? "UNKNOWN",
+      eventRisk: market.fundamentalContext?.eventRisk ?? "UNKNOWN",
+      geometryFallback: /fell back to the minimum 2R|fallback target/i.test(gated.adjustments ?? ""),
+      supportingComponents: gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? [],
+      conflictingComponents: gated.decisionTrace?.conflictingComponents ?? [],
+    };
+    const hasOpenSignal = await hasOpenGeneratedSignal(userId, asset, timeframe, replacementModel.id);
+    const storedLocator = await getEntryLocatorState(userId, asset, timeframe);
+    let previousLocator: Record<string, unknown> | null = null;
+    try { previousLocator = storedLocator?.stateJson ? JSON.parse(storedLocator.stateJson) : null; } catch { previousLocator = null; }
+    const locatorResult = advanceEntryLocator({ previous: previousLocator, observation, hasOpenSignal });
+    const locatorState = locatorResult.ready ? markEntryLocatorEmitted(locatorResult.state, observation.fingerprint) : locatorResult.state;
+    await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null, lastDirection: observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify(locatorState), lastEmittedAt: locatorResult.ready ? new Date() : storedLocator?.lastEmittedAt ?? null });
+    const locatorMarket = { ...market, entryLocator: { status: locatorState.status, ready: locatorResult.ready, reason: locatorResult.reason, snapshotCount: locatorState.snapshotCount, fingerprint: observation.fingerprint } };
+    const decisionVerdict = locatorResult.ready ? gated.verdict : "SKIPPED" as const;
     await createStrategyDecision({
       userId,
       asset,
       timeframe,
-      verdict: gated.verdict,
+      verdict: decisionVerdict,
       confidence: String(gated.confidence),
       confluenceScore: String(gated.confluenceScore ?? 0),
       ruleEvidence: JSON.stringify(gated.ruleEvidence ?? []),
       ruleFindings: JSON.stringify(gated.ruleFindings ?? []),
-      marketSnapshot: JSON.stringify(market),
-      generatedDirection: gated.direction,
-      generatedEntry: gated.entry == null ? null : String(gated.entry),
-      generatedStopLoss: gated.stopLoss == null ? null : String(gated.stopLoss),
-      generatedTakeProfit: gated.takeProfit == null ? null : String(gated.takeProfit),
-      decisionReason: gated.adjustments,
+      marketSnapshot: JSON.stringify(locatorMarket),
+      generatedDirection: locatorResult.ready ? gated.direction : null,
+      generatedEntry: locatorResult.ready && gated.entry != null ? String(gated.entry) : null,
+      generatedStopLoss: locatorResult.ready && gated.stopLoss != null ? String(gated.stopLoss) : null,
+      generatedTakeProfit: locatorResult.ready && gated.takeProfit != null ? String(gated.takeProfit) : null,
+      decisionReason: `${gated.adjustments} Entry locator: ${locatorResult.reason}`,
       cooldownKey,
     });
     try {
+      if (!locatorResult.ready) {
+        console.info(`[Scanner] ${asset} ${timeframe} entry locator waiting: ${locatorResult.reason}`);
+        continue;
+      }
       if (!shouldNotifyScannerSignal(gated.verdict)) {
         console.info(`[Scanner] ${asset} ${timeframe} candidate rejected by strategy gate: ${gated.adjustments}`);
         continue;
@@ -199,7 +227,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         continue;
       }
       const approvedLevels = { asset, timeframe, direction: gated.direction, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: 2, confidence: gated.confidence };
-      if (await hasOpenGeneratedSignal(userId, asset, timeframe, replacementModel.id)) {
+      if (hasOpenSignal) {
         console.info(`[Scanner] ${asset} ${timeframe} already has an active paper setup; current candidate evaluated immediately but duplicate suppressed.`);
         continue;
       }

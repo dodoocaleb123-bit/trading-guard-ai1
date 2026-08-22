@@ -474,3 +474,38 @@
 - [x] Add v4 outcome monitoring dimensions for asset, timeframe, direction, event risk, and geometry fallback
 - [x] Run routing tests, full regression suite, production build, and responsive visual verification
 - [x] Save and publish the operational monitoring update while preserving paper-only and UNVALIDATED safeguards; v4 is live in the database and remains paper-only/UNVALIDATED
+
+
+## Weekend Market and Entry-Signal Audit
+
+- [x] Verify weekend closure handling for EUR/USD, GBP/USD, and XAU/USD in the active scanner path; no dedicated weekend guard currently exists
+- [x] Verify whether the uploaded Forex trading document contains explicit entry signals, setup conditions, and indicator/confluence guidance; confirmed and recorded in reports/weekend-entry-signal-audit.md
+- [x] Compare the documented entry guidance with the active v4 evaluator and report any concrete implementation gap; v4 implements a bounded subset and does not yet encode every paragraph or discretionary exception one-to-one
+
+
+## Exhaustive Forex Document Entry-Signal Audit
+
+- [x] Preserve and inspect the complete extracted text and embedded-document coverage
+- [x] Catalog every explicit entry trigger and setup condition with chapter/section provenance
+- [x] Catalog confirmations, filters, invalidation conditions, and risk requirements
+- [x] Classify each item as deterministic, conditional, discretionary, example-only, or unsupported for automation
+- [x] Deliver the exhaustive entry-signal and good-setup catalog as a readable project report
+
+
+## Scanner Coverage Audit
+
+- [x] Inventory the scanner’s raw OHLCV and enriched market-context fields
+- [x] Map scanner-provided and v4-derived inputs to every document pre-trade checklist item
+- [x] Identify conditional and missing inputs without implying the scanner has unavailable data
+- [x] Record and report scanner coverage and concrete gaps
+
+
+## Stateful Entry-Signal Locator Redesign
+
+- [x] Replace routine interval-driven signal eligibility with a persistent entry-locator lifecycle per asset and timeframe
+- [x] Accumulate bounded scanner snapshots and derived setup evidence without treating stale data as current
+- [x] Rank independent setup evidence families and reconcile supporting versus conflicting signals deterministically
+- [x] Gate signals on coherent entry conditions, event risk, stable structure-aware geometry, and active-setup deduplication
+- [x] Preserve designated Telegram routing, compact provenance, paper-only status, and UNVALIDATED labeling
+- [x] Add monitoring for accumulated setup state, wait/suppress reasons, evidence conflicts, and emitted signals
+- [x] Test state transitions, conflict resolution, stale snapshots, and real paper delivery before publishing

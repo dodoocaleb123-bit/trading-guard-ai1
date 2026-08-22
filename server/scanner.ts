@@ -199,7 +199,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         continue;
       }
       const approvedLevels = { asset, timeframe, direction: gated.direction, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: 2, confidence: gated.confidence };
-      if (await hasOpenGeneratedSignal(userId, asset, timeframe)) {
+      if (await hasOpenGeneratedSignal(userId, asset, timeframe, replacementModel.id)) {
         console.info(`[Scanner] ${asset} ${timeframe} already has an active paper setup; current candidate evaluated immediately but duplicate suppressed.`);
         continue;
       }

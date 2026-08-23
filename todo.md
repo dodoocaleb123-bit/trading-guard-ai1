@@ -629,3 +629,11 @@
 - [x] Probe public and protected endpoint behavior without mutating data
 - [x] Validate live database connectivity, schema access, and application health
 - [x] Summarize endpoint status, database status, and required remediation
+
+
+## Version-Aware v4 Signal Eligibility
+
+- [x] Confirm which BTC/USD pending setups are v3 versus v4 and trace the current suppression decision
+- [x] Ensure legacy v3 pending setups do not block authoritative v4 setups for the same asset/timeframe
+- [x] Preserve suppression of duplicate active v4 setups and paper-only UNVALIDATED delivery
+- [x] Add regression coverage and verify the updated behavior

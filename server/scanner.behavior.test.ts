@@ -185,6 +185,8 @@ describe("scanner paper routing without evidence gate", () => {
 
     expect(result.created).toBe(0);
     expect(hasOpenGeneratedSignal).toHaveBeenCalledTimes(8);
+    expect(hasOpenGeneratedSignal).toHaveBeenNthCalledWith(1, 1, expect.any(String), expect.any(String), "forex-trading-combined-document-v4");
+    expect(hasOpenGeneratedSignal).toHaveBeenNthCalledWith(8, 1, expect.any(String), expect.any(String), "forex-trading-combined-document-v4");
     expect(sendTelegramMessage).not.toHaveBeenCalled();
     hasOpenGeneratedSignal.mockResolvedValue(false);
   });

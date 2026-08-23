@@ -797,3 +797,13 @@
 - [x] Recheck live BTC/USD locator wait reasons, recent snapshots, and Heartbeat results
 - [x] Carry out safe post-fix monitoring without changing thresholds or creating live trades
 - [x] Verify and publish the completed explanation and monitoring update
+
+## Thorough end-to-end application health check
+
+- [x] Check deployed app endpoints, frontend rendering, and runtime logs
+- [x] Check database connectivity, scanner settings, Heartbeat execution, and Twelve Data availability
+- [x] Check all locator states, generated signals, outcomes, and Telegram delivery records
+- [x] Run regression tests, TypeScript validation, and production build
+- [x] Consolidate findings and publish the completed health-check report
+
+- [x] Move the Google Fonts import before other CSS statements to remove the Vite import-order warning, then revalidate the build

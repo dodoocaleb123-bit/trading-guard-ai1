@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -132,8 +133,6 @@
     @apply cursor-pointer;
   }
 }
-
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 
 @layer base {
   body { font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; background-image: radial-gradient(circle at 12% 8%, oklch(0.98 0.03 92 / 0.8), transparent 28rem), radial-gradient(circle at 92% 16%, oklch(0.96 0.03 264 / 0.12), transparent 25rem); }

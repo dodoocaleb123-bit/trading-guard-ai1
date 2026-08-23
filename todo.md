@@ -971,3 +971,10 @@
 - [x] Add regression coverage for auditable Telegram outcome corrections
 - [x] Verify corrected XAU/USD #14610004 remains PENDING until a post-entry candle resolves it
 - [x] Show resolution candle timestamp, observed price, high/low range, intrabar mode, and audit note in Trade History for resolved paper signals
+
+## Open-signal contradiction-monitor verification
+
+- [x] Verify v4 continues accumulating new setup indicators for every open current v4 signal
+- [x] Verify strong opposing indicators can create a deduplicated threaded Telegram adjustment reply
+- [x] Verify adjustment monitoring does not prematurely close or rewrite paper outcomes
+- [ ] Add or update regression coverage and report live contradiction-monitor state

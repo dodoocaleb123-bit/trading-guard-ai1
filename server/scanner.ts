@@ -55,6 +55,10 @@ export function compactStrategyContext(localRules: string, mirroredRules: string
   return [localRules, mirroredRules].filter(Boolean).join("\n\n").slice(0, maxChars);
 }
 
+export function attachSetupIndicators<T extends { market: Record<string, unknown> }>(decision: T, setupIndicators: unknown[]) {
+  return { ...decision, setupIndicators, market: { ...decision.market, setupIndicators } };
+}
+
 type ScanUserResult = { created: number; tracked: number; adjustments: number; marketData: ScanMarketDataStatus };
 
 async function ensureReplacementIntelligenceVersion(userId: number) {
@@ -150,7 +154,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         const replacementIntelligence = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementModel);
         const v3BaselineIntelligence = market.marketContext ? evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementBaselineModel) : undefined;
         if (!replacementIntelligence || !v3BaselineIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
-        return {
+        return attachSetupIndicators({
           asset,
           timeframe,
           verdict: "APPROVED" as const,
@@ -166,7 +170,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           ruleFindings: replacementIntelligence.ruleFindings,
           decisionTrace: replacementIntelligence.decisionTrace,
           market: { ...market, fundamentalContext, intelligenceSeed: replacementIntelligence, replacementIntelligence, v3BaselineIntelligence, replacementMarketRegime: replacementIntelligence.marketRegime },
-        };
+        }, detectedIndicators);
       }));
     decisions.metrics = { snapshots: candidates.length, completeResponses: decisions.length, retries: 0 };
     await updateStrategyEngineStatus(userId, { status: "AVAILABLE" });

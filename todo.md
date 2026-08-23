@@ -894,3 +894,10 @@
 - [x] Inspect the active Heartbeat registry and recent production cycles, then correlate scheduler attempts with app-side run-ledger rows; active task is enabled, last recorded success was 16:28 UTC, and the registry still showed no later run during the check
 - [x] Add a dedicated recent-run history view and repeated-failure warning to the scanner callback dashboard
 - [x] Validate the monitoring update, publish it, and report the observed production-cycle results; tests, TypeScript, build, desktop/mobile screenshots, and production deployment passed
+
+## Heartbeat alert follow-up
+
+- [x] Verify the latest Heartbeat execution and correlate it with the app-side run ledger; the registry still reports the last successful run at 16:28 UTC, while the newly deployed ledger will populate on the next reached callback
+- [x] Investigate any recurring Heartbeat 403 permission failures and document the operational cause; the 16:08 and 16:14 failures were platform cron-cookie permission responses before the app callback ran
+- [x] Add safe owner-facing repeated-failure visibility or notification without altering paper-trading behavior; the dashboard warns after two failures and app-side consecutive failures notify the project owner once per failure streak
+- [x] Validate and publish the alerting update, then recheck the live scheduler state; full tests, TypeScript, build, and deployment passed

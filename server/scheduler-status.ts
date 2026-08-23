@@ -15,6 +15,10 @@ export type SchedulerJobSnapshot = {
 const SCANNER_CALLBACK_PATH = "/api/scheduled/trading-guard-scanner";
 const SCANNER_TASK_PREFIX = "trading-guard-scanner";
 
+export function hasRepeatedScannerFailures(runs: Array<{ status: string }>, threshold = 2) {
+  return runs.filter((run) => run.status === "FAILED").length >= threshold;
+}
+
 export function selectScannerSchedulerJob(storedTaskUid: string | null | undefined, jobs: SchedulerJobSnapshot[]) {
   const exact = storedTaskUid ? jobs.find((job) => job.taskUid === storedTaskUid) ?? null : null;
   if (exact) return { job: exact, taskUid: exact.taskUid, reconciled: false };

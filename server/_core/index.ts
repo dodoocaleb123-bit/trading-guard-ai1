@@ -14,7 +14,9 @@ import { scanAllUsers } from "../scanner";
 import { isAuthorizedScannerCron } from "../scheduled";
 import { sendWeeklyStrategySummary } from "../weekly-summary";
 import { handleTelegramWebhookUpdate, isTelegramWebhookAuthorized } from "../telegram-webhook";
-import { finishScannerRun, startScannerRun } from "../db";
+import { finishScannerRun, listRecentScannerRuns, startScannerRun } from "../db";
+import { hasRepeatedScannerFailures } from "../scheduler-status";
+import { notifyOwner } from "./notification";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -78,10 +80,12 @@ async function startServer() {
   });
   app.post("/api/scheduled/trading-guard-scanner", async (req, res) => {
     let runId: number | null = null;
+    let taskUid: string | null = null;
     try {
       const user = await sdk.authenticateRequest(req);
       if (!isAuthorizedScannerCron(user)) return res.status(403).json({ error: "cron-only" });
-      const run = await startScannerRun(user.taskUid!);
+      taskUid = user.taskUid!;
+      const run = await startScannerRun(taskUid);
       runId = run.row?.id ?? null;
       if (run.duplicate) {
         console.info(`[Scanner] Duplicate Heartbeat callback suppressed for run ${run.row?.runKey ?? "unknown"}.`);
@@ -92,7 +96,17 @@ async function startServer() {
       console.info(`[Scanner] Scheduled run complete: users=${result.users} created=${result.created} tracked=${result.tracked} adjustments=${result.adjustments} marketData=${result.marketData}`);
       return res.json({ ok: true, runId, ...result });
     } catch (error) {
-      if (runId) await finishScannerRun(runId, { status: "FAILED", marketData: "unavailable", error: error instanceof Error ? error.message : String(error) });
+      if (runId) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        await finishScannerRun(runId, { status: "FAILED", marketData: "unavailable", error: errorMessage });
+        const recentRuns = taskUid ? await listRecentScannerRuns(taskUid, 3) : [];
+        const failureThresholdReached = hasRepeatedScannerFailures(recentRuns);
+        const thresholdJustCrossed = recentRuns[0]?.status === "FAILED" && recentRuns[1]?.status === "FAILED" && recentRuns[2]?.status !== "FAILED";
+        if (failureThresholdReached && thresholdJustCrossed) {
+          const delivered = await notifyOwner({ title: "Trading Guard AI scanner failures", content: `Two consecutive app-side scanner runs failed for Heartbeat task ${taskUid}. Latest error: ${errorMessage}. Review the Heartbeat execution history and the scanner callback run ledger.` });
+          console.warn(`[Scanner] Repeated-failure owner alert ${delivered ? "delivered" : "unavailable"}.`);
+        }
+      }
       return res.status(500).json({ error: error instanceof Error ? error.message : "scanner failed", runId, timestamp: new Date().toISOString() });
     }
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCallbackStatus, selectScannerSchedulerJob, type SchedulerJobSnapshot } from "./scheduler-status";
+import { buildCallbackStatus, hasRepeatedScannerFailures, selectScannerSchedulerJob, type SchedulerJobSnapshot } from "./scheduler-status";
 import { buildScannerRunKey } from "./db";
 
 const job: SchedulerJobSnapshot = {
@@ -13,6 +13,13 @@ const job: SchedulerJobSnapshot = {
   lastExecutedAt: "2026-08-23T02:00:00.000Z",
   nextExecutionAt: "2026-08-23T02:05:00.000Z",
 };
+
+describe("repeated scanner failures", () => {
+  it("requires two failed app-side runs before alerting", () => {
+    expect(hasRepeatedScannerFailures([{ status: "SUCCEEDED" }, { status: "FAILED" }])).toBe(false);
+    expect(hasRepeatedScannerFailures([{ status: "FAILED" }, { status: "FAILED" }])).toBe(true);
+  });
+});
 
 describe("scanner run key", () => {
   it("is stable within a five-minute UTC bucket", () => {

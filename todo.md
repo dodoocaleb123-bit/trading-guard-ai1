@@ -678,3 +678,11 @@
 - [x] Preserve duplicate suppression for signals emitted by the current stateful Entry Locator process
 - [x] Add regression coverage proving legacy v4 pending rows are ignored while current locator rows still block duplicates
 - [x] Run typecheck, tests, production build, and safe scanner verification; keep all outputs paper-only and UNVALIDATED
+
+## Locator-era monitoring follow-up
+
+- [x] Monitor the next current Entry Locator v4 Heartbeat cycles and record whether new signals are emitted
+- [x] Add clear legacy v4 versus current Entry Locator v4 provenance labels to dashboard signal views
+- [x] Add outcome-review summaries scoped to current Entry Locator v4 signals
+- [x] Review the first resolved locator-era outcomes without changing thresholds prematurely
+- [x] Add regression coverage, verify responsive UI, and publish the release

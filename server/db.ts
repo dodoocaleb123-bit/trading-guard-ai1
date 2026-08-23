@@ -459,7 +459,7 @@ export async function getRelevantRulesText(userId: number, query: string, maxCha
 
 type ReplacementOutcomeRow = { status: string; intelligenceComponents: string | null; marketRegime: string | null; confidence?: string | number | null };
 type ReplacementOutcomeBucket = { key: string; total: number; wins: number; losses: number; pending: number; invalidated: number };
-export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], version: "replacement-forex-v2" | "replacement-forex-v3" | "replacement-forex-v4" = "replacement-forex-v2") {
+export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], version: "replacement-forex-v2" | "replacement-forex-v3" | "replacement-forex-v4" | "replacement-forex-v4-locator" = "replacement-forex-v2") {
   const componentMap = new Map<string, ReplacementOutcomeBucket>();
   const regimeMap = new Map<string, ReplacementOutcomeBucket>();
   const confidenceMap = new Map<string, ReplacementOutcomeBucket>();
@@ -492,6 +492,13 @@ export async function getReplacementOutcomeStats(userId: number) {
   if (!db) return summarizeReplacementOutcomes([]);
   const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4")));
   return summarizeReplacementOutcomes(rows, "replacement-forex-v4");
+}
+
+export async function getLocatorV4OutcomeStats(userId: number) {
+  const db = await getDb();
+  if (!db) return summarizeReplacementOutcomes([], "replacement-forex-v4-locator");
+  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE)));
+  return summarizeReplacementOutcomes(rows, "replacement-forex-v4-locator");
 }
 
 type WinningRateRow = { version: string; asset: string; timeframe: string; confidence: string | number | null; status: string };

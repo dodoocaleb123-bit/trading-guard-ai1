@@ -197,6 +197,12 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       geometryFallback: /adaptive target geometry did not qualify|no allowed ratio fits|breakout indication is not confirmed|fallback target/i.test(gated.adjustments ?? ""),
       supportingComponents: gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? [],
       indicatorEvidence: (gated.setupIndicators ?? []).map((indicator: any) => indicator.id ?? indicator.concept ?? "").filter(Boolean),
+      breakoutState: market.marketContext?.breakoutState ?? "UNKNOWN",
+      breakoutConfirmed: gated.decisionTrace?.levelDerivation?.geometryMode === "BREAKOUT_NEXT_ZONE",
+      geometryMode: gated.decisionTrace?.levelDerivation?.geometryMode ?? "RANGE_OPPOSING_ZONE",
+      nextResistance: market.marketContext?.nextResistance ?? null,
+      nextSupport: market.marketContext?.nextSupport ?? null,
+      targetBoundary: market.marketContext ? (gated.direction === "BUY" ? market.marketContext.nextResistance ?? market.marketContext.supportResistance.resistance : market.marketContext.nextSupport ?? market.marketContext.supportResistance.support) : null,
       conflictingComponents: gated.decisionTrace?.conflictingComponents ?? [],
     };
     const hasOpenSignal = await hasOpenGeneratedSignal(userId, asset, timeframe, replacementModel.id, ENTRY_LOCATOR_V4_GENERATION_MODE);

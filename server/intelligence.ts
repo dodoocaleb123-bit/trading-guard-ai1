@@ -27,7 +27,7 @@ export type IntelligenceDecisionTrace = {
   supportingComponents: string[];
   conflictingComponents: string[];
   scoreSummary: { buyScore: number; sellScore: number; dominantDirection: "BUY" | "SELL"; confluenceScore: number };
-  levelDerivation: { entry: string; stopLoss: string; takeProfit: string; riskDistance: number; riskReward: number; selectedRiskReward?: number | null; geometryMode?: "RANGE" | "BREAKOUT" };
+  levelDerivation: { entry: string; stopLoss: string; takeProfit: string; riskDistance: number; riskReward: number; selectedRiskReward?: number | null; geometryMode?: "RANGE" | "BREAKOUT" | "RANGE_OPPOSING_ZONE" | "BREAKOUT_NEXT_ZONE" | "BREAKOUT_UNCONFIRMED" | "LEGACY_2R"; };
 };
 
 export type ExecutableJudgment = {

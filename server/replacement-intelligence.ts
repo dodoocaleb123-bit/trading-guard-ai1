@@ -379,12 +379,19 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
   const familyToTrigger = (family: KnowledgeNode["family"]): IntelligenceTrigger => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : family === "FUNDAMENTAL" ? "CANDLE" : "CANDLE";
   const matchedComponents = matched.slice(0, 8).map((node) => ({ title: node.concept, sourceRuleIds: [], sourceConcept: node.source.passage, trigger: familyToTrigger(node.family), stance: node.contribution >= 0 ? "BUY" as const : "SELL" as const, weight: Math.max(1, Math.abs(node.contribution)), match: node.observation }));
   const explanation = `Replacement PDF-derived intelligence selected ${direction} from ${matched.length} source-linked observations: ${matched.map((node) => `${node.concept} (${node.observation})`).join("; ") || "no matched directional observations"}.${tieBreakNote ? ` ${tieBreakNote}` : ""}${lessonAdjustments.length ? ` Accepted loss-learning adjustments were applied: ${lessonAdjustments.join("; ")}.` : ""}`;
+  const geometryMode = model.id === "forex-trading-combined-document-v4"
+    ? context.breakoutState !== "WITHIN_RANGE"
+      ? levels.selectedRiskReward == null
+        ? "BREAKOUT_UNCONFIRMED" as const
+        : levels.targetDescription.includes("next untouched opposing zone") ? "BREAKOUT_NEXT_ZONE" as const : "BREAKOUT_UNCONFIRMED" as const
+      : "RANGE_OPPOSING_ZONE" as const
+    : "LEGACY_2R" as const;
   const decisionTrace: IntelligenceDecisionTrace = {
     matchedComponents,
     supportingComponents: matched.filter((node) => Math.sign(node.contribution) === (direction === "BUY" ? 1 : -1)).map((node) => node.concept),
     conflictingComponents: conflicts,
     scoreSummary: { buyScore: buy, sellScore: sell, dominantDirection: direction, confluenceScore },
-    levelDerivation: { entry: "Latest enriched raw close rounded to provider precision.", stopLoss: levels.stopDescription, takeProfit: levels.targetDescription, riskDistance: risk, riskReward: levels.riskReward, selectedRiskReward: levels.selectedRiskReward, geometryMode: context.breakoutState === "WITHIN_RANGE" ? "RANGE" : "BREAKOUT" },
+    levelDerivation: { entry: "Latest enriched raw close rounded to provider precision.", stopLoss: levels.stopDescription, takeProfit: levels.targetDescription, riskDistance: risk, riskReward: levels.riskReward, selectedRiskReward: levels.selectedRiskReward, geometryMode },
   };
   const marketRegime = `${context.marketStructure}/${context.volatility.regime}/${context.breakoutState}/${alignment?.structure ?? "UNAVAILABLE"}`;
   const macroNote = (model.id === "forex-trading-combined-document-v3" || model.id === "forex-trading-combined-document-v4") ? ` Macro/fundamental layer: ${fundamentalContext?.status === "AVAILABLE" ? fundamentalContext.summary : "UNAVAILABLE; no macro direction was fabricated, so the complete v2 intelligence remains the decision base."}` : "";

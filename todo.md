@@ -928,3 +928,11 @@
 - [x] Preserve conservative rejection for unconfirmed breakouts, fakeouts, invalid stops, and insufficient clearance
 - [x] Update audit traces, monitoring labels, upgrade safeguards, and tests for the selected ratio
 - [x] Validate scanner-to-Telegram behavior, review the UI, and publish without rewriting historical signals
+
+## Adaptive analytics and diagnostics follow-up
+
+- [x] Audit Trade History data and current locator decision-trace fields for ratio and breakout analytics
+- [x] Add ratio-specific generated, resolved, wins, losses, and win-rate statistics for v4 paper signals
+- [x] Add a dashboard diagnostics card showing breakout confirmation, geometry mode, and next opposing-zone information
+- [x] Inspect live adaptive v4 signals and compare any selected ratios with resolved outcomes without fabricating data; the owner currently has one pending EUR/USD 1H adaptive 1:1 signal and no resolved adaptive-ratio outcomes yet
+- [x] Add tests, validate the UI, and publish the analytics update; focused tests, TypeScript, production build, desktop/mobile screenshots, and live database inspection passed

@@ -645,6 +645,24 @@ export function buildWinningRateReconciliation(sourceTotal: number, includedTota
   const excludedTotal = Math.max(sourceTotal - includedTotal, 0);
   return { sourceTotal, includedTotal, excludedTotal, status: excludedTotal ? "MISMATCH" : "RECONCILED" };
 }
+export type AdaptiveRatioMetric = { ratio: number; generated: number; resolved: number; wins: number; losses: number; winRate: number | null };
+const ADAPTIVE_RATIOS = [3, 2, 1.5, 1] as const;
+export function summarizeAdaptiveRatioStats(rows: Array<{ riskReward: string | number | null; status: string }>) {
+  return ADAPTIVE_RATIOS.map((ratio) => {
+    const matching = rows.filter((row) => Math.abs(Number(row.riskReward) - ratio) < 0.01);
+    const wins = matching.filter((row) => row.status === "WIN").length;
+    const losses = matching.filter((row) => row.status === "LOSS").length;
+    const resolved = wins + losses;
+    return { ratio, generated: matching.length, resolved, wins, losses, winRate: resolved ? Math.round((wins / resolved) * 100) : null };
+  });
+}
+export async function getAdaptiveRatioStats(userId: number) {
+  const db = await getDb();
+  if (!db) return { ratios: summarizeAdaptiveRatioStats([]), generatedAt: new Date() };
+  const rows = await db.select({ riskReward: generatedSignals.riskReward, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE)));
+  return { ratios: summarizeAdaptiveRatioStats(rows), generatedAt: new Date() };
+}
+
 export async function getWinningRateStats(userId: number) {
   const db = await getDb();
   if (!db) return { ...summarizeWinningRate([]), generatedAt: new Date(), reconciliation: buildWinningRateReconciliation(0, 0) };

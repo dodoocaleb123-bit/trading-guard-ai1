@@ -12,6 +12,12 @@ export type EntryLocatorObservation = {
   supportingComponents: string[];
   conflictingComponents: string[];
   indicatorEvidence?: string[];
+  breakoutState?: string;
+  breakoutConfirmed?: boolean;
+  geometryMode?: "RANGE_OPPOSING_ZONE" | "BREAKOUT_NEXT_ZONE" | "BREAKOUT_UNCONFIRMED" | "LEGACY_2R";
+  nextResistance?: number | null;
+  nextSupport?: number | null;
+  targetBoundary?: number | null;
 };
 
 export type EntryLocatorSnapshot = EntryLocatorObservation & { receivedAt: string };

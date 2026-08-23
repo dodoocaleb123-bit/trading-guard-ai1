@@ -44,3 +44,23 @@ describe("v4 outcome monitoring", () => {
     expect(rows.indicatorCount).toEqual([expect.objectContaining({ key: "UNKNOWN", generated: 1 })]);
   });
 });
+
+describe("adaptive ratio performance", () => {
+  it("groups authoritative v4 outcomes by selected adaptive ratio", async () => {
+    const { summarizeAdaptiveRatioStats } = await import("./db");
+    const rows = summarizeAdaptiveRatioStats([
+      { riskReward: "3", status: "WIN" },
+      { riskReward: "2", status: "LOSS" },
+      { riskReward: "1.5", status: "WIN" },
+      { riskReward: "1.5", status: "LOSS" },
+      { riskReward: "1", status: "PENDING" },
+      { riskReward: "9", status: "WIN" },
+    ]);
+    expect(rows).toEqual([
+      expect.objectContaining({ ratio: 3, generated: 1, resolved: 1, wins: 1, losses: 0, winRate: 100 }),
+      expect.objectContaining({ ratio: 2, generated: 1, resolved: 1, wins: 0, losses: 1, winRate: 0 }),
+      expect.objectContaining({ ratio: 1.5, generated: 2, resolved: 2, wins: 1, losses: 1, winRate: 50 }),
+      expect.objectContaining({ ratio: 1, generated: 1, resolved: 0, wins: 0, losses: 0, winRate: null }),
+    ]);
+  });
+});

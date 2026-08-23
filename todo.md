@@ -606,3 +606,10 @@
 - [x] Compare historical and current callback route, bundle, deployment, and schedule configuration
 - [x] Identify the most likely regression cause without changing production data
 - [x] Report what changed and the safest remedy
+
+
+## Live Callback Probe
+
+- [x] Inspect the latest production runtime logs and Heartbeat execution result
+- [x] Manually POST to the scanner callback endpoint without trade input
+- [x] Report the exact response and whether the application callback was reached

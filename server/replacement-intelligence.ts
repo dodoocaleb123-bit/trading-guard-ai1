@@ -197,7 +197,7 @@ function pricePrecision(asset?: string) {
   return asset === "BTC/USD" ? 2 : asset === "XAU/USD" ? 4 : 5;
 }
 
-export const ALLOWED_RISK_REWARD_RATIOS = [3, 2, 1.5, 1] as const;
+export const ALLOWED_RISK_REWARD_RATIOS = [3, 2] as const;
 
 export function selectAdaptiveRiskReward(riskDistance: number, availableReward: number): number | null {
   if (!Number.isFinite(riskDistance) || riskDistance <= 0 || !Number.isFinite(availableReward) || availableReward <= 0) return null;
@@ -258,7 +258,7 @@ export function deriveStructureAwareLevels(asset: string | undefined, entry: num
       : `Breakout indication is not confirmed by a directional close, momentum, candle body, and available volume; waiting instead of projecting continuation.`
     : "Range-bound geometry uses the nearest opposing support/resistance zone.";
   const ratioDescription = selectedRiskReward == null
-    ? `No allowed ratio fits the available cleared space after a ${Number(clearance.toFixed(precision))} clearance buffer; the diagnostic 1:1 level is not eligible for emission.`
+    ? `No permitted 1:3 or 1:2 ratio fits the available cleared space after a ${Number(clearance.toFixed(precision))} clearance buffer; the setup is not eligible for emission.`
     : `Selected the highest cleared allowed ratio of 1:${selectedRiskReward} after a ${Number(clearance.toFixed(precision))} clearance buffer.`;
   return {
     stopLoss,

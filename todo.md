@@ -944,3 +944,10 @@
 - [x] Detect confirmed breakout transitions without changing signal qualification or paper outcomes
 - [x] Send one deduplicated owner alert per breakout-confirmation transition and expose the status in the dashboard
 - [x] Add tests, verify live state and responsive UI, and publish the refinement
+
+## Restricted adaptive ratio policy
+
+- [x] Audit all 1:1 and 1:1.5 references in v4 selection, upgrades, analytics, Telegram copy, and documentation; retained only historical analytics references
+- [x] Restrict new v4 Entry Locator signals and upgrades to 1:2 or 1:3 only
+- [x] Update ratio analytics and user-facing copy so 1:1 and 1:1.5 are historical-only and not selectable for new signals
+- [x] Add regression coverage, validate scanner-to-Telegram behavior, and publish without rewriting historical records

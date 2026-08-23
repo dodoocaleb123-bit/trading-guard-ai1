@@ -1,4 +1,5 @@
 import { countStrongSetupIndicators } from "./entry-locator";
+import { ALLOWED_RISK_REWARD_RATIOS } from "./replacement-intelligence";
 
 export type ActivePaperSignalForUpgrade = {
   id: number;
@@ -57,7 +58,7 @@ function parseComponents(value: string | null | undefined) {
 export function compareStrongerSameDirectionSetup(active: ActivePaperSignalForUpgrade, candidate: CandidateForUpgrade): PaperTradeUpgrade | null {
   if (active.direction !== candidate.direction || candidate.confidence < 60 || candidate.confluenceScore < 45) return null;
   if (![candidate.entry, candidate.stopLoss, candidate.takeProfit].every(Number.isFinite)) return null;
-  if (candidate.riskReward != null && ![1, 1.5, 2, 3].includes(Number(candidate.riskReward))) return null;
+  if (candidate.riskReward != null && !(ALLOWED_RISK_REWARD_RATIOS as readonly number[]).includes(Number(candidate.riskReward))) return null;
 
   const previousComponents = parseComponents(active.intelligenceComponents);
   const newComponents = candidate.decisionTrace?.supportingComponents ?? candidate.ruleEvidence ?? [];

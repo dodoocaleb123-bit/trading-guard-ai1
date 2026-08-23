@@ -114,8 +114,8 @@ describe("replacement PDF-derived intelligence", () => {
   it("selects the highest allowed ratio that fits cleared structural space", () => {
     expect(selectAdaptiveRiskReward(100, 310)).toBe(3);
     expect(selectAdaptiveRiskReward(100, 220)).toBe(2);
-    expect(selectAdaptiveRiskReward(100, 160)).toBe(1.5);
-    expect(selectAdaptiveRiskReward(100, 105)).toBe(1);
+    expect(selectAdaptiveRiskReward(100, 160)).toBeNull();
+    expect(selectAdaptiveRiskReward(100, 105)).toBeNull();
     expect(selectAdaptiveRiskReward(100, 99)).toBeNull();
   });
 
@@ -125,8 +125,8 @@ describe("replacement PDF-derived intelligence", () => {
     const risk = Math.abs(decision.entry - decision.stopLoss);
     const reward = decision.direction === "BUY" ? decision.takeProfit - decision.entry : decision.entry - decision.takeProfit;
     expect(risk).toBeGreaterThan(0);
-    expect([1, 1.5, 2, 3]).toContain(decision.riskReward);
-    expect(decision.decisionTrace.levelDerivation.selectedRiskReward == null || [1, 1.5, 2, 3].includes(decision.decisionTrace.levelDerivation.selectedRiskReward)).toBe(true);
+    expect([2, 3]).toContain(decision.riskReward);
+    expect(decision.decisionTrace.levelDerivation.selectedRiskReward == null || [2, 3].includes(decision.decisionTrace.levelDerivation.selectedRiskReward)).toBe(true);
     expect(decision.decisionTrace.levelDerivation.stopLoss).toContain("Structure invalidation");
     expect(decision.adjustments).toContain("Target/stop geometry");
   });

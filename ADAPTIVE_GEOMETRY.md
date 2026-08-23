@@ -4,16 +4,14 @@ Trading Guard AI v4 now uses a conservative adaptive paper-trade geometry policy
 
 ## Allowed ratios
 
-The target selector tests the permitted ratios in descending order:
+The target selector tests the active v4 permitted ratios in descending order:
 
 | Priority | Ratio | Qualification requirement |
 |---:|---:|---|
 | 1 | 1:3 | Cleared structural space supports three risk units |
 | 2 | 1:2 | Cleared structural space supports two risk units |
-| 3 | 1:1.5 | Cleared structural space supports one and a half risk units |
-| 4 | 1:1 | Cleared structural space supports one risk unit |
 
-The selector chooses the highest ratio whose target remains before the nearest valid opposing zone after a clearance buffer. If none of the four ratios fits, v4 remains `WAITING`; it does not emit a diagnostic fallback level.
+The selector chooses the highest active ratio whose target remains before the nearest valid opposing zone after a clearance buffer. If neither active ratio fits, v4 remains `WAITING`; it does not emit a diagnostic fallback level. Historical 1:1 and 1:1.5 signals remain visible in outcome analytics for audit integrity, but they are no longer eligible for new v4 emission or upgrades.
 
 ## Breakout handling
 

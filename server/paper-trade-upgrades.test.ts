@@ -57,9 +57,12 @@ describe("linked stronger paper setup comparison", () => {
     expect(compareStrongerSameDirectionSetup(active, { ...candidate, riskReward: 1.25 })).toBeNull();
   });
 
-  it("accepts each configured adaptive ratio when the candidate is otherwise stronger", () => {
-    for (const riskReward of [1, 1.5, 2, 3]) {
+  it("accepts only the active 1:2 and 1:3 ratios when the candidate is otherwise stronger", () => {
+    for (const riskReward of [2, 3]) {
       expect(compareStrongerSameDirectionSetup(active, { ...candidate, riskReward })).not.toBeNull();
+    }
+    for (const riskReward of [1, 1.5]) {
+      expect(compareStrongerSameDirectionSetup(active, { ...candidate, riskReward })).toBeNull();
     }
   });
 });

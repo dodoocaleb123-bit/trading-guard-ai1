@@ -4,7 +4,7 @@ import { activateIntelligenceVersion, createIntelligenceComponent, createIntelli
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
-import { buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
+import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { advanceEntryLocator, countStrongSetupIndicators, hasBreakoutConfirmationTransition, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
@@ -261,8 +261,11 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         console.info(`[Scanner] ${asset} ${timeframe} strategy engine returned an incomplete approved outcome; no signal sent.`);
         continue;
       }
-      const selectedRiskReward = Number(gated.decisionTrace?.levelDerivation?.selectedRiskReward ?? gated.riskReward ?? 2);
-      if (![1, 1.5, 2, 3].includes(selectedRiskReward)) {
+      const adaptiveV4 = replacementModel.id.endsWith("v4");
+      const traceRatio = gated.decisionTrace?.levelDerivation?.selectedRiskReward;
+      const selectedRiskReward = adaptiveV4 ? (traceRatio == null ? Number.NaN : Number(traceRatio)) : Number(gated.riskReward ?? 2);
+      const allowedRatios = adaptiveV4 ? (ALLOWED_RISK_REWARD_RATIOS as readonly number[]) : [2];
+      if (!allowedRatios.includes(selectedRiskReward)) {
         console.info(`[Scanner] ${asset} ${timeframe} has no allowed adaptive ratio; no signal sent.`);
         continue;
       }

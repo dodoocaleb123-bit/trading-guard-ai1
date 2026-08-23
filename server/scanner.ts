@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, listAcceptedStrategyLessons, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, ENTRY_LOCATOR_V4_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, listAcceptedStrategyLessons, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
@@ -193,7 +193,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       indicatorEvidence: (gated.setupIndicators ?? []).map((indicator: any) => indicator.id ?? indicator.concept ?? "").filter(Boolean),
       conflictingComponents: gated.decisionTrace?.conflictingComponents ?? [],
     };
-    const hasOpenSignal = await hasOpenGeneratedSignal(userId, asset, timeframe, replacementModel.id);
+    const hasOpenSignal = await hasOpenGeneratedSignal(userId, asset, timeframe, replacementModel.id, ENTRY_LOCATOR_V4_GENERATION_MODE);
     const storedLocator = await getEntryLocatorState(userId, asset, timeframe);
     let previousLocator: Record<string, unknown> | null = null;
     try { previousLocator = storedLocator?.stateJson ? JSON.parse(storedLocator.stateJson) : null; } catch { previousLocator = null; }
@@ -240,7 +240,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         continue;
       }
       const rationale = formatAuditResult(gated, market);
-      const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), rationale, intelligenceVersion: replacementModel.id, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
+      const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), rationale, intelligenceVersion: replacementModel.id, generationMode: ENTRY_LOCATOR_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
       const signal = { id: Number(result.insertId), ...approvedLevels };
       await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
       const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext }), asset);

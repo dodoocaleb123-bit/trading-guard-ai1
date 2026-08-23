@@ -61,6 +61,8 @@ export const generatedSignals = mysqlTable("generated_signals", {
   confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull(),
   rationale: text("rationale"),
   intelligenceVersion: varchar("intelligenceVersion", { length: 64 }),
+  /** Null for legacy rows; ENTRY_LOCATOR_V4 for current stateful locator emissions. */
+  generationMode: varchar("generationMode", { length: 32 }),
   intelligenceComponents: mediumtext("intelligenceComponents"),
   marketRegime: varchar("marketRegime", { length: 128 }),
   status: mysqlEnum("status", ["PENDING", "WIN", "LOSS", "INVALIDATED"]).default("PENDING").notNull(),

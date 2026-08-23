@@ -671,3 +671,10 @@
 ## Pending live verification
 
 - [x] Re-run the live scanner and scheduler checks without mutating trade data; all outputs remain paper-only and UNVALIDATED
+
+## Legacy v4 signal isolation
+
+- [x] Prevent the eight pre-entry-locator v4 signals from blocking current entry-indicator-based v4 qualification
+- [x] Preserve duplicate suppression for signals emitted by the current stateful Entry Locator process
+- [x] Add regression coverage proving legacy v4 pending rows are ignored while current locator rows still block duplicates
+- [x] Run typecheck, tests, production build, and safe scanner verification; keep all outputs paper-only and UNVALIDATED

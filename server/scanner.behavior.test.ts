@@ -36,6 +36,7 @@ vi.mock("./db", () => ({
   listStrategyRules,
   listAcceptedStrategyLessons,
   getActiveIntelligenceVersion,
+  ENTRY_LOCATOR_V4_GENERATION_MODE: "ENTRY_LOCATOR_V4",
   activateIntelligenceVersion,
   listIntelligenceComponents,
   createIntelligenceVersion,
@@ -175,9 +176,9 @@ describe("scanner paper routing without evidence gate", () => {
     expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "APPROVED", generatedDirection: expect.stringMatching(/BUY|SELL/), generatedEntry: expect.any(String) }));
   });
 
-  it("suppresses overlapping active setups without waiting for future scans", async () => {
+  it("ignores legacy v4 rows but suppresses overlapping current locator setups", async () => {
     fetchMarketSeriesBatch.mockResolvedValue(allSeries());
-    hasOpenGeneratedSignal.mockResolvedValue(true);
+    hasOpenGeneratedSignal.mockImplementation(async (_userId: number, _asset: string, _timeframe: string, _version: string, generationMode?: string) => generationMode === "ENTRY_LOCATOR_V4");
     sendTelegramMessage.mockClear();
     insert.mockClear();
 
@@ -185,9 +186,10 @@ describe("scanner paper routing without evidence gate", () => {
 
     expect(result.created).toBe(0);
     expect(hasOpenGeneratedSignal).toHaveBeenCalledTimes(8);
-    expect(hasOpenGeneratedSignal).toHaveBeenNthCalledWith(1, 1, expect.any(String), expect.any(String), "forex-trading-combined-document-v4");
-    expect(hasOpenGeneratedSignal).toHaveBeenNthCalledWith(8, 1, expect.any(String), expect.any(String), "forex-trading-combined-document-v4");
+    expect(hasOpenGeneratedSignal).toHaveBeenNthCalledWith(1, 1, expect.any(String), expect.any(String), "forex-trading-combined-document-v4", "ENTRY_LOCATOR_V4");
+    expect(hasOpenGeneratedSignal).toHaveBeenNthCalledWith(8, 1, expect.any(String), expect.any(String), "forex-trading-combined-document-v4", "ENTRY_LOCATOR_V4");
     expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(hasOpenGeneratedSignal.mock.calls.every((call: unknown[]) => call[4] === "ENTRY_LOCATOR_V4")).toBe(true);
     hasOpenGeneratedSignal.mockResolvedValue(false);
   });
 

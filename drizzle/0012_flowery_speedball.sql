@@ -1,0 +1,1 @@
+ALTER TABLE `generated_signals` ADD `generationMode` varchar(32);

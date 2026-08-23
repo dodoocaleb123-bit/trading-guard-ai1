@@ -203,11 +203,14 @@ export async function listGeneratedSignalsSince(userId: number, since: Date, lim
   return db.select({ id: generatedSignals.id, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, direction: generatedSignals.direction, status: generatedSignals.status, confidence: generatedSignals.confidence, intelligenceVersion: generatedSignals.intelligenceVersion, openedAt: generatedSignals.openedAt, closedAt: generatedSignals.closedAt }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), gte(generatedSignals.openedAt, since))).orderBy(desc(generatedSignals.openedAt)).limit(limit);
 }
 
-export async function hasOpenGeneratedSignal(userId: number, asset: string, timeframe: string, intelligenceVersion?: string) {
+export const ENTRY_LOCATOR_V4_GENERATION_MODE = "ENTRY_LOCATOR_V4" as const;
+
+export async function hasOpenGeneratedSignal(userId: number, asset: string, timeframe: string, intelligenceVersion?: string, generationMode?: string) {
   const db = await getDb();
   if (!db) return false;
   const filters = [eq(generatedSignals.userId, userId), eq(generatedSignals.asset, asset), eq(generatedSignals.timeframe, timeframe), eq(generatedSignals.status, "PENDING")];
   if (intelligenceVersion) filters.push(eq(generatedSignals.intelligenceVersion, intelligenceVersion));
+  if (generationMode) filters.push(eq(generatedSignals.generationMode, generationMode));
   const rows = await db.select({ id: generatedSignals.id }).from(generatedSignals).where(and(...filters)).limit(1);
   return rows.length > 0;
 }

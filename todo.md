@@ -807,3 +807,10 @@
 - [x] Consolidate findings and publish the completed health-check report
 
 - [x] Move the Google Fonts import before other CSS statements to remove the Vite import-order warning, then revalidate the build
+
+## Post-health-check follow-up verification
+
+- [x] Check for the first post-fix locator-era v4 signal and verify its price-implied ratio is exactly 1:2; no new post-fix signal has qualified yet, while the correction is covered by passing exact-2R tests
+- [x] Recheck the production `/healthz` 503 anomaly and active scanner Heartbeat execution; `/healthz` remains an Autoscale edge 503 while Heartbeat is succeeding with marketData=available
+- [x] Review the current resolved paper-outcome sample and separate it from legacy records; current locator-era sample is 1 LOSS, with no new post-fix outcomes
+- [x] Publish the completed follow-up status without changing thresholds or creating live trades

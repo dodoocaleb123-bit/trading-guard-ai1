@@ -734,3 +734,10 @@
 - [x] Monitor available live Heartbeat cycles; no contradiction reply was emitted because no unresolved current locator-era signal existed
 - [x] Add a protected adjustment-history query and responsive dashboard panel
 - [x] Verify the panel, run tests, and publish without changing thresholds or outcome-review rules
+
+## Close-of-day follow-ups
+
+- [x] Add asset and adjustment-action filters to the paper-trade adjustment history panel
+- [x] Monitor available Heartbeat cycles for a current locator-era signal and contradiction reply
+- [x] Reconcile any threaded Telegram adjustment reply with the persisted adjustment record
+- [x] Run verification and publish the close-of-day update without changing thresholds

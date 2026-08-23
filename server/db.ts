@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte, inArray, isNull, lt, notInArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, users } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
 
@@ -248,11 +248,31 @@ export async function listAuditTrades(userId: number) {
   return attachTelegramDelivery(audits, deliveries, "AUDIT", "auditTradeId");
 }
 
-export async function recordTelegramDelivery(input: { userId: number; signalId?: number; auditTradeId?: number; kind: "SIGNAL" | "AUDIT" | "OUTCOME" | "SUMMARY" | "REASON"; status: "DELIVERED" | "FAILED"; telegramMessageId?: string; dedupeKey: string; error?: string }) {
+export async function recordTelegramDelivery(input: { userId: number; signalId?: number; auditTradeId?: number; kind: "SIGNAL" | "AUDIT" | "OUTCOME" | "SUMMARY" | "REASON" | "ADJUSTMENT"; status: "DELIVERED" | "FAILED"; telegramMessageId?: string; dedupeKey: string; error?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const deliveredAt = input.status === "DELIVERED" ? new Date() : null;
   await db.insert(telegramDeliveries).values({ ...input, deliveredAt }).onDuplicateKeyUpdate({ set: { status: input.status, telegramMessageId: input.telegramMessageId ?? null, error: input.error ?? null, deliveredAt } });
+}
+
+export async function listOpenCurrentV4Signals(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE))).orderBy(desc(generatedSignals.openedAt));
+}
+
+export async function hasPaperTradeAdjustment(dedupeKey: string) {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.select({ id: paperTradeAdjustments.id }).from(paperTradeAdjustments).where(eq(paperTradeAdjustments.dedupeKey, dedupeKey)).limit(1);
+  return rows.length > 0;
+}
+
+export async function createPaperTradeAdjustment(input: { userId: number; signalId: number; asset: string; timeframe: string; originalDirection: "BUY" | "SELL"; observedDirection: "BUY" | "SELL"; currentPrice: string; confidence: string; confluenceScore: string; action: "REVIEW_DIRECTION" | "TIGHTEN_STOP" | "EXIT_PAPER_SETUP"; reason: string; evidenceJson: string; dedupeKey: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(paperTradeAdjustments).values(input).onDuplicateKeyUpdate({ set: { reason: input.reason, evidenceJson: input.evidenceJson } });
+  return Number(result[0].insertId);
 }
 
 export async function getTelegramDeliveryForSignal(userId: number, signalId: number, kind: "SIGNAL" | "OUTCOME" = "SIGNAL") {
@@ -281,7 +301,7 @@ export async function hasTelegramDelivery(dedupeKey: string) {
 }
 
 export function summarizeDeliveryCounts(signals: Array<{ status: string }>, audits: Array<{ verdict: string }>, deliveries: Array<{ kind: string; status: string }>) {
-  const count = (kind: "SIGNAL" | "AUDIT" | "OUTCOME" | "REASON", status?: "DELIVERED" | "FAILED") => deliveries.filter((delivery) => delivery.kind === kind && (!status || delivery.status === status)).length;
+  const count = (kind: "SIGNAL" | "AUDIT" | "OUTCOME" | "REASON" | "ADJUSTMENT", status?: "DELIVERED" | "FAILED") => deliveries.filter((delivery) => delivery.kind === kind && (!status || delivery.status === status)).length;
   return {
     generated: signals.length,
     pending: signals.filter((signal) => signal.status === "PENDING").length,
@@ -295,6 +315,7 @@ export function summarizeDeliveryCounts(signals: Array<{ status: string }>, audi
     approvedAuditFailed: deliveries.filter((delivery) => delivery.kind === "AUDIT" && delivery.status === "FAILED").length,
     outcomeAttempts: count("OUTCOME"), outcomeDelivered: count("OUTCOME", "DELIVERED"), outcomeFailed: count("OUTCOME", "FAILED"),
     reasonAttempts: count("REASON"), reasonDelivered: count("REASON", "DELIVERED"), reasonFailed: count("REASON", "FAILED"),
+    adjustmentAttempts: count("ADJUSTMENT"), adjustmentDelivered: count("ADJUSTMENT", "DELIVERED"), adjustmentFailed: count("ADJUSTMENT", "FAILED"),
   };
 }
 

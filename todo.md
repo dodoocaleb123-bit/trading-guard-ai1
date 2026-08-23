@@ -686,3 +686,45 @@
 - [x] Add outcome-review summaries scoped to current Entry Locator v4 signals
 - [x] Review the first resolved locator-era outcomes without changing thresholds prematurely
 - [x] Add regression coverage, verify responsive UI, and publish the release
+
+## Heartbeat callback repair follow-up
+
+- [x] Inspect the active Heartbeat task, callback URL, route registration, and recent production 404 responses
+- [x] Confirm no code or scheduler repair was required because the production callback recovered; preserve paper-trading thresholds and existing records
+- [x] Verify a successful production scanner cycle and inspect current Entry Locator v4 emissions
+- [x] Run tests, typecheck, production build, and publish the repair with an accurate operational report
+
+## Legacy v4 archival and no-signal diagnosis
+
+- [x] Archive exactly the 8 legacy v4 PENDING signals as INVALIDATED, preserving their rows and Telegram delivery history
+- [x] Verify that archived legacy rows are excluded from active blocking and remain visible in history/analytics
+- [x] Diagnose why the current Entry Locator v4 has not emitted a signal despite successful Heartbeat runs
+- [x] Report the current locator state, scanner result, and any safe next action without changing thresholds
+
+## Manual Entry Locator v4 simulation
+
+- [x] Run a read-only manual simulation for BTC/USD and EUR/USD using fresh market snapshots
+- [x] Compare indicator families, direction, confidence, confluence, freshness, and geometry wait reasons
+- [x] Confirm no signal, Telegram delivery, database row, threshold, or locator state was changed by the simulation
+
+## BTC/USD geometry and threshold sensitivity test
+
+- [x] Inspect exact BTC/USD 15MIN structure levels, ATR/risk distance, and target-clearance inputs
+- [x] Run a temporary in-memory confidence-threshold sensitivity test without changing production configuration
+- [x] Confirm no signal row, locator state, Telegram delivery, or threshold setting is changed by the test
+- [x] Report whether the lower threshold changes qualification and explain the remaining geometry gates
+
+## Final end-to-end operational diagnostic
+
+- [x] Verify live production health and scheduled callback reachability without triggering a scan
+- [x] Verify recent Twelve Data retrieval evidence and v4 decision-processing timestamps
+- [x] Reconcile Entry Locator states, v4 signal records, outcomes, and Telegram delivery statuses
+- [x] Report any remaining operational blocker while preserving paper-only behavior
+
+## Unresolved paper-trade contradiction monitor
+
+- [x] Recheck unresolved current signals against each fresh scanner snapshot
+- [x] Detect material contradictory indicators without inventing certainty or changing the original signal
+- [x] Persist deduplicated adjustment/reply history linked to the original signal and Telegram message
+- [x] Send structured Telegram replies only for paper-trade adjustments, with asset, timeframe, contradiction, and adjustment details
+- [x] Add idempotency and regression coverage; verify no reply spam and no real-trading action

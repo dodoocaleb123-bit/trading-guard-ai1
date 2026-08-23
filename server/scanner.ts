@@ -1,12 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyDecision, createStrategyLesson, ENTRY_LOCATOR_V4_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, listAcceptedStrategyLessons, listIntelligenceComponents, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_LOCATOR_V4_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, listAcceptedStrategyLessons, listIntelligenceComponents, listOpenCurrentV4Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
 import { buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { advanceEntryLocator, countStrongSetupIndicators, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
-import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
+import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
+import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
 const TIMEFRAMES = ["15MIN", "1H"] as const;
@@ -52,7 +53,7 @@ export function compactStrategyContext(localRules: string, mirroredRules: string
   return [localRules, mirroredRules].filter(Boolean).join("\n\n").slice(0, maxChars);
 }
 
-type ScanUserResult = { created: number; tracked: number; marketData: ScanMarketDataStatus };
+type ScanUserResult = { created: number; tracked: number; adjustments: number; marketData: ScanMarketDataStatus };
 
 async function ensureReplacementIntelligenceVersion(userId: number) {
   const active = await getActiveIntelligenceVersion(userId);
@@ -79,7 +80,7 @@ async function loadExecutableIntelligence(userId: number): Promise<ExecutableCom
 
 export async function scanUser(userId: number): Promise<ScanUserResult> {
   const db = await getDb();
-  if (!db) return { created: 0, tracked: 0, marketData: "not-run" };
+  if (!db) return { created: 0, tracked: 0, adjustments: 0, marketData: "not-run" };
 
   let series15m: Map<string, MarketSeries>;
   let series1h: Map<string, MarketSeries>;
@@ -90,7 +91,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
     ]);
   } catch (error) {
     console.warn("[Scanner] Market batch unavailable; no signals created:", error instanceof Error ? error.message : error);
-    return { created: 0, tracked: 0, marketData: "unavailable" };
+    return { created: 0, tracked: 0, adjustments: 0, marketData: "unavailable" };
   }
   const seriesCache = new Map<string, MarketSeries>();
   series15m.forEach((series, symbol) => seriesCache.set(`${symbol}:15MIN`, series));
@@ -172,7 +173,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       await createStrategyDecision({ userId, asset: candidate.asset, timeframe: candidate.timeframe, verdict: "UNAVAILABLE", confidence: "0", confluenceScore: "0", ruleEvidence: null, ruleFindings: null, marketSnapshot: JSON.stringify(candidate.series), generatedDirection: null, generatedEntry: null, generatedStopLoss: null, generatedTakeProfit: null, decisionReason: `Strategy engine unavailable: ${message}`, cooldownKey: candidate.cooldownKey });
     }
     console.warn("[Scanner] Strategy engine unavailable; no new signals created:", message);
-    return { created: 0, tracked: await trackOpenSignals(userId, seriesCache), marketData: "available" };
+    return { created: 0, tracked: await trackOpenSignals(userId, seriesCache), adjustments: 0, marketData: "available" };
   }
   for (const gated of decisions) {
     const { asset, timeframe, market } = gated;
@@ -250,7 +251,34 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       console.warn(`[Scanner] ${asset} ${timeframe} skipped:`, error instanceof Error ? error.message : error);
     }
   }
-  return { created: created.length, tracked: await trackOpenSignals(userId, seriesCache), marketData: "available" };
+  const tracked = await trackOpenSignals(userId, seriesCache);
+  const adjustments = await monitorOpenSignalContradictions(userId, decisions, seriesCache);
+  return { created: created.length, tracked, adjustments, marketData: "available" };
+}
+
+async function monitorOpenSignalContradictions(userId: number, decisions: Array<any>, seriesCache: Map<string, MarketSeries>) {
+  const openSignals = await listOpenCurrentV4Signals(userId);
+  let sent = 0;
+  for (const signal of openSignals) {
+    try {
+      const decision = decisions.find((candidate) => candidate.asset === signal.asset && candidate.timeframe === signal.timeframe);
+      const market = decision?.market ?? seriesCache.get(`${signal.asset}:${signal.timeframe}`);
+      if (!decision?.direction || !market?.close) continue;
+      const contradiction = detectPaperTradeContradiction(signal, Number(market.close), decision);
+      if (!contradiction) continue;
+      const signalDelivery = await getTelegramDeliveryForSignal(userId, signal.id, "SIGNAL");
+      if (signalDelivery?.status !== "DELIVERED" || !signalDelivery.telegramMessageId) continue;
+      const dedupeKey = `adjustment:${signal.id}:${contradiction.fingerprint}`;
+      if (await hasTelegramDelivery(dedupeKey)) continue;
+      await createPaperTradeAdjustment({ userId, signalId: signal.id, asset: signal.asset, timeframe: signal.timeframe, originalDirection: signal.direction, observedDirection: contradiction.observedDirection, currentPrice: String(contradiction.evidence.currentPrice), confidence: String(contradiction.confidence), confluenceScore: String(contradiction.confluenceScore), action: contradiction.action, reason: contradiction.reason, evidenceJson: JSON.stringify(contradiction.evidence), dedupeKey });
+      const delivery = await sendTelegramMessage(formatPaperTradeAdjustmentTelegramMessage({ signalId: signal.id, asset: signal.asset, timeframe: signal.timeframe, originalDirection: signal.direction, observedDirection: contradiction.observedDirection, currentPrice: contradiction.evidence.currentPrice, confidence: contradiction.confidence, confluenceScore: contradiction.confluenceScore, action: contradiction.action, reason: contradiction.reason, evidence: contradiction.evidence }), signal.asset, { replyToMessageId: signalDelivery.telegramMessageId });
+      await recordTelegramDelivery({ userId, signalId: signal.id, kind: "ADJUSTMENT", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey, error: delivery.error });
+      if (delivery.delivered) sent += 1;
+    } catch (error) {
+      console.warn(`[Adjustment] ${signal.asset} ${signal.timeframe} skipped:`, error instanceof Error ? error.message : error);
+    }
+  }
+  return sent;
 }
 
 export async function trackOpenSignals(userId: number, seriesCache?: Map<string, MarketSeries>) {
@@ -311,17 +339,19 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
 
 export async function scanAllUsers() {
   const db = await getDb();
-  if (!db) return { users: 0, created: 0, tracked: 0, marketData: "not-run" as const };
+  if (!db) return { users: 0, created: 0, tracked: 0, adjustments: 0, marketData: "not-run" as const };
   const allUsers = await db.select({ id: users.id }).from(users);
   let created = 0;
   let tracked = 0;
+  let adjustments = 0;
   let marketData: ScanMarketDataStatus = allUsers.length ? "available" : "not-run";
   for (const user of allUsers) {
     const result = await scanUser(user.id);
     created += result.created;
     tracked += result.tracked;
+    adjustments += result.adjustments;
     if (result.marketData === "unavailable") marketData = "unavailable";
     else if (result.marketData === "not-run" && marketData === "available") marketData = "not-run";
   }
-  return { users: allUsers.length, created, tracked, marketData };
+  return { users: allUsers.length, created, tracked, adjustments, marketData };
 }

@@ -284,6 +284,27 @@ export function formatOutcomeTelegramMessage(input: { asset: string; timeframe: 
   ].join("\n");
 }
 
+export function formatPaperTradeAdjustmentTelegramMessage(input: { signalId: number; asset: string; timeframe: string; originalDirection: string; observedDirection: string; currentPrice: number; confidence: number; confluenceScore: number; action: string; reason: string; evidence: { opposingIndicators: string[]; supportingComponents: string[]; conflictingComponents: string[]; suggestedStopLoss?: number } }) {
+  const safe = (value: string) => escapeTelegramHtml(value);
+  const lines = [
+    "TradingGuardAI · PAPER ADJUSTMENT",
+    `Original: ${safe(input.originalDirection)} ${safe(input.asset)} · ${safe(input.timeframe)} · Signal #${input.signalId}`,
+    "Paper only · UNVALIDATED · No live order changed",
+    "",
+    "Contradiction detected",
+    `Current v4 direction: ${safe(input.observedDirection)}`,
+    `Current price: ${input.currentPrice}`,
+    `Confidence: ${input.confidence}% · Confluence: ${input.confluenceScore}%`,
+    `Action: ${safe(input.action.replaceAll("_", " "))}`,
+    safe(input.reason),
+  ];
+  if (input.evidence.opposingIndicators.length) lines.push("", "Opposing indicators", ...input.evidence.opposingIndicators.slice(0, 6).map((item) => `• ${safe(item)}`));
+  if (input.evidence.suggestedStopLoss != null) lines.push("", `Suggested paper stop adjustment: ${input.evidence.suggestedStopLoss}`);
+  if (input.evidence.supportingComponents.length) lines.push("", "Current supporting components", ...input.evidence.supportingComponents.slice(0, 6).map((item) => `• ${safe(item)}`));
+  if (input.evidence.conflictingComponents.length) lines.push("", "Current conflicting components", ...input.evidence.conflictingComponents.slice(0, 6).map((item) => `• ${safe(item)}`));
+  return lines.join("\n");
+}
+
 export function formatReasonTelegramMessage(input: {
   signalId: number;
   asset: string;

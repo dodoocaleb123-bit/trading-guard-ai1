@@ -80,7 +80,7 @@ async function startServer() {
       const user = await sdk.authenticateRequest(req);
       if (!isAuthorizedScannerCron(user)) return res.status(403).json({ error: "cron-only" });
       const result = await scanAllUsers();
-      console.info(`[Scanner] Scheduled run complete: users=${result.users} created=${result.created} tracked=${result.tracked} marketData=${result.marketData}`);
+      console.info(`[Scanner] Scheduled run complete: users=${result.users} created=${result.created} tracked=${result.tracked} adjustments=${result.adjustments} marketData=${result.marketData}`);
       return res.json({ ok: true, ...result });
     } catch (error) {
       return res.status(500).json({ error: error instanceof Error ? error.message : "scanner failed", timestamp: new Date().toISOString() });

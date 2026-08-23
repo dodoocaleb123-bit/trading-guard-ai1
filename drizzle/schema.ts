@@ -112,13 +112,31 @@ export const telegramDeliveries = mysqlTable("telegram_deliveries", {
   userId: int("userId").notNull(),
   signalId: int("signalId"),
   auditTradeId: int("auditTradeId"),
-  kind: mysqlEnum("kind", ["SIGNAL", "AUDIT", "OUTCOME", "SUMMARY", "REASON"]).notNull(),
+  kind: mysqlEnum("kind", ["SIGNAL", "AUDIT", "OUTCOME", "SUMMARY", "REASON", "ADJUSTMENT"]).notNull(),
   status: mysqlEnum("status", ["DELIVERED", "FAILED"]).notNull(),
   telegramMessageId: varchar("telegramMessageId", { length: 64 }),
   dedupeKey: varchar("dedupeKey", { length: 255 }).notNull().unique(),
   error: text("error"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   deliveredAt: timestamp("deliveredAt"),
+});
+
+export const paperTradeAdjustments = mysqlTable("paper_trade_adjustments", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  signalId: int("signalId").notNull(),
+  asset: varchar("asset", { length: 32 }).notNull(),
+  timeframe: varchar("timeframe", { length: 16 }).notNull(),
+  originalDirection: mysqlEnum("originalDirection", ["BUY", "SELL"]).notNull(),
+  observedDirection: mysqlEnum("observedDirection", ["BUY", "SELL"]).notNull(),
+  currentPrice: decimal("currentPrice", { precision: 18, scale: 8 }).notNull(),
+  confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull(),
+  confluenceScore: decimal("confluenceScore", { precision: 5, scale: 2 }).notNull(),
+  action: mysqlEnum("action", ["REVIEW_DIRECTION", "TIGHTEN_STOP", "EXIT_PAPER_SETUP"]).notNull(),
+  reason: text("reason").notNull(),
+  evidenceJson: mediumtext("evidenceJson").notNull(),
+  dedupeKey: varchar("dedupeKey", { length: 255 }).notNull().unique(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export const cooldownChangeLog = mysqlTable("cooldown_change_log", {
@@ -209,6 +227,7 @@ export type StrategyRule = typeof strategyRules.$inferSelect;
 export type GeneratedSignal = typeof generatedSignals.$inferSelect;
 export type AuditTrade = typeof auditTrades.$inferSelect;
 export type TelegramDelivery = typeof telegramDeliveries.$inferSelect;
+export type PaperTradeAdjustment = typeof paperTradeAdjustments.$inferSelect;
 export type StrategyDecision = typeof strategyDecisionLedger.$inferSelect;
 export type CooldownChange = typeof cooldownChangeLog.$inferSelect;
 export type StrategyIntelligenceVersion = typeof strategyIntelligenceVersions.$inferSelect;

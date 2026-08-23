@@ -210,6 +210,7 @@ export function formatDetailedApprovedTelegramMessage(input: {
   stopLoss: number | null | undefined;
   takeProfit: number | null | undefined;
   confidence: number;
+  riskReward?: number | null;
   adjustments: string;
   ruleEvidence?: string[];
   confluenceScore?: number;
@@ -228,6 +229,7 @@ export function formatDetailedApprovedTelegramMessage(input: {
     `Entry: ${optional(input.entry)}`,
     `Stop loss: ${optional(input.stopLoss)}`,
     `Take profit: ${optional(input.takeProfit)}`,
+    `Risk/reward: ${input.riskReward == null ? "—" : `1:${input.riskReward}`}`,
     `Confidence: ${input.confidence}%${confluence == null ? "" : ` · Confluence: ${confluence}%`}`,
     "",
     "Decision summary",
@@ -254,7 +256,7 @@ export function formatDetailedApprovedTelegramMessage(input: {
   return lines.join("\n");
 }
 
-export function formatApprovedTelegramMessage(input: { asset: string; timeframe: string; direction: string; entry: number | null | undefined; stopLoss: number | null | undefined; takeProfit: number | null | undefined; confidence: number; adjustments?: string; ruleEvidence?: string[]; fundamentalContext?: FundamentalContext; confluenceScore?: number; decisionTrace?: IntelligenceDecisionTrace }) {
+export function formatApprovedTelegramMessage(input: { asset: string; timeframe: string; direction: string; entry: number | null | undefined; stopLoss: number | null | undefined; takeProfit: number | null | undefined; confidence: number; riskReward?: number | null; adjustments?: string; ruleEvidence?: string[]; fundamentalContext?: FundamentalContext; confluenceScore?: number; decisionTrace?: IntelligenceDecisionTrace }) {
   const optional = (value: number | null | undefined) => value == null ? "—" : String(value);
   const trace = input.decisionTrace;
   const confluence = trace?.scoreSummary.confluenceScore ?? input.confluenceScore;
@@ -265,6 +267,7 @@ export function formatApprovedTelegramMessage(input: { asset: string; timeframe:
     `Entry: ${optional(input.entry)}`,
     `Stop loss: ${optional(input.stopLoss)}`,
     `Take profit: ${optional(input.takeProfit)}`,
+    `Risk/reward: ${input.riskReward == null ? "—" : `1:${input.riskReward}`}`,
     `Confidence: ${input.confidence}%${confluence == null ? "" : ` · Confluence: ${confluence}%`}`,
     score,
     "Paper only · UNVALIDATED · v4 active",
@@ -306,7 +309,7 @@ export function formatPaperTradeAdjustmentTelegramMessage(input: { signalId: num
   return lines.join("\n");
 }
 
-export function formatPaperTradeUpgradeTelegramMessage(input: { signalId: number; replacementSignalId: number; asset: string; timeframe: string; direction: string; entry: number | string; stopLoss: number | string; takeProfit: number | string; confidence: number; confluenceScore: number; reason: string; improvements: string[] }) {
+export function formatPaperTradeUpgradeTelegramMessage(input: { signalId: number; replacementSignalId: number; asset: string; timeframe: string; direction: string; entry: number | string; stopLoss: number | string; takeProfit: number | string; confidence: number; riskReward?: number | null; confluenceScore: number; reason: string; improvements: string[] }) {
   const safe = (value: string) => escapeTelegramHtml(value);
   return [
     "TradingGuardAI · PAPER SETUP UPGRADE",
@@ -318,6 +321,7 @@ export function formatPaperTradeUpgradeTelegramMessage(input: { signalId: number
     `Entry: ${input.entry}`,
     `Stop loss: ${input.stopLoss}`,
     `Take profit: ${input.takeProfit}`,
+    `Risk/reward: ${input.riskReward == null ? "—" : `1:${input.riskReward}`}`,
     `Confidence: ${input.confidence}% · Confluence: ${input.confluenceScore}%`,
     safe(input.reason),
     ...(input.improvements.length ? ["", "Why this setup is stronger", ...input.improvements.slice(0, 6).map((item) => `• ${safe(item)}`)] : []),

@@ -80,13 +80,14 @@ describe("TradingGuardAI market helpers", () => {
     expect(signal.riskReward).toBe(2);
   });
 
-  it("keeps locator-era structural targets at exact 2R", () => {
+  it("selects the highest-fit adaptive ratio for locator-era structural targets", () => {
     const levels = deriveStructureAwareLevels(undefined, 100, "SELL", {
       volatility: { atr: 1 },
       supportResistance: { support: 80, resistance: 104 },
     } as any);
     expect(levels.stopLoss).toBe(104.25);
-    expect(levels.takeProfit).toBe(91.5);
-    expect(levels.riskReward).toBe(2);
+    expect(levels.takeProfit).toBe(87.25);
+    expect(levels.riskReward).toBe(3);
+    expect(levels.selectedRiskReward).toBe(3);
   });
 });

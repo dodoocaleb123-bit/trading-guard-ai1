@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReplacementKnowledgeModel, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, evaluateReplacementIntelligence } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModel, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, deriveStructureAwareLevels, evaluateReplacementIntelligence, selectAdaptiveRiskReward } from "./replacement-intelligence";
 import { calculateMarketContext } from "./market-context";
 
 describe("replacement PDF-derived intelligence", () => {
@@ -111,15 +111,45 @@ describe("replacement PDF-derived intelligence", () => {
     expect(unmatched.adjustments).toContain("No accepted lesson adjustments matched");
   });
 
-  it("derives structure-aware levels and preserves at least 1:2 paper geometry", () => {
+  it("selects the highest allowed ratio that fits cleared structural space", () => {
+    expect(selectAdaptiveRiskReward(100, 310)).toBe(3);
+    expect(selectAdaptiveRiskReward(100, 220)).toBe(2);
+    expect(selectAdaptiveRiskReward(100, 160)).toBe(1.5);
+    expect(selectAdaptiveRiskReward(100, 105)).toBe(1);
+    expect(selectAdaptiveRiskReward(100, 99)).toBeNull();
+  });
+
+  it("derives structure-aware levels using only the configured adaptive ratios", () => {
     const marketContext = calculateMarketContext(candles)!;
     const decision = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext });
     const risk = Math.abs(decision.entry - decision.stopLoss);
     const reward = decision.direction === "BUY" ? decision.takeProfit - decision.entry : decision.entry - decision.takeProfit;
     expect(risk).toBeGreaterThan(0);
-    expect(reward / risk).toBeGreaterThanOrEqual(2);
+    expect([1, 1.5, 2, 3]).toContain(decision.riskReward);
+    expect(decision.decisionTrace.levelDerivation.selectedRiskReward == null || [1, 1.5, 2, 3].includes(decision.decisionTrace.levelDerivation.selectedRiskReward)).toBe(true);
     expect(decision.decisionTrace.levelDerivation.stopLoss).toContain("Structure invalidation");
     expect(decision.adjustments).toContain("Target/stop geometry");
+  });
+
+  it("uses the next untouched zone for a confirmed breakout and rejects unconfirmed continuation", () => {
+    const base = calculateMarketContext(candles)!;
+    const entry = base.supportResistance.resistance + base.volatility.atr + 0.01;
+    const breakout = {
+      ...base,
+      breakoutState: "ABOVE_RESISTANCE" as const,
+      nextResistance: entry + 1,
+      latestCandle: { ...base.latestCandle, direction: "BULLISH" as const, bodyPercentOfRange: 60 },
+      momentum: { ...base.momentum, direction: "BULLISH" as const },
+      priceAction: { ...base.priceAction, breakoutOrFakeout: "BREAKOUT" as const },
+      volume: { ...base.volume, available: false, trendConfirmation: "UNAVAILABLE" as const },
+    };
+    const confirmed = deriveStructureAwareLevels("EUR/USD", entry, "BUY", breakout);
+    expect(confirmed.selectedRiskReward).toBe(3);
+    expect(confirmed.targetDescription).toContain("next untouched opposing zone");
+
+    const unconfirmed = deriveStructureAwareLevels("EUR/USD", entry, "BUY", { ...breakout, latestCandle: { ...breakout.latestCandle, direction: "BEARISH" as const } });
+    expect(unconfirmed.selectedRiskReward).toBeNull();
+    expect(unconfirmed.targetDescription).toContain("not confirmed");
   });
 
   it("records early exhaustion evidence after an upward liquidity breakout", () => {

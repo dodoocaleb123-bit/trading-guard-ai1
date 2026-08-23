@@ -41,6 +41,9 @@ export type MarketContext = {
     supportZone: [number, number];
     resistanceZone: [number, number];
   };
+  /** Known historical opposing levels outside the active lookback; null means no target zone was observed. */
+  nextResistance: number | null;
+  nextSupport: number | null;
   momentum: {
     change5: number;
     change10: number;
@@ -126,6 +129,9 @@ export function calculateMarketContext(values: Array<Record<string, unknown>>): 
   const priorAtr = priorWindow.length ? priorWindow.reduce((sum, candle) => sum + (candle.high - candle.low), 0) / priorWindow.length : atr;
   const rangeHigh = Math.max(...recent.map((candle) => candle.high));
   const rangeLow = Math.min(...recent.map((candle) => candle.low));
+  const priorCandles = candles.slice(0, Math.max(0, candles.length - recentLookback));
+  const nextResistance = priorCandles.filter((candle) => candle.high > rangeHigh).reduce<number | null>((nearest, candle) => nearest == null ? candle.high : Math.min(nearest, candle.high), null);
+  const nextSupport = priorCandles.filter((candle) => candle.low < rangeLow).reduce<number | null>((nearest, candle) => nearest == null ? candle.low : Math.max(nearest, candle.low), null);
   const rangeSize = Math.max(rangeHigh - rangeLow, Math.abs(latest.close) * 0.000001);
   const supportZone: [number, number] = [round(rangeLow), round(rangeLow + rangeSize * 0.2)];
   const resistanceZone: [number, number] = [round(rangeHigh - rangeSize * 0.2), round(rangeHigh)];
@@ -188,6 +194,8 @@ export function calculateMarketContext(values: Array<Record<string, unknown>>): 
     marketStructure,
     volatility: { atr: round(atr), atrPercent: round(percent(atr, latest.close), 3), regime: volatilityRegime },
     supportResistance: { lookback: recent.length, support: round(rangeLow), resistance: round(rangeHigh), supportZone, resistanceZone },
+    nextResistance: nextResistance == null ? null : round(nextResistance),
+    nextSupport: nextSupport == null ? null : round(nextSupport),
     momentum: { change5: round(change5, 3), change10: round(change10, 3), direction: momentumDirection },
     breakoutState,
     summary,

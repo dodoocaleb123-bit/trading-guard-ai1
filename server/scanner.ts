@@ -194,7 +194,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       confluence: Number(gated.confluenceScore ?? 0),
       marketRegime: gated.marketRegime ?? "UNKNOWN",
       eventRisk: market.fundamentalContext?.eventRisk ?? "UNKNOWN",
-      geometryFallback: /fell back to the minimum 2R|fallback target/i.test(gated.adjustments ?? ""),
+      geometryFallback: /adaptive target geometry did not qualify|no allowed ratio fits|breakout indication is not confirmed|fallback target/i.test(gated.adjustments ?? ""),
       supportingComponents: gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? [],
       indicatorEvidence: (gated.setupIndicators ?? []).map((indicator: any) => indicator.id ?? indicator.concept ?? "").filter(Boolean),
       conflictingComponents: gated.decisionTrace?.conflictingComponents ?? [],
@@ -244,10 +244,15 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         console.info(`[Scanner] ${asset} ${timeframe} strategy engine returned an incomplete approved outcome; no signal sent.`);
         continue;
       }
-      const approvedLevels = { asset, timeframe, direction: gated.direction, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: 2, confidence: gated.confidence };
+      const selectedRiskReward = Number(gated.decisionTrace?.levelDerivation?.selectedRiskReward ?? gated.riskReward ?? 2);
+      if (![1, 1.5, 2, 3].includes(selectedRiskReward)) {
+        console.info(`[Scanner] ${asset} ${timeframe} has no allowed adaptive ratio; no signal sent.`);
+        continue;
+      }
+      const approvedLevels = { asset, timeframe, direction: gated.direction, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: selectedRiskReward, confidence: gated.confidence };
       if (hasOpenSignal) {
         const upgrade = activeSignal && upgradeLocatorResult?.ready && gated.direction === activeSignal.direction
-          ? compareStrongerSameDirectionSetup(activeSignal, { direction: gated.direction, confidence: gated.confidence, confluenceScore: gated.confluenceScore, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: 2, marketRegime: gated.marketRegime, ruleEvidence: gated.ruleEvidence, decisionTrace: gated.decisionTrace })
+          ? compareStrongerSameDirectionSetup(activeSignal, { direction: gated.direction, confidence: gated.confidence, confluenceScore: gated.confluenceScore, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: approvedLevels.riskReward, marketRegime: gated.marketRegime, ruleEvidence: gated.ruleEvidence, decisionTrace: gated.decisionTrace })
           : null;
         if (!upgrade || !activeSignal) {
           console.info(`[Scanner] ${asset} ${timeframe} already has an active paper setup; current candidate evaluated immediately but duplicate suppressed.`);
@@ -258,13 +263,13 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           console.info(`[Scanner] ${asset} ${timeframe} stronger setup upgrade already delivered; duplicate suppressed.`);
           continue;
         }
-        const [replacementResult] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale: formatAuditResult(gated, market), intelligenceVersion: replacementModel.id, generationMode: ENTRY_LOCATOR_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
+        const [replacementResult] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: approvedLevels.riskReward.toFixed(2), confidence: String(approvedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale: formatAuditResult(gated, market), intelligenceVersion: replacementModel.id, generationMode: ENTRY_LOCATOR_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
         const replacementSignalId = Number(replacementResult.insertId);
         const upgradeReason = buildUpgradePaperAdjustmentReason(upgrade);
         await supersedeGeneratedSignal(activeSignal.id, replacementSignalId, upgradeReason);
         await createPaperTradeAdjustment({ userId, signalId: activeSignal.id, replacementSignalId, asset, timeframe, originalDirection: activeSignal.direction as "BUY" | "SELL", observedDirection: gated.direction as "BUY" | "SELL", currentPrice: String(market.close), confidence: String(gated.confidence), confluenceScore: String(gated.confluenceScore ?? 0), action: "UPGRADE_PAPER_SETUP", reason: upgradeReason, evidenceJson: JSON.stringify(upgrade.evidence), dedupeKey: upgradeDedupeKey });
         const originalDelivery = await getTelegramDeliveryForSignal(userId, activeSignal.id, "SIGNAL");
-        const delivery = await sendTelegramMessage(formatPaperTradeUpgradeTelegramMessage({ signalId: activeSignal.id, replacementSignalId, asset, timeframe, direction: gated.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: gated.confidence, confluenceScore: gated.confluenceScore, reason: upgradeReason, improvements: upgrade.evidence.improvements }), asset, { replyToMessageId: originalDelivery?.status === "DELIVERED" ? originalDelivery.telegramMessageId ?? undefined : undefined });
+        const delivery = await sendTelegramMessage(formatPaperTradeUpgradeTelegramMessage({ signalId: activeSignal.id, replacementSignalId, asset, timeframe, direction: gated.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: gated.confidence, riskReward: approvedLevels.riskReward, confluenceScore: gated.confluenceScore, reason: upgradeReason, improvements: upgrade.evidence.improvements }), asset, { replyToMessageId: originalDelivery?.status === "DELIVERED" ? originalDelivery.telegramMessageId ?? undefined : undefined });
         await recordTelegramDelivery({ userId, signalId: activeSignal.id, kind: "ADJUSTMENT", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: upgradeDedupeKey, error: delivery.error });
         await mirrorToSupabase("generated_signals", { user_id: userId, ...approvedLevels, signal_id: replacementSignalId, status: "PENDING", rationale: formatAuditResult(gated, market), confluence_score: gated.confluenceScore ?? 0 });
         created.push({ id: replacementSignalId, ...approvedLevels });
@@ -272,10 +277,10 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         continue;
       }
       const rationale = formatAuditResult(gated, market);
-      const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: "2.00", confidence: String(approvedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale, intelligenceVersion: replacementModel.id, generationMode: ENTRY_LOCATOR_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
+      const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: approvedLevels.riskReward.toFixed(2), confidence: String(approvedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale, intelligenceVersion: replacementModel.id, generationMode: ENTRY_LOCATOR_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
       const signal = { id: Number(result.insertId), ...approvedLevels };
       await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
-      const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext }), asset);
+      const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, riskReward: approvedLevels.riskReward, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext }), asset);
       await recordTelegramDelivery({ userId, signalId: signal.id, kind: "SIGNAL", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: `signal:${signal.id}`, error: delivery.error });
       created.push(signal);
     } catch (error) {

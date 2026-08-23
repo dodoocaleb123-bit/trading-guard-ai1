@@ -120,7 +120,7 @@ export function advanceEntryLocator(input: {
   else if (!direction) reason = "BUY and SELL evidence are currently tied or mixed; waiting for resolution.";
   else if (!hasEnoughIndicators) reason = "Waiting for at least one strong setup indicator from the catalog-derived evidence families.";
   else if (!hasQuality) reason = `Setup evidence found, but confidence/confluence remain below the ${strongIndicatorCount >= 2 ? "60%/45%" : "68%/45%"} threshold (${Math.round(averageConfidence)}%/${Math.round(averageConfluence)}%).`;
-  else if (!hasCoherentGeometry) reason = "Setup repeated, but structural target geometry is crowded; waiting for coherent 2R space.";
+  else if (!hasCoherentGeometry) reason = "Setup repeated, but no allowed adaptive ratio has sufficient cleared structural space or breakout confirmation; waiting for coherent geometry.";
   else if (!riskReady) reason = "High-impact event risk is present; waiting for two consistent observations and at least two independent setup families.";
   else if (conflictCount > 0) reason = `Setup is eligible after ranking, with ${conflictCount} conflicting component(s) retained in the audit trace and ${strongIndicatorCount} supporting setup family/families.`;
   else if (ready) reason = `Entry signal located from ${strongIndicatorCount} strong setup family/families without requiring every catalog indicator.`;

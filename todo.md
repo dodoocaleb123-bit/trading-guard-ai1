@@ -913,3 +913,18 @@
 - [x] Trace the latest Heartbeat runs through market-data availability and locator qualification; recent cycles reached the app with marketData=available and locators remained WAITING on tied/mixed evidence or crowded structural 2R geometry
 - [x] Compare current generated-signal, outcome, and Telegram-delivery records to identify the exact blocking stage; no new v4 signal exists after the 11:32 UTC v4 LOSS, while outcome replies continue to deliver successfully
 - [x] Report why no current Telegram signal arrived, without creating trades or changing v4 behavior; Telegram delivery is not the blocker, because the locator did not qualify a new signal
+
+## Adaptive risk-to-reward geometry request
+
+- [x] Audit current v4 stop/target geometry and identify the existing exact-2R enforcement points
+- [x] Define a conservative selectable ratio policy for 1:1, 1:1.5, 1:2, and 1:3 using structural clearance and setup evidence
+- [x] Implement adaptive paper-only geometry with explicit selected-ratio audit traces and no guaranteed-win claims
+- [x] Add regression tests, validate the scanner-to-Telegram path, and publish only after confirming existing v4 behavior remains safe
+
+## Adaptive breakout-aware geometry implementation
+
+- [x] Audit current v4 geometry, breakout context, and dependent exact-2R guards
+- [x] Implement selectable 1:3, 1:2, 1:1.5, and 1:1 target selection with structural clearance and breakout-aware zone handling
+- [x] Preserve conservative rejection for unconfirmed breakouts, fakeouts, invalid stops, and insufficient clearance
+- [x] Update audit traces, monitoring labels, upgrade safeguards, and tests for the selected ratio
+- [x] Validate scanner-to-Telegram behavior, review the UI, and publish without rewriting historical signals

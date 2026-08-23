@@ -53,7 +53,13 @@ describe("linked stronger paper setup comparison", () => {
     })).toBeNull();
   });
 
-  it("rejects a candidate without a valid 2R plan", () => {
-    expect(compareStrongerSameDirectionSetup(active, { ...candidate, riskReward: 1.5 })).toBeNull();
+  it("rejects a candidate with a ratio outside the allowed adaptive set", () => {
+    expect(compareStrongerSameDirectionSetup(active, { ...candidate, riskReward: 1.25 })).toBeNull();
+  });
+
+  it("accepts each configured adaptive ratio when the candidate is otherwise stronger", () => {
+    for (const riskReward of [1, 1.5, 2, 3]) {
+      expect(compareStrongerSameDirectionSetup(active, { ...candidate, riskReward })).not.toBeNull();
+    }
   });
 });

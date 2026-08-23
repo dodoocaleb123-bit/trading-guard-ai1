@@ -590,3 +590,11 @@
 - [x] Compare scheduler responses with direct production and local production route behavior
 - [x] Apply a safe free-path correction if the cause is actionable
 - [x] Verify callback accessibility and document any remaining platform limitation
+
+
+## Free Callback Monitoring and Status View
+
+- [x] Monitor the next scheduled Heartbeat intervals and preserve exact run timestamps and HTTP outcomes
+- [x] Add a protected callback-status data procedure with schedule and latest-run diagnostics
+- [x] Add a responsive dashboard status card showing last callback, next run, HTTP status, and failure reason
+- [x] Add regression tests, verify one active scanner schedule, and report remaining limitations

@@ -12,7 +12,8 @@ import { buildReplacementKnowledgeModelV4, evaluateReplacementIntelligence, type
 import { invokeLLM } from "./_core/llm";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { storagePut } from "./storage";
-import { createHeartbeatJob } from "./_core/heartbeat";
+import { createHeartbeatJob, listHeartbeatJobs } from "./_core/heartbeat";
+import { buildCallbackStatus } from "./scheduler-status";
 import { getSessionCookieOptions } from "./_core/cookies";
 
 const CHAT_ASSETS = [{ symbol: "EUR/USD", label: "Euro / US dollar" }, { symbol: "XAU/USD", label: "Gold / US dollar" }, { symbol: "GBP/USD", label: "Pound / US dollar" }, { symbol: "BTC/USD", label: "Bitcoin / US dollar" }] as const;
@@ -222,6 +223,27 @@ Matched strategy rules:\n${rulesText || "No matching rule excerpt was found."}\n
     }),
     summary: protectedProcedure.query(({ ctx }) => getStrategyDecisionSummary(ctx.user.id)),
     health: protectedProcedure.query(({ ctx }) => getStrategyEngineHealth(ctx.user.id)),
+    callbackStatus: protectedProcedure.query(async ({ ctx }) => {
+      const settings = await getSettings(ctx.user.id);
+      const session = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+      let registryAvailable = false;
+      let schedulerJob = null;
+      const taskUid = settings.scheduleCronTaskUid;
+      try {
+        const ownerJobs = await listHeartbeatJobs("", { pageSize: 100 });
+        schedulerJob = ownerJobs.jobs.find((job) => job.taskUid === taskUid) ?? null;
+        registryAvailable = true;
+      } catch {
+        try {
+          const userJobs = await listHeartbeatJobs(session, { pageSize: 100 });
+          schedulerJob = userJobs.jobs.find((job) => job.taskUid === taskUid) ?? null;
+          registryAvailable = true;
+        } catch {
+          registryAvailable = false;
+        }
+      }
+      return buildCallbackStatus({ scannerEnabled: settings.scannerEnabled, scheduleCronTaskUid: taskUid, strategyEngineStatus: settings.strategyEngineStatus, strategyEngineLastRunAt: settings.strategyEngineLastRunAt, schedulerJob, schedulerRegistryAvailable: registryAvailable });
+    }),
     cooldownHistory: protectedProcedure.query(({ ctx }) => listCooldownChanges(ctx.user.id)),
     updateCooldown: protectedProcedure.input(z.object({ minutes: z.number().int().min(0).max(1440) })).mutation(async ({ ctx, input }) => {
       const current = await getSettings(ctx.user.id);

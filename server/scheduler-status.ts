@@ -12,6 +12,26 @@ export type SchedulerJobSnapshot = {
   nextExecutionAt?: string | null;
 };
 
+const SCANNER_CALLBACK_PATH = "/api/scheduled/trading-guard-scanner";
+const SCANNER_TASK_PREFIX = "trading-guard-scanner";
+
+export function selectScannerSchedulerJob(storedTaskUid: string | null | undefined, jobs: SchedulerJobSnapshot[]) {
+  const exact = storedTaskUid ? jobs.find((job) => job.taskUid === storedTaskUid) ?? null : null;
+  if (exact) return { job: exact, taskUid: exact.taskUid, reconciled: false };
+
+  const candidates = jobs
+    .filter((job) => job.isEnable && job.callbackPath === SCANNER_CALLBACK_PATH && job.name.startsWith(SCANNER_TASK_PREFIX))
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
+  if (candidates.length !== 1) return { job: null, taskUid: storedTaskUid ?? null, reconciled: false };
+  const replacement = candidates[0];
+  return { job: replacement, taskUid: replacement.taskUid, reconciled: true };
+}
+
 export type CallbackStatusInput = {
   scannerEnabled: boolean;
   scheduleCronTaskUid?: string | null;

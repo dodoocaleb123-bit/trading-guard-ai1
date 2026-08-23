@@ -863,3 +863,28 @@
 - [x] Apply and publish a safe correction only if a confirmed blocker exists; explicit UTC time-series requests were added and validated without changing thresholds or creating trades
 
 - [x] Add an explicit UTC timezone to Twelve Data time-series requests so provider exchange-local timestamps cannot be rejected as future snapshots; add regression coverage and publish; focused 11-test, full 128-test, TypeScript, and build validation passed
+
+## Renewed multi-asset snapshot investigation
+
+- [x] Correlate the supplied 3:40 PM locator cards with the latest production Heartbeat and app timestamps; the cards predate the current replacement task’s missing execution history
+- [x] Compare deployed and direct Twelve Data batch responses for EUR/USD, GBP/USD, XAU/USD, and BTC/USD; the application parser and direct UTC batch response both returned all four symbols
+- [x] Trace non-BTC locator persistence and freshness rejection after the UTC correction; the prior rows still show the old future-timestamp wait state because no post-release callback has persisted a new state
+- [x] Apply and publish a correction only if a confirmed production-data issue remains; no additional application correction is indicated, and the UTC fix is already published
+- [x] Report the verified cause without creating live trades or bypassing freshness safeguards
+
+- [x] Investigate the replacement Heartbeat task remaining enabled without a next execution time or recorded runs after 15:52 UTC; confirmed at 16:01 UTC with zero runs and no next-execution timestamp, indicating a platform scheduler-registration stall
+
+## Five-minute Heartbeat reliability
+
+- [ ] Audit the active scanner Heartbeat lifecycle, callback authentication, timeout behavior, and duplicate-run safeguards
+- [ ] Assess reliable missed-run detection and recovery options that remain compatible with free Autoscale
+- [ ] Implement safe idempotent observability or recovery improvements if the application can control them
+- [ ] Validate and publish the reliability update, keeping v4 paper-only and unchanged
+- [ ] Document what the platform can guarantee and what remains outside application control
+
+## Heartbeat task identity reconciliation
+
+- [x] Confirm the dashboard is querying the removed WJbf... task while the active scanner task is AT5...
+- [x] Trace where the callback-status card obtains its task UID and scheduler registry data
+- [x] Reconcile the stored scanner task identity with the active Heartbeat without changing the callback path or trading logic; the status procedure now selects and persists the sole active scanner task when the stored UID is stale
+- [x] Add regression coverage, verify the corrected dashboard status, and publish the update; scheduler tests, full suite, TypeScript, and production build passed

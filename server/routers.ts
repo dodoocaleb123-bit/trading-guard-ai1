@@ -13,7 +13,7 @@ import { invokeLLM } from "./_core/llm";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { storagePut } from "./storage";
 import { createHeartbeatJob, listHeartbeatJobs } from "./_core/heartbeat";
-import { buildCallbackStatus } from "./scheduler-status";
+import { buildCallbackStatus, selectScannerSchedulerJob } from "./scheduler-status";
 import { getSessionCookieOptions } from "./_core/cookies";
 
 const CHAT_ASSETS = [{ symbol: "EUR/USD", label: "Euro / US dollar" }, { symbol: "XAU/USD", label: "Gold / US dollar" }, { symbol: "GBP/USD", label: "Pound / US dollar" }, { symbol: "BTC/USD", label: "Bitcoin / US dollar" }] as const;
@@ -233,19 +233,27 @@ Matched strategy rules:\n${rulesText || "No matching rule excerpt was found."}\n
       const session = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
       let registryAvailable = false;
       let schedulerJob = null;
-      const taskUid = settings.scheduleCronTaskUid;
+      let taskUid = settings.scheduleCronTaskUid;
       try {
         const ownerJobs = await listHeartbeatJobs("", { pageSize: 100 });
-        schedulerJob = ownerJobs.jobs.find((job) => job.taskUid === taskUid) ?? null;
+        const selected = selectScannerSchedulerJob(taskUid, ownerJobs.jobs);
+        taskUid = selected.taskUid;
+        schedulerJob = selected.job;
         registryAvailable = true;
       } catch {
         try {
           const userJobs = await listHeartbeatJobs(session, { pageSize: 100 });
-          schedulerJob = userJobs.jobs.find((job) => job.taskUid === taskUid) ?? null;
+          const selected = selectScannerSchedulerJob(taskUid, userJobs.jobs);
+          taskUid = selected.taskUid;
+          schedulerJob = selected.job;
           registryAvailable = true;
         } catch {
           registryAvailable = false;
         }
+      }
+      if (registryAvailable && taskUid && taskUid !== settings.scheduleCronTaskUid) {
+        const db = await getDb();
+        if (db) await db.update(appSettings).set({ scheduleCronTaskUid: taskUid }).where(eq(appSettings.userId, ctx.user.id));
       }
       return buildCallbackStatus({ scannerEnabled: settings.scannerEnabled, scheduleCronTaskUid: taskUid, strategyEngineStatus: settings.strategyEngineStatus, strategyEngineLastRunAt: settings.strategyEngineLastRunAt, schedulerJob, schedulerRegistryAvailable: registryAvailable });
     }),

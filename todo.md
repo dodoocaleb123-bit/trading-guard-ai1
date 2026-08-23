@@ -840,3 +840,10 @@
 - [x] Publish the scheduler diagnosis without changing thresholds or creating live trades
 
 - [x] Correct the scheduler-status diagnosis so a reached callback with `marketData=unavailable` is not reported as an unreachable callback, add regression coverage, and publish the fix; market-data failures now record app reachability, the dashboard has a distinct reached-with-error state, focused 13-test and full 127-test suites passed, TypeScript passed, and production build passed
+
+## EUR/USD zero-snapshot monitoring
+
+- [x] Correlate the displayed EUR/USD 2:32 PM card timestamps with the latest scanner and Heartbeat records; the zero-snapshot cards match the weekend-closed-market state and their 2:32 PM update timestamp
+- [x] Check Twelve Data availability and freshness for EUR/USD and the other watched assets; the latest Heartbeat at 15:20 returned marketData=available and direct provider checks were healthy
+- [x] Verify post-fix v4 signal, outcome, and dashboard status; no post-fix signal qualified and the current locator-era sample remains one BTC/USD 1H LOSS
+- [x] Publish the EUR/USD diagnosis without creating live trades or bypassing freshness rules

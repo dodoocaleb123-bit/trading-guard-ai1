@@ -566,3 +566,11 @@
 - [x] Diagnose why the latest v4 scan has not produced a new Telegram signal
 - [x] Verify locator qualification, active-signal suppression, market-data freshness, and Telegram delivery records
 - [x] Report the verified cause and any required user action
+
+
+## Heartbeat Recovery Investigation
+
+- [ ] Determine why the scanner Heartbeat has no recorded execution after 00:30 UTC
+- [ ] Verify the production callback path and deployment health
+- [ ] Repair or recreate the scanner schedule only if required, without creating duplicate schedules
+- [ ] Verify a post-fix scheduler execution and document whether a signal was generated or intentionally skipped

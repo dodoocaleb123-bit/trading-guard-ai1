@@ -582,3 +582,11 @@
 - [x] Maintain exactly one active five-minute scanner Heartbeat after recovery replacement
 - [x] Monitor multiple post-choice scheduler intervals for successful callbacks and scanner results
 - [x] Report whether free Autoscale recovered and clearly state any remaining platform limitation
+
+
+## Callback Accessibility Investigation
+
+- [x] Determine why the active scanner Heartbeat callback is inaccessible
+- [x] Compare scheduler responses with direct production and local production route behavior
+- [x] Apply a safe free-path correction if the cause is actionable
+- [x] Verify callback accessibility and document any remaining platform limitation

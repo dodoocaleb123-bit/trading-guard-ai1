@@ -197,7 +197,7 @@ function pricePrecision(asset?: string) {
   return asset === "BTC/USD" ? 2 : asset === "XAU/USD" ? 4 : 5;
 }
 
-function deriveStructureAwareLevels(asset: string | undefined, entry: number, direction: "BUY" | "SELL", context: MarketContext) {
+export function deriveStructureAwareLevels(asset: string | undefined, entry: number, direction: "BUY" | "SELL", context: MarketContext) {
   const precision = pricePrecision(asset);
   const atr = Math.max(0, context.volatility.atr);
   const volatilityFloor = Math.abs(entry * 0.0012);
@@ -211,14 +211,17 @@ function deriveStructureAwareLevels(asset: string | undefined, entry: number, di
   const minimumTarget = direction === "BUY" ? entry + riskDistance * 2 : entry - riskDistance * 2;
   const targetDistance = direction === "BUY" ? structureTarget - entry : entry - structureTarget;
   const structureTargetSupportsTwoR = Number.isFinite(targetDistance) && targetDistance >= riskDistance * 2;
-  const takeProfit = Number((structureTargetSupportsTwoR ? structureTarget : minimumTarget).toFixed(precision));
+  // The paper-trading contract is an exact 1:2 risk-reward geometry. A structural
+  // target may confirm that two risk units are available, but it must not widen
+  // the emitted target beyond 2R while the persisted ratio remains 2.00.
+  const takeProfit = Number(minimumTarget.toFixed(precision));
   return {
     stopLoss,
     takeProfit,
     riskDistance: Number(riskDistance.toFixed(precision)),
     riskReward: Number(((direction === "BUY" ? takeProfit - entry : entry - takeProfit) / riskDistance).toFixed(2)),
     stopDescription: `Structure invalidation beyond ${direction === "BUY" ? "support" : "resistance"} with ATR buffer ${Number(buffer.toFixed(precision))}; minimum risk floor ${Number(minimumRisk.toFixed(precision))}.`,
-    targetDescription: structureTargetSupportsTwoR ? `Next opposing ${direction === "BUY" ? "resistance" : "support"} zone supports at least 2R.` : `Next opposing zone is too close for 2R; retained a minimum 2R paper target instead of forcing a structurally crowded target.`,
+    targetDescription: structureTargetSupportsTwoR ? `Next opposing ${direction === "BUY" ? "resistance" : "support"} zone supports at least 2R; target normalized to the exact 2R paper geometry.` : `Next opposing zone is too close for 2R; retained the exact 2R paper target instead of forcing a structurally crowded target.`,
     usedFallbackTarget: !structureTargetSupportsTwoR,
   };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { extractStrategyText, formatAuditResult, gateAuditDecision, normalizeAsset } from "./integrations";
 import { buildSignalLevels, resolveOutcome } from "./scanner";
+import { deriveStructureAwareLevels } from "./replacement-intelligence";
 import { buildStrategyContext, buildStrategyRuleRecord } from "./routers";
 
 describe("TradingGuardAI market helpers", () => {
@@ -77,5 +78,15 @@ describe("TradingGuardAI market helpers", () => {
     expect(signal.entry).toBeLessThan(signal.takeProfit);
     expect(signal.stopLoss).toBeLessThan(signal.entry);
     expect(signal.riskReward).toBe(2);
+  });
+
+  it("keeps locator-era structural targets at exact 2R", () => {
+    const levels = deriveStructureAwareLevels(undefined, 100, "SELL", {
+      volatility: { atr: 1 },
+      supportResistance: { support: 80, resistance: 104 },
+    } as any);
+    expect(levels.stopLoss).toBe(104.25);
+    expect(levels.takeProfit).toBe(91.5);
+    expect(levels.riskReward).toBe(2);
   });
 });

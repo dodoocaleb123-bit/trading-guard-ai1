@@ -763,3 +763,23 @@
 - [x] Monitor available Heartbeat cycles for the first stronger-setup upgrade and threaded Telegram reply
 - [x] Calculate observed upgrade frequency from live paper records without changing thresholds
 - [x] Add regression coverage, verify the UI, and publish the follow-up release
+
+## Manual paper-trade stop-loss tracking investigation
+
+- [x] Determine why the latest BTC/USD v4 paper signal remains PENDING after the user observed a stop-loss touch; it later resolved as LOSS after the next live tracking cycle
+- [x] Compare outcome-tracker timing and Twelve Data price/high/low evidence with the user’s manual demo-trade observation; the tracker closed the signal at 13:30:28 UTC from the live candle range
+- [ ] Apply a safe correction only if the live tracking path is confirmed incomplete or incorrect
+- [ ] Add regression coverage, verify without creating real orders, and publish any corrective release
+
+## Verify ongoing v4 indicator search coverage
+
+- [x] Confirm the active five-minute scanner continues forwarding all four assets and both supported timeframes to v4; the active five-minute Heartbeat is enabled and latest completed cycles returned marketData=available
+- [x] Review locator snapshot accumulation and qualifying-indicator state for every asset/timeframe pair; BTC/USD has accumulated 54 snapshots per timeframe, while weekend-closed EUR/USD, GBP/USD, and XAU/USD currently have zero fresh snapshots
+- [x] Report current v4 search coverage and paper-validation status without changing thresholds or generating test trades
+
+## Locator-era risk-reward geometry investigation
+
+- [x] Trace why the latest locator-era v4 signal stored 1:2.00 while its Telegram levels implied 1:3.63; the structural target was used when it exceeded 2R while persistence remained hardcoded at 2.00
+- [x] Confirm whether the mismatch comes from candidate-level geometry, persistence, or message formatting; candidate-level geometry caused the mismatch and Telegram correctly displayed those candidate prices
+- [x] Correct future locator-era signal geometry to preserve the required 1:2 ratio; structural support/resistance now informs qualification but the emitted target is normalized to exact 2R
+- [x] Add regression coverage, verify the correction, and publish any changed release; focused tests passed, offline full regression passed, TypeScript passed, and production build passed

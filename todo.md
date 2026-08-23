@@ -783,3 +783,10 @@
 - [x] Confirm whether the mismatch comes from candidate-level geometry, persistence, or message formatting; candidate-level geometry caused the mismatch and Telegram correctly displayed those candidate prices
 - [x] Correct future locator-era signal geometry to preserve the required 1:2 ratio; structural support/resistance now informs qualification but the emitted target is normalized to exact 2R
 - [x] Add regression coverage, verify the correction, and publish any changed release; focused tests passed, offline full regression passed, TypeScript passed, and production build passed
+
+## Post-fix signal and Telegram delivery verification
+
+- [x] Verify the next post-fix v4 signal geometry and confirm its price-implied ratio is exactly 1:2; no post-fix signal has qualified yet, while the exact-2R level helper passed focused regression coverage
+- [x] Diagnose the absence of new Telegram signals across Heartbeat runs, locator qualification, market-data availability, and delivery records; Heartbeat and market data are healthy, but locators are waiting on coherent 2R geometry or fresh weekend-closed-market inputs
+- [x] Correct and regression-test any confirmed application blocker without creating live trades; corrected future target geometry and added the Trade History verification badge
+- [x] Verify the result, publish the completed follow-up, and report the operational cause

@@ -790,3 +790,10 @@
 - [x] Diagnose the absence of new Telegram signals across Heartbeat runs, locator qualification, market-data availability, and delivery records; Heartbeat and market data are healthy, but locators are waiting on coherent 2R geometry or fresh weekend-closed-market inputs
 - [x] Correct and regression-test any confirmed application blocker without creating live trades; corrected future target geometry and added the Trade History verification badge
 - [x] Verify the result, publish the completed follow-up, and report the operational cause
+
+## BTC/USD coherent 2R explanation and monitoring
+
+- [x] Explain how the BTC/USD locator determines whether there is enough clear price space for an exact 1:2 paper target
+- [x] Recheck live BTC/USD locator wait reasons, recent snapshots, and Heartbeat results
+- [x] Carry out safe post-fix monitoring without changing thresholds or creating live trades
+- [x] Verify and publish the completed explanation and monitoring update

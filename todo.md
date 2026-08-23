@@ -570,7 +570,15 @@
 
 ## Heartbeat Recovery Investigation
 
-- [ ] Determine why the scanner Heartbeat has no recorded execution after 00:30 UTC
-- [ ] Verify the production callback path and deployment health
-- [ ] Repair or recreate the scanner schedule only if required, without creating duplicate schedules
-- [ ] Verify a post-fix scheduler execution and document whether a signal was generated or intentionally skipped
+- [x] Determine why the scanner Heartbeat has no recorded execution after 00:30 UTC
+- [x] Verify the production callback path and deployment health
+- [x] Repair or recreate the scanner schedule only if required, without creating duplicate schedules
+- [x] Verify a post-fix scheduler execution and document whether a signal was generated or intentionally skipped
+
+
+## Free Autoscale Recovery Path
+
+- [x] Keep Reserved Hosting disabled and continue on free Autoscale
+- [x] Maintain exactly one active five-minute scanner Heartbeat after recovery replacement
+- [x] Monitor multiple post-choice scheduler intervals for successful callbacks and scanner results
+- [x] Report whether free Autoscale recovered and clearly state any remaining platform limitation

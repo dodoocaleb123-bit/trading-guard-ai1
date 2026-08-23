@@ -28,6 +28,21 @@ describe("callback status", () => {
     expect(result.label).toBe("CALLBACK HEALTHY");
   });
 
+  it("reports a reached callback with an unavailable run distinctly", () => {
+    const result = buildCallbackStatus({
+      scannerEnabled: true,
+      scheduleCronTaskUid: job.taskUid,
+      schedulerJob: job,
+      schedulerRegistryAvailable: true,
+      strategyEngineStatus: "UNAVAILABLE",
+      strategyEngineLastRunAt: "2026-08-23T02:00:02.000Z",
+      now: new Date("2026-08-23T02:01:00.000Z"),
+    });
+    expect(result.status).toBe("CALLBACK_REACHED_WITH_ERROR");
+    expect(result.label).toContain("CALLBACK REACHED");
+    expect(result.diagnosis).toContain("reached the app");
+  });
+
   it("reports callback not reached when the scheduler is newer than the app run", () => {
     const result = buildCallbackStatus({
       scannerEnabled: true,

@@ -91,7 +91,10 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       fetchMarketSeriesBatch(WATCHLIST, "1h"),
     ]);
   } catch (error) {
-    console.warn("[Scanner] Market batch unavailable; no signals created:", error instanceof Error ? error.message : error);
+    const message = error instanceof Error ? error.message : String(error);
+    await updateStrategyEngineStatus(userId, { status: "UNAVAILABLE", error: message });
+    await recordStrategyEngineHealth(userId, { snapshots: 0, completeResponses: 0, retries: 1, unavailableCycle: true });
+    console.warn("[Scanner] Market batch unavailable; no signals created:", message);
     return { created: 0, tracked: 0, adjustments: 0, marketData: "unavailable" };
   }
   const seriesCache = new Map<string, MarketSeries>();

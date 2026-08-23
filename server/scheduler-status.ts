@@ -1,4 +1,4 @@
-export type CallbackStatus = "HEALTHY" | "CALLBACK_NOT_REACHED" | "SCHEDULER_UNAVAILABLE" | "NOT_CONFIGURED";
+export type CallbackStatus = "HEALTHY" | "CALLBACK_REACHED_WITH_ERROR" | "CALLBACK_NOT_REACHED" | "SCHEDULER_UNAVAILABLE" | "NOT_CONFIGURED";
 
 export type SchedulerJobSnapshot = {
   taskUid: string;
@@ -70,10 +70,13 @@ export function buildCallbackStatus(input: CallbackStatusInput) {
   );
 
   if (applicationWasReached) {
+    const runUnavailable = input.strategyEngineStatus === "UNAVAILABLE";
     return {
-      status: "HEALTHY" as const,
-      label: "CALLBACK HEALTHY",
-      diagnosis: "The latest scheduler attempt is reflected by a recent application scan.",
+      status: runUnavailable ? "CALLBACK_REACHED_WITH_ERROR" as const : "HEALTHY" as const,
+      label: runUnavailable ? "CALLBACK REACHED · RUN UNAVAILABLE" : "CALLBACK HEALTHY",
+      diagnosis: runUnavailable
+        ? "The callback reached the app, but the latest run could not obtain usable market data or complete its processing. No signal was created from that run."
+        : "The latest scheduler attempt is reflected by a recent application scan.",
       taskUid: configuredTaskUid,
       schedulerJob: input.schedulerJob,
       appLastRunAt,

@@ -14,3 +14,7 @@
 
 - After moving the Google Fonts import to the top of `client/src/index.css`, the final validation run passed all 36 test files and 124 tests, TypeScript exited 0, and the production build exited 0. The only remaining build output is the existing large-chunk optimization warning.
 - The post-cleanup screenshots of the overview, scanner, and Trade History pages rendered successfully; scanner showed ACTIVE collection and AVAILABLE strategy-engine status, and Trade History showed the reconciliation panel.
+
+## Supplied scheduler screenshot verification
+
+The wide screenshot was inspected in three ordered horizontal tiles. The left and middle tiles clearly show the warning that the scheduler recorded an attempt newer than the application's last scan and that the callback likely did not reach the app. They show `Last app scan: Aug 23, 2026, 2:51 PM`, `Last scheduler attempt: Aug 23, 2026, 3:03 PM`, the callback `/api/scheduled/trading-guard-scanner`, and `Next scheduled run: Aug 23, 2026, 3:05 PM` with UTC schedule displayed locally.

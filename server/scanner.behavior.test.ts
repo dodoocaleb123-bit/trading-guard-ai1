@@ -220,12 +220,16 @@ describe("scanner unavailable-market behavior", () => {
   it("skips all assets without inserting signals when OHLCV polling fails", async () => {
     fetchMarketSeriesBatch.mockImplementation(async () => { throw new Error("Twelve Data quota exhausted"); });
     insert.mockClear();
+    updateStrategyEngineStatus.mockClear();
+    recordStrategyEngineHealth.mockClear();
 
     const result = await scanUser(1);
 
     expect(result.created).toBe(0);
     expect(result.tracked).toBe(0);
     expect(result.marketData).toBe("unavailable");
+    expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "UNAVAILABLE", error: "Twelve Data quota exhausted" });
+    expect(recordStrategyEngineHealth).toHaveBeenCalledWith(1, { snapshots: 0, completeResponses: 0, retries: 1, unavailableCycle: true });
     expect(insert).not.toHaveBeenCalled();
   });
 });

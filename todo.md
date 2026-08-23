@@ -830,3 +830,13 @@
 - [x] Publish the monitoring result without changing thresholds or creating live trades
 
 - [x] Treat Twelve Data timeout responses as failover-eligible, add regression coverage, and publish the correction without changing trading thresholds; focused 2-test, full 126-test, TypeScript, and build validation passed
+
+## Scheduler warning and post-fix verification
+
+- [x] Inspect the supplied scheduler-status screenshot and correlate the displayed 2:51 PM, 3:03 PM, and 3:05 PM timestamps; the screenshot showed app scan 2:51 PM, scheduler attempt 3:03 PM, and next run 3:05 PM
+- [x] Verify whether the 3:03 PM Heartbeat attempt reached the application and inspect its exact response; it reached the app with HTTP 200 but returned `marketData=unavailable` after a 20-second Twelve Data timeout
+- [x] Check the next Heartbeat after the Twelve Data timeout-failover release; the subsequent 15:08 run succeeded with HTTP 200 and marketData=available, while the active scheduler later became stale at its 15:10 next-run marker
+- [x] Check current v4 signal geometry and locator-era paper outcomes; no new post-fix signal qualified and the current locator-era sample remains one BTC/USD 1H LOSS
+- [x] Publish the scheduler diagnosis without changing thresholds or creating live trades
+
+- [x] Correct the scheduler-status diagnosis so a reached callback with `marketData=unavailable` is not reported as an unreachable callback, add regression coverage, and publish the fix; market-data failures now record app reachability, the dashboard has a distinct reached-with-error state, focused 13-test and full 127-test suites passed, TypeScript passed, and production build passed

@@ -142,6 +142,13 @@ export function advanceEntryLocator(input: {
   return { state: nextState, ready, reason, selectedObservation: ready ? latest : null };
 }
 
+export function hasBreakoutConfirmationTransition(previous: Partial<EntryLocatorState> | null | undefined, current: EntryLocatorObservation) {
+  if (!current.breakoutConfirmed || !current.breakoutState || current.breakoutState === "WITHIN_RANGE") return false;
+  const priorSnapshots = Array.isArray(previous?.snapshots) ? previous.snapshots : [];
+  const prior = priorSnapshots.at(-1);
+  return !prior?.breakoutConfirmed && prior?.fingerprint !== current.fingerprint;
+}
+
 export function markEntryLocatorEmitted(stateInput: Partial<EntryLocatorState>, fingerprint: string, emittedAt: Date = new Date()): EntryLocatorState {
   const state = normalizeState(stateInput);
   return { ...state, status: "EMITTED", lastEmittedFingerprint: fingerprint, lastSnapshotAt: state.lastSnapshotAt ?? emittedAt.toISOString(), waitReason: "Paper signal emitted; waiting for a materially changed setup after outcome resolution." };

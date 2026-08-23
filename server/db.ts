@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte, inArray, isNull, lt, notInArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, ownerAlertLedger, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
 
@@ -381,6 +381,20 @@ export async function getSettings(userId: number) {
   return { onboardingComplete: false, scannerEnabled: true, setupCooldownMinutes: 30, strategyEngineStatus: "NOT_RUN" as const, strategyEngineLastRunAt: null, strategyEngineLastError: null, strategyEngineTotalSnapshots: 0, strategyEngineCompleteResponses: 0, strategyEngineRetryCount: 0, strategyEngineUnavailableCycles: 0, scheduleCronTaskUid: null };
 }
 
+export async function claimOwnerAlert(input: { userId: number; alertType: string; dedupeKey: string; title: string; content: string }) {
+  const db = await getDb();
+  if (!db) return false;
+  await db.insert(ownerAlertLedger).values(input).onDuplicateKeyUpdate({ set: { title: input.title, content: input.content } });
+  const rows = await db.select({ notifiedAt: ownerAlertLedger.notifiedAt }).from(ownerAlertLedger).where(eq(ownerAlertLedger.dedupeKey, input.dedupeKey)).limit(1);
+  return rows[0]?.notifiedAt == null;
+}
+
+export async function markOwnerAlertNotified(dedupeKey: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(ownerAlertLedger).set({ notifiedAt: new Date() }).where(eq(ownerAlertLedger.dedupeKey, dedupeKey));
+}
+
 export function buildScannerRunKey(taskUid: string, at = new Date()) {
   const fiveMinuteBucket = Math.floor(at.getTime() / (5 * 60 * 1000));
   return `${taskUid}:${fiveMinuteBucket}`;
@@ -656,11 +670,14 @@ export function summarizeAdaptiveRatioStats(rows: Array<{ riskReward: string | n
     return { ratio, generated: matching.length, resolved, wins, losses, winRate: resolved ? Math.round((wins / resolved) * 100) : null };
   });
 }
-export async function getAdaptiveRatioStats(userId: number) {
+export async function getAdaptiveRatioStats(userId: number, filters: { asset?: string; timeframe?: string } = {}) {
   const db = await getDb();
-  if (!db) return { ratios: summarizeAdaptiveRatioStats([]), generatedAt: new Date() };
-  const rows = await db.select({ riskReward: generatedSignals.riskReward, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE)));
-  return { ratios: summarizeAdaptiveRatioStats(rows), generatedAt: new Date() };
+  if (!db) return { ratios: summarizeAdaptiveRatioStats([]), generatedAt: new Date(), asset: filters.asset ?? "ALL", timeframe: filters.timeframe ?? "ALL" };
+  const predicates = [eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE)];
+  if (filters.asset) predicates.push(eq(generatedSignals.asset, filters.asset));
+  if (filters.timeframe) predicates.push(eq(generatedSignals.timeframe, filters.timeframe));
+  const rows = await db.select({ riskReward: generatedSignals.riskReward, status: generatedSignals.status }).from(generatedSignals).where(and(...predicates));
+  return { ratios: summarizeAdaptiveRatioStats(rows), generatedAt: new Date(), asset: filters.asset ?? "ALL", timeframe: filters.timeframe ?? "ALL" };
 }
 
 export async function getWinningRateStats(userId: number) {

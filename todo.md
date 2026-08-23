@@ -936,3 +936,11 @@
 - [x] Add a dashboard diagnostics card showing breakout confirmation, geometry mode, and next opposing-zone information
 - [x] Inspect live adaptive v4 signals and compare any selected ratios with resolved outcomes without fabricating data; the owner currently has one pending EUR/USD 1H adaptive 1:1 signal and no resolved adaptive-ratio outcomes yet
 - [x] Add tests, validate the UI, and publish the analytics update; focused tests, TypeScript, production build, desktop/mobile screenshots, and live database inspection passed
+
+## Adaptive analytics reliability refinement
+
+- [x] Inspect owner-notification and persistence constraints for deduplicated breakout transition alerts
+- [x] Add asset/timeframe filters and live refresh to adaptive-ratio performance analytics
+- [x] Detect confirmed breakout transitions without changing signal qualification or paper outcomes
+- [x] Send one deduplicated owner alert per breakout-confirmation transition and expose the status in the dashboard
+- [x] Add tests, verify live state and responsive UI, and publish the refinement

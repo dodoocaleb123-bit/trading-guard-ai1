@@ -98,7 +98,7 @@ export const appRouter = router({
     }),
     replacementOutcomeStats: protectedProcedure.query(({ ctx }) => getReplacementOutcomeStats(ctx.user.id)),
     locatorV4OutcomeStats: protectedProcedure.query(({ ctx }) => getLocatorV4OutcomeStats(ctx.user.id)),
-    adaptiveRatioStats: protectedProcedure.query(({ ctx }) => getAdaptiveRatioStats(ctx.user.id)),
+    adaptiveRatioStats: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "1H"]).optional() }).optional()).query(({ ctx, input }) => getAdaptiveRatioStats(ctx.user.id, input ?? {})),
     v4Monitoring: protectedProcedure.query(({ ctx }) => getV4MonitoringStats(ctx.user.id)),
     entryLocator: protectedProcedure.query(({ ctx }) => listEntryLocatorStates(ctx.user.id)),
     winningRateStats: protectedProcedure.query(({ ctx }) => getWinningRateStats(ctx.user.id)),

@@ -251,6 +251,18 @@ export const scannerRunLedger = mysqlTable("scanner_run_ledger", {
 
 export type ScannerRunLedger = typeof scannerRunLedger.$inferSelect;
 
+export const ownerAlertLedger = mysqlTable("owner_alert_ledger", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  alertType: varchar("alertType", { length: 64 }).notNull(),
+  dedupeKey: varchar("dedupeKey", { length: 255 }).notNull().unique(),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  notifiedAt: timestamp("notifiedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({ userAlertIdx: index("owner_alert_user_type_idx").on(table.userId, table.alertType, table.createdAt) }));
+export type OwnerAlertLedger = typeof ownerAlertLedger.$inferSelect;
+
 export type StrategyRule = typeof strategyRules.$inferSelect;
 export type GeneratedSignal = typeof generatedSignals.$inferSelect;
 export type AuditTrade = typeof auditTrades.$inferSelect;

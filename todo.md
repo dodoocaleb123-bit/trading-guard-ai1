@@ -814,3 +814,10 @@
 - [x] Recheck the production `/healthz` 503 anomaly and active scanner Heartbeat execution; `/healthz` remains an Autoscale edge 503 while Heartbeat is succeeding with marketData=available
 - [x] Review the current resolved paper-outcome sample and separate it from legacy records; current locator-era sample is 1 LOSS, with no new post-fix outcomes
 - [x] Publish the completed follow-up status without changing thresholds or creating live trades
+
+## Latest live monitoring cycle
+
+- [x] Check the newest Heartbeat result and production `/healthz` response; the latest Heartbeat succeeded at 14:51:45 UTC while `/healthz` remains an Autoscale edge 503
+- [x] Check for a new post-fix locator-era v4 signal and exact 1:2 geometry; no new post-fix signal qualified and the existing locator-era record is the pre-fix BTC/USD 1H LOSS
+- [x] Update the current locator-era paper-outcome sample; it remains 1 LOSS, 0 WIN, 0 PENDING for the current locator-era sample and 0 post-fix outcomes
+- [x] Publish the monitoring result without changing thresholds or creating live trades

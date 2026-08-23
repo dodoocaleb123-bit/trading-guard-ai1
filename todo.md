@@ -901,3 +901,15 @@
 - [x] Investigate any recurring Heartbeat 403 permission failures and document the operational cause; the 16:08 and 16:14 failures were platform cron-cookie permission responses before the app callback ran
 - [x] Add safe owner-facing repeated-failure visibility or notification without altering paper-trading behavior; the dashboard warns after two failures and app-side consecutive failures notify the project owner once per failure streak
 - [x] Validate and publish the alerting update, then recheck the live scheduler state; full tests, TypeScript, build, and deployment passed
+
+## Locator freshness investigation
+
+- [x] Inspect live EUR/USD and GBP/USD locator rows, snapshot timestamps, and the latest scanner Heartbeat runs; current locator rows and scanner ledger were queried from production
+- [x] Determine whether GBP/USD is receiving fresh five-minute market snapshots and identify any confirmed upstream gap; GBP/USD has fresh 15MIN and 1H rows and no current upstream freshness gap
+- [x] Apply only a verified safe correction, validate the result, and report the live state without changing v4 thresholds or paper-trading behavior; no correction was warranted
+
+## Telegram signal-delivery investigation
+
+- [x] Trace the latest Heartbeat runs through market-data availability and locator qualification; recent cycles reached the app with marketData=available and locators remained WAITING on tied/mixed evidence or crowded structural 2R geometry
+- [x] Compare current generated-signal, outcome, and Telegram-delivery records to identify the exact blocking stage; no new v4 signal exists after the 11:32 UTC v4 LOSS, while outcome replies continue to deliver successfully
+- [x] Report why no current Telegram signal arrived, without creating trades or changing v4 behavior; Telegram delivery is not the blocker, because the locator did not qualify a new signal

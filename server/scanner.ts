@@ -4,7 +4,7 @@ import { activateIntelligenceVersion, createIntelligenceComponent, createIntelli
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
-import { buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, evaluateReplacementIntelligence } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { advanceEntryLocator, countStrongSetupIndicators, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 
@@ -135,7 +135,12 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
           marketContext: series.marketContext ? { ...series.marketContext, multiTimeframeContext, multiTimeframeAlignment } : null,
         };
         const fundamentalContext = await fetchOfficialMacroContext(asset);
-        const replacementIntelligence = market.marketContext ? evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementModel) : undefined;
+        const detectedIndicators = market.marketContext ? detectSetupIndicators({ market: { asset, close: series.close, interval: series.interval }, context: market.marketContext, fundamentalContext }, replacementModel) : [];
+        const hasDirectionalIndicator = detectedIndicators.some((indicator) => indicator.direction !== "NEUTRAL");
+        if (!market.marketContext || !hasDirectionalIndicator) {
+          return { asset, timeframe, noDirectionalSetup: true, verdict: "SKIPPED" as const, confidence: 0, confluenceScore: 0, marketRegime: "WAITING/ACCUMULATING", adjustments: "No directional setup indicator detected; accumulating fresh scanner snapshots before constructing a v4 candidate.", direction: "NEUTRAL" as const, entry: null, stopLoss: null, takeProfit: null, ruleEvidence: [], ruleFindings: [], decisionTrace: undefined, setupIndicators: detectedIndicators, market: { ...market, fundamentalContext, setupIndicators: detectedIndicators, replacementIntelligence: undefined, v3BaselineIntelligence: undefined, replacementMarketRegime: "WAITING/ACCUMULATING" } };
+        }
+        const replacementIntelligence = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementModel);
         const v3BaselineIntelligence = market.marketContext ? evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementBaselineModel) : undefined;
         if (!replacementIntelligence || !v3BaselineIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
         return {
@@ -172,19 +177,20 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   for (const gated of decisions) {
     const { asset, timeframe, market } = gated;
     const sourceCandidate = candidates.find((candidate) => candidate.asset === asset && candidate.timeframe === timeframe);
-    const cooldownKey = buildSetupIdentity(asset, timeframe, gated.direction as "BUY" | "SELL", gated.marketRegime, market.marketContext?.breakoutState);
+    const cooldownKey = gated.noDirectionalSetup ? `${asset}:${timeframe}:WAITING` : buildSetupIdentity(asset, timeframe, gated.direction as "BUY" | "SELL", gated.marketRegime, market.marketContext?.breakoutState);
     const latestCandle = sourceCandidate?.series.values.at(-1);
     const latestCandleDatetime = typeof latestCandle?.datetime === "string" ? latestCandle.datetime : undefined;
     const observation: EntryLocatorObservation = {
       fingerprint: `${asset}:${timeframe}:${gated.direction}:${gated.marketRegime}:${market.marketContext?.breakoutState ?? "UNKNOWN"}:${latestCandleDatetime ?? sourceCandidate?.series.fetchedAt}:${sourceCandidate?.series.close}`,
       observedAt: latestCandleDatetime ? new Date(latestCandleDatetime.replace(" ", "T") + "Z").toISOString() : sourceCandidate?.series.fetchedAt ?? new Date().toISOString(),
-      direction: gated.direction,
+      direction: gated.noDirectionalSetup ? "NEUTRAL" : gated.direction,
       confidence: Number(gated.confidence ?? 0),
       confluence: Number(gated.confluenceScore ?? 0),
       marketRegime: gated.marketRegime ?? "UNKNOWN",
       eventRisk: market.fundamentalContext?.eventRisk ?? "UNKNOWN",
       geometryFallback: /fell back to the minimum 2R|fallback target/i.test(gated.adjustments ?? ""),
       supportingComponents: gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? [],
+      indicatorEvidence: (gated.setupIndicators ?? []).map((indicator: any) => indicator.id ?? indicator.concept ?? "").filter(Boolean),
       conflictingComponents: gated.decisionTrace?.conflictingComponents ?? [],
     };
     const hasOpenSignal = await hasOpenGeneratedSignal(userId, asset, timeframe, replacementModel.id);
@@ -193,7 +199,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
     try { previousLocator = storedLocator?.stateJson ? JSON.parse(storedLocator.stateJson) : null; } catch { previousLocator = null; }
     const locatorResult = advanceEntryLocator({ previous: previousLocator, observation, hasOpenSignal });
     const locatorState = locatorResult.ready ? markEntryLocatorEmitted(locatorResult.state, observation.fingerprint) : locatorResult.state;
-    await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null, lastDirection: observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify(locatorState), lastEmittedAt: locatorResult.ready ? new Date() : storedLocator?.lastEmittedAt ?? null });
+    await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null,       lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify(locatorState), lastEmittedAt: locatorResult.ready ? new Date() : storedLocator?.lastEmittedAt ?? null });
     const strongIndicatorCount = countStrongSetupIndicators(observation.supportingComponents);
     const indicatorBucket = strongIndicatorCount === 1 ? "ONE_STRONG" : strongIndicatorCount >= 2 ? "TWO_PLUS" : "NONE";
     const locatorMarket = { ...market, entryLocator: { status: locatorState.status, ready: locatorResult.ready, reason: locatorResult.reason, snapshotCount: locatorState.snapshotCount, fingerprint: observation.fingerprint, strongIndicatorCount, indicatorBucket } };

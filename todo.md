@@ -543,3 +543,11 @@
 - [x] Ensure one or more compatible detected indicators form the sole evidence basis for the v4 candidate judgment
 - [x] Preserve explicit conflict resolution, freshness, event-risk, geometry, locator, provenance, and Telegram safeguards after the causal refactor
 - [x] Add tests proving no candidate is constructed from absent indicators and that multi-indicator judgments reflect the detected evidence
+
+
+## Corrected Accumulation Behavior
+
+- [x] Treat a snapshot with no directional setup indicator as WAITING/ACCUMULATING rather than a terminal evaluation failure
+- [x] Preserve rich fresh scanner snapshots and later indicator evidence across cycles until a setup qualifies
+- [x] Ensure candidate construction begins only after accumulated evidence contains a qualifying indicator or compatible combination
+- [x] Add regression coverage for no-indicator first snapshot followed by later qualifying evidence

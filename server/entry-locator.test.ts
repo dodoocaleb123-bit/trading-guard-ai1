@@ -31,6 +31,15 @@ describe("entry locator", () => {
     expect(result.reason).toContain("without requiring every catalog indicator");
   });
 
+  it("accumulates a no-indicator snapshot and qualifies when later directional evidence appears", () => {
+    const first = advanceEntryLocator({ previous: createEmptyEntryLocatorState(), observation: observation({ fingerprint: "neutral-first", direction: "NEUTRAL", confidence: 0, confluence: 0, supportingComponents: [], indicatorEvidence: [] }), hasOpenSignal: false, now });
+    expect(first.ready).toBe(false);
+    expect(first.reason).toContain("accumulating");
+    const second = advanceEntryLocator({ previous: first.state, observation: observation({ fingerprint: "later-buy", confidence: 82, confluence: 60, supportingComponents: ["structure"] }), hasOpenSignal: false, now: new Date("2026-08-22T12:10:00.000Z") });
+    expect(second.ready).toBe(true);
+    expect(second.state.snapshotCount).toBe(2);
+  });
+
   it("waits when BUY and SELL evidence are tied", () => {
     const first = advanceEntryLocator({ previous: createEmptyEntryLocatorState(), observation: observation({ fingerprint: "buy" }), hasOpenSignal: false, now });
     const second = advanceEntryLocator({ previous: first.state, observation: observation({ fingerprint: "sell", direction: "SELL" }), hasOpenSignal: false, now });

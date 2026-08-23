@@ -3,7 +3,7 @@ export type LocatorStatus = "WAITING" | "READY" | "EMITTED";
 export type EntryLocatorObservation = {
   fingerprint: string;
   observedAt: string;
-  direction: "BUY" | "SELL";
+  direction: "BUY" | "SELL" | "NEUTRAL";
   confidence: number;
   confluence: number;
   marketRegime: string;
@@ -11,6 +11,7 @@ export type EntryLocatorObservation = {
   geometryFallback: boolean;
   supportingComponents: string[];
   conflictingComponents: string[];
+  indicatorEvidence?: string[];
 };
 
 export type EntryLocatorSnapshot = EntryLocatorObservation & { receivedAt: string };
@@ -40,7 +41,7 @@ export function createEmptyEntryLocatorState(): EntryLocatorState {
 
 function normalizeState(input: Partial<EntryLocatorState> | null | undefined): EntryLocatorState {
   const base = createEmptyEntryLocatorState();
-  const snapshots = Array.isArray(input?.snapshots) ? input.snapshots.filter((snapshot): snapshot is EntryLocatorSnapshot => Boolean(snapshot?.fingerprint && snapshot?.observedAt && (snapshot.direction === "BUY" || snapshot.direction === "SELL"))).slice(-WINDOW_SIZE) : [];
+  const snapshots = Array.isArray(input?.snapshots) ? input.snapshots.filter((snapshot): snapshot is EntryLocatorSnapshot => Boolean(snapshot?.fingerprint && snapshot?.observedAt && (snapshot.direction === "BUY" || snapshot.direction === "SELL" || snapshot.direction === "NEUTRAL"))).slice(-WINDOW_SIZE) : [];
   return { ...base, ...input, snapshots, snapshotCount: Math.max(Number(input?.snapshotCount ?? 0), snapshots.length), status: input?.status === "EMITTED" || input?.status === "READY" ? input.status : "WAITING" };
 }
 
@@ -68,7 +69,7 @@ export function countStrongSetupIndicators(components: string[]) {
 
 function majorityDirection(snapshots: EntryLocatorSnapshot[]): "BUY" | "SELL" | null {
   const buy = snapshots.filter((snapshot) => snapshot.direction === "BUY").length;
-  const sell = snapshots.length - buy;
+  const sell = snapshots.filter((snapshot) => snapshot.direction === "SELL").length;
   if (buy === sell) return null;
   return buy > sell ? "BUY" : "SELL";
 }
@@ -115,6 +116,7 @@ export function advanceEntryLocator(input: {
 
   let reason = "Accumulating distinct snapshots until the same setup repeats with coherent evidence.";
   if (input.hasOpenSignal) reason = "Active paper setup already exists; new setup evidence is tracked but no duplicate is emitted.";
+  else if (!direction && snapshots.some((item) => item.direction === "NEUTRAL")) reason = "No directional setup indicator detected yet; accumulating fresh scanner snapshots until one appears.";
   else if (!direction) reason = "BUY and SELL evidence are currently tied or mixed; waiting for resolution.";
   else if (!hasEnoughIndicators) reason = "Waiting for at least one strong setup indicator from the catalog-derived evidence families.";
   else if (!hasQuality) reason = `Setup evidence found, but confidence/confluence remain below the ${strongIndicatorCount >= 2 ? "60%/45%" : "68%/45%"} threshold (${Math.round(averageConfidence)}%/${Math.round(averageConfluence)}%).`;

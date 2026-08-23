@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -533,7 +533,7 @@ export function summarizeWinningRate(rows: WinningRateRow[]) {
 export async function getWinningRateStats(userId: number) {
   const db = await getDb();
   if (!db) return summarizeWinningRate([]);
-  const rows = await db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, confidence: generatedSignals.confidence, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), or(eq(generatedSignals.intelligenceVersion, "replacement-forex-v1"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v3"))));
+  const rows = await db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, confidence: generatedSignals.confidence, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), inArray(generatedSignals.intelligenceVersion, WINNING_RATE_VERSIONS)));
   return summarizeWinningRate(rows.map((row) => ({ ...row, version: row.version ?? "" })));
 }
 
@@ -571,7 +571,7 @@ export function summarizeBestDaysToTrade(rows: TimingSignalRow[]) { return { uni
 async function getTimingStats(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, status: generatedSignals.status, openedAt: generatedSignals.openedAt }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), or(eq(generatedSignals.intelligenceVersion, "replacement-forex-v1"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v2"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v3"))));
+  return db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, status: generatedSignals.status, openedAt: generatedSignals.openedAt }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), inArray(generatedSignals.intelligenceVersion, WINNING_RATE_VERSIONS)));
 }
 export async function getBestTimeToTradeStats(userId: number) { return summarizeBestTimeToTrade((await getTimingStats(userId)).map((row) => ({ ...row, version: row.version ?? "" }))); }
 export async function getBestDaysToTradeStats(userId: number) { return summarizeBestDaysToTrade((await getTimingStats(userId)).map((row) => ({ ...row, version: row.version ?? "" }))); }

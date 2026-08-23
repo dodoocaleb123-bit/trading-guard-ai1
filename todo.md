@@ -637,3 +637,11 @@
 - [x] Ensure legacy v3 pending setups do not block authoritative v4 setups for the same asset/timeframe
 - [x] Preserve suppression of duplicate active v4 setups and paper-only UNVALIDATED delivery
 - [x] Add regression coverage and verify the updated behavior
+
+
+## v4 Performance Card Reconciliation
+
+- [x] Trace the v4 outcome query, router procedure, and performance-card rendering
+- [x] Reconcile the card’s filter with live generated-signal intelligenceVersion values
+- [x] Fix the mismatch or stale-query behavior without changing trade records
+- [x] Add regression coverage and verify the corrected displayed count

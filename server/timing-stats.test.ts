@@ -9,6 +9,7 @@ describe("best timing paper analytics", () => {
       { ...base, status: "WIN", openedAt: new Date("2026-08-20T09:15:00.000Z") },
       { ...base, status: "LOSS", openedAt: new Date("2026-08-20T09:45:00.000Z") },
       { ...base, version: "forex-trading-combined-document-v2", status: "WIN", openedAt: new Date("2026-08-20T09:45:00.000Z") },
+      { ...base, version: "forex-trading-combined-document-v4", status: "WIN", openedAt: new Date("2026-08-20T09:45:00.000Z") },
     ];
     const result = summarizeBestTimeToTrade(rows);
     const v1 = result.groups.find((group) => group.version === "replacement-forex-v1" && group.asset === "EUR/USD" && group.timeframe === "1H")!;
@@ -16,6 +17,8 @@ describe("best timing paper analytics", () => {
     expect(nine).toMatchObject({ generated: 2, resolved: 2, takeProfitHits: 1, stopLossHits: 1, winRate: 50 });
     const v2 = result.groups.find((group) => group.version === "forex-trading-combined-document-v2" && group.asset === "EUR/USD" && group.timeframe === "1H")!;
     expect(v2.buckets.find((bucket) => bucket.key === "9")).toMatchObject({ generated: 1, takeProfitHits: 1, stopLossHits: 0 });
+    const v4 = result.groups.find((group) => group.version === "forex-trading-combined-document-v4" && group.asset === "EUR/USD" && group.timeframe === "1H")!;
+    expect(v4.buckets.find((bucket) => bucket.key === "9")).toMatchObject({ generated: 1, resolved: 1, takeProfitHits: 1, winRate: 100 });
   });
 
   it("calculates win rate as take-profit hits divided by resolved signals", () => {

@@ -23,18 +23,24 @@ describe("replacement outcome statistics", () => {
     expect(summarizeReplacementOutcomes([])).toMatchObject({ total: 0, components: [], regimes: [], confidenceBands: [], validation: { resolved: 0, pending: 0, winRate: null, reviewThreshold: 50, reviewReady: false, reviewStatus: "COLLECTING_EVIDENCE" } });
   });
 
-  it("keeps v1 and v2 separate across assets, timeframes, and requested confidence bands", () => {
+  it("keeps v1 through v4 separate across assets, timeframes, and requested confidence bands", () => {
     const result = summarizeWinningRate([
       { version: "replacement-forex-v1", asset: "EUR/USD", timeframe: "15MIN", confidence: "95", status: "WIN" },
       { version: "replacement-forex-v1", asset: "EUR/USD", timeframe: "15MIN", confidence: "85", status: "LOSS" },
       { version: "replacement-forex-v1", asset: "BTC/USD", timeframe: "1H", confidence: "65", status: "PENDING" },
       { version: "forex-trading-combined-document-v2", asset: "EUR/USD", timeframe: "15MIN", confidence: "95", status: "LOSS" },
       { version: "forex-trading-combined-document-v2", asset: "XAU/USD", timeframe: "1H", confidence: "75", status: "WIN" },
+      { version: "forex-trading-combined-document-v4", asset: "BTC/USD", timeframe: "15MIN", confidence: "84", status: "PENDING" },
+      { version: "forex-trading-combined-document-v4", asset: "BTC/USD", timeframe: "1H", confidence: "92", status: "WIN" },
     ]);
     const v1 = result.versions.find((version) => version.version === "replacement-forex-v1")!;
     const v2 = result.versions.find((version) => version.version === "forex-trading-combined-document-v2")!;
+    const v4 = result.versions.find((version) => version.version === "forex-trading-combined-document-v4")!;
     expect(v1.overall).toMatchObject({ generated: 3, resolved: 2, wins: 1, losses: 1, winRate: 50 });
     expect(v2.overall).toMatchObject({ generated: 2, resolved: 2, wins: 1, losses: 1, winRate: 50 });
+    expect(v4.overall).toMatchObject({ generated: 2, resolved: 1, wins: 1, losses: 0, winRate: 100 });
+    expect(v4.assets.find((item) => item.key === "BTC/USD")).toMatchObject({ generated: 2, resolved: 1, winRate: 100 });
+    expect(v4.timeframes.find((item) => item.key === "BTC/USD · 15MIN")).toMatchObject({ generated: 1, resolved: 0, winRate: null });
     expect(v1.assets.find((item) => item.key === "EUR/USD")).toMatchObject({ generated: 2, resolved: 2, winRate: 50 });
     expect(v1.timeframes.find((item) => item.key === "BTC/USD · 1H")).toMatchObject({ generated: 1, resolved: 0, wins: 0, losses: 0, winRate: null });
     expect(v1.confidenceBands.find((item) => item.key === "100-90")).toMatchObject({ generated: 1, wins: 1, resolved: 1, winRate: 100 });

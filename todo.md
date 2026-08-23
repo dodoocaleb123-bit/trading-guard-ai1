@@ -768,8 +768,8 @@
 
 - [x] Determine why the latest BTC/USD v4 paper signal remains PENDING after the user observed a stop-loss touch; it later resolved as LOSS after the next live tracking cycle
 - [x] Compare outcome-tracker timing and Twelve Data price/high/low evidence with the user’s manual demo-trade observation; the tracker closed the signal at 13:30:28 UTC from the live candle range
-- [ ] Apply a safe correction only if the live tracking path is confirmed incomplete or incorrect
-- [ ] Add regression coverage, verify without creating real orders, and publish any corrective release
+- [x] Apply a safe correction only if the live tracking path is confirmed incomplete or incorrect; no tracker correction was needed because the signal resolved correctly on the subsequent live cycle
+- [x] Add regression coverage, verify without creating real orders, and publish any corrective release; tracker behavior was verified without creating orders and the risk-reward correction was separately regression-tested and published
 
 ## Verify ongoing v4 indicator search coverage
 

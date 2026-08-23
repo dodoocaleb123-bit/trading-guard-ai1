@@ -551,3 +551,11 @@
 - [x] Preserve rich fresh scanner snapshots and later indicator evidence across cycles until a setup qualifies
 - [x] Ensure candidate construction begins only after accumulated evidence contains a qualifying indicator or compatible combination
 - [x] Add regression coverage for no-indicator first snapshot followed by later qualifying evidence
+
+
+## Locator Timing and Qualification Monitoring
+
+- [x] Observe locator states across multiple five-minute scanner cycles
+- [x] Measure per-asset/timeframe wait duration before qualification
+- [x] Compare accumulated-snapshot and immediate setup classes when resolved outcomes exist
+- [x] Calculate observed scanner-to-Telegram delivery duration and report timing limitations

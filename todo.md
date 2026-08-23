@@ -613,3 +613,19 @@
 - [x] Inspect the latest production runtime logs and Heartbeat execution result
 - [x] Manually POST to the scanner callback endpoint without trade input
 - [x] Report the exact response and whether the application callback was reached
+
+
+## GitHub Synchronization
+
+- [x] Compare the current verified checkpoint with dodoocaleb123-bit/trading-guard-ai
+- [x] Prepare a safe synchronization commit without overwriting unrelated GitHub work
+- [x] Push the verified project code to GitHub
+- [x] Confirm GitHub commit and file parity with the local checkpoint
+
+
+## Deployed Application Diagnostic
+
+- [x] Inventory deployed public, scheduled, and tRPC/API routes
+- [x] Probe public and protected endpoint behavior without mutating data
+- [x] Validate live database connectivity, schema access, and application health
+- [x] Summarize endpoint status, database status, and required remediation

@@ -203,6 +203,36 @@ export async function listGeneratedSignalsSince(userId: number, since: Date, lim
   return db.select({ id: generatedSignals.id, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, direction: generatedSignals.direction, status: generatedSignals.status, confidence: generatedSignals.confidence, intelligenceVersion: generatedSignals.intelligenceVersion, openedAt: generatedSignals.openedAt, closedAt: generatedSignals.closedAt }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), gte(generatedSignals.openedAt, since))).orderBy(desc(generatedSignals.openedAt)).limit(limit);
 }
 
+export async function listPaperTradeUpgradeChains(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const signals = await db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE))).orderBy(desc(generatedSignals.openedAt)).limit(250);
+  const adjustments = await db.select().from(paperTradeAdjustments).where(and(eq(paperTradeAdjustments.userId, userId), eq(paperTradeAdjustments.action, "UPGRADE_PAPER_SETUP"))).orderBy(desc(paperTradeAdjustments.createdAt)).limit(250);
+  const deliveries = await db.select().from(telegramDeliveries).where(eq(telegramDeliveries.userId, userId));
+  const byId = new Map(signals.map((signal) => [signal.id, signal]));
+  return adjustments.map((adjustment) => ({
+    adjustment,
+    original: byId.get(adjustment.signalId) ?? null,
+    replacement: adjustment.replacementSignalId ? byId.get(adjustment.replacementSignalId) ?? null : null,
+    originalDelivery: deliveries.find((delivery) => delivery.kind === "SIGNAL" && delivery.signalId === adjustment.signalId) ?? null,
+    upgradeDelivery: deliveries.find((delivery) => delivery.kind === "ADJUSTMENT" && delivery.signalId === adjustment.signalId && delivery.dedupeKey === adjustment.dedupeKey) ?? null,
+    replacementDelivery: adjustment.replacementSignalId ? deliveries.find((delivery) => delivery.kind === "SIGNAL" && delivery.signalId === adjustment.replacementSignalId) ?? null : null,
+  }));
+}
+
+export async function getPaperTradeUpgradeSummary(userId: number) {
+  const db = await getDb();
+  if (!db) return { upgradeCount: 0, sourceTheses: 0, replacementTheses: 0, frequencyPercent: null as number | null };
+  const [signals, adjustments] = await Promise.all([
+    db.select({ id: generatedSignals.id }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE))),
+    db.select({ signalId: paperTradeAdjustments.signalId, replacementSignalId: paperTradeAdjustments.replacementSignalId }).from(paperTradeAdjustments).where(and(eq(paperTradeAdjustments.userId, userId), eq(paperTradeAdjustments.action, "UPGRADE_PAPER_SETUP"))),
+  ]);
+  const replacementIds = new Set(adjustments.map((adjustment) => adjustment.replacementSignalId).filter((id): id is number => id != null));
+  const sourceTheses = signals.filter((signal) => !replacementIds.has(signal.id)).length;
+  const upgradeCount = adjustments.length;
+  return { upgradeCount, sourceTheses, replacementTheses: replacementIds.size, frequencyPercent: sourceTheses ? Math.round((upgradeCount / sourceTheses) * 100) : null };
+}
+
 export const ENTRY_LOCATOR_V4_GENERATION_MODE = "ENTRY_LOCATOR_V4" as const;
 
 export async function hasOpenGeneratedSignal(userId: number, asset: string, timeframe: string, intelligenceVersion?: string, generationMode?: string) {

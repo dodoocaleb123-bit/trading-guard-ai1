@@ -756,3 +756,10 @@
 - [x] Send one idempotent threaded setup-upgrade Telegram reply while preserving the original signal history
 - [x] Keep outcome accounting, duplicate suppression, and all trading actions paper-only
 - [x] Add regression coverage, run full verification, and publish the release
+
+## Setup-upgrade follow-up
+
+- [x] Add a protected upgrade-chain query and responsive Trade History view linking original and replacement paper signals
+- [x] Monitor available Heartbeat cycles for the first stronger-setup upgrade and threaded Telegram reply
+- [x] Calculate observed upgrade frequency from live paper records without changing thresholds
+- [x] Add regression coverage, verify the UI, and publish the follow-up release

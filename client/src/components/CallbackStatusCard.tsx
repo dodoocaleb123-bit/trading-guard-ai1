@@ -21,6 +21,8 @@ export function CallbackStatusCard() {
   const healthy = status === "HEALTHY";
   const unavailable = status === "SCHEDULER_UNAVAILABLE";
   const staleCycle = Boolean(data?.staleCycle);
+  const recentRuns = data?.recentRuns ?? [];
+  const repeatedFailures = recentRuns.filter((run) => run.status === "FAILED").length >= 2;
   const StatusIcon = healthy ? CheckCircle2 : unavailable ? ServerCog : AlertTriangle;
   const badgeClass = healthy
     ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700"
@@ -63,16 +65,31 @@ export function CallbackStatusCard() {
                 <p>The next Heartbeat time is overdue by more than two minutes. This is a platform scheduling warning; the app cannot force a missed callback, but the durable run ledger will show whether a later callback reached the app.</p>
               </div>
             )}
-            {data?.latestRun && (
-              <div className="rounded-xl border bg-muted/20 p-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">Latest app-side run ledger</span>
-                  <Badge variant="outline">{data.latestRun.status}</Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">Started {formatDateTime(data.latestRun.startedAt)}{data.latestRun.finishedAt ? ` · finished ${formatDateTime(data.latestRun.finishedAt)}` : " · still running"}</p>
-                {data.latestRun.error && <p className="mt-1 text-xs text-rose-700">{data.latestRun.error}</p>}
+            {repeatedFailures && (
+              <div className="flex items-start gap-3 rounded-xl border border-rose-500/25 bg-rose-500/10 p-3 text-sm text-rose-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>At least two of the five most recent app-side callback records failed. Review the stored errors and the Heartbeat execution history before expecting new Telegram signals.</p>
               </div>
             )}
+            <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium">Recent app-side run history</span>
+                <span className="text-xs text-muted-foreground">{recentRuns.length ? `${recentRuns.length} recorded` : "No callbacks recorded yet"}</span>
+              </div>
+              {recentRuns.length > 0 && (
+                <div className="mt-3 divide-y rounded-lg border bg-background">
+                  {recentRuns.map((run) => (
+                    <div key={run.id} className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-medium">{formatDateTime(run.startedAt)}</p>
+                        <p className="text-[11px] text-muted-foreground">{run.finishedAt ? `Finished ${formatDateTime(run.finishedAt)}` : "Still running"}{run.error ? ` · ${run.error}` : ""}</p>
+                      </div>
+                      <Badge variant="outline" className={run.status === "SUCCEEDED" ? "border-emerald-500/25 text-emerald-700" : run.status === "FAILED" ? "border-rose-500/25 text-rose-700" : "border-amber-500/25 text-amber-700"}>{run.status}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl border bg-muted/20 p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />Last app scan</div>

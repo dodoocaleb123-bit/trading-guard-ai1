@@ -888,3 +888,9 @@
 - [x] Trace where the callback-status card obtains its task UID and scheduler registry data
 - [x] Reconcile the stored scanner task identity with the active Heartbeat without changing the callback path or trading logic; the status procedure now selects and persists the sole active scanner task when the stored UID is stale
 - [x] Add regression coverage, verify the corrected dashboard status, and publish the update; scheduler tests, full suite, TypeScript, and production build passed
+
+## Heartbeat monitoring follow-up
+
+- [x] Inspect the active Heartbeat registry and recent production cycles, then correlate scheduler attempts with app-side run-ledger rows; active task is enabled, last recorded success was 16:28 UTC, and the registry still showed no later run during the check
+- [x] Add a dedicated recent-run history view and repeated-failure warning to the scanner callback dashboard
+- [x] Validate the monitoring update, publish it, and report the observed production-cycle results; tests, TypeScript, build, desktop/mobile screenshots, and production deployment passed

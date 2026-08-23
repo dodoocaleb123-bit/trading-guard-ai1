@@ -255,6 +255,14 @@ export async function recordTelegramDelivery(input: { userId: number; signalId?:
   await db.insert(telegramDeliveries).values({ ...input, deliveredAt }).onDuplicateKeyUpdate({ set: { status: input.status, telegramMessageId: input.telegramMessageId ?? null, error: input.error ?? null, deliveredAt } });
 }
 
+export async function listPaperTradeAdjustments(userId: number, limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(paperTradeAdjustments).where(eq(paperTradeAdjustments.userId, userId)).orderBy(desc(paperTradeAdjustments.createdAt)).limit(limit);
+  const deliveries = await db.select().from(telegramDeliveries).where(eq(telegramDeliveries.userId, userId));
+  return rows.map((row) => ({ ...row, telegramDelivery: deliveries.find((delivery) => delivery.kind === "ADJUSTMENT" && delivery.dedupeKey === row.dedupeKey) ?? null }));
+}
+
 export async function listOpenCurrentV4Signals(userId: number) {
   const db = await getDb();
   if (!db) return [];

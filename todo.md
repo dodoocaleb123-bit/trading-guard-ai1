@@ -728,3 +728,9 @@
 - [x] Persist deduplicated adjustment/reply history linked to the original signal and Telegram message
 - [x] Send structured Telegram replies only for paper-trade adjustments, with asset, timeframe, contradiction, and adjustment details
 - [x] Add idempotency and regression coverage; verify no reply spam and no real-trading action
+
+## Adjustment history follow-up
+
+- [x] Monitor available live Heartbeat cycles; no contradiction reply was emitted because no unresolved current locator-era signal existed
+- [x] Add a protected adjustment-history query and responsive dashboard panel
+- [x] Verify the panel, run tests, and publish without changing thresholds or outcome-review rules

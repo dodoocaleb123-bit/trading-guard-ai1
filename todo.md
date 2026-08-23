@@ -951,3 +951,10 @@
 - [x] Restrict new v4 Entry Locator signals and upgrades to 1:2 or 1:3 only
 - [x] Update ratio analytics and user-facing copy so 1:1 and 1:1.5 are historical-only and not selectable for new signals
 - [x] Add regression coverage, validate scanner-to-Telegram behavior, and publish without rewriting historical records
+
+## Premature XAU/USD outcome investigation
+
+- [x] Inspect the latest XAU/USD 1H signal, outcome fields, tracker snapshots, and Telegram delivery linkage
+- [x] Determine whether the WIN was caused by a price-level mismatch, wrong signal linkage, premature classification, or stale data; confirmed same-cycle look-ahead from the pre-entry candle range
+- [x] Correct the tracker only if the defect is confirmed, preserving an auditable paper-only history; signal #14610004 was reopened as PENDING with a correction note
+- [x] Add regression coverage, validate the outcome reply path, and publish any required correction; tracker tests, TypeScript, build, and live verification passed

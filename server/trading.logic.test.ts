@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractStrategyText, formatAuditResult, gateAuditDecision, normalizeAsset } from "./integrations";
-import { buildSignalLevels, resolveOutcome } from "./scanner";
+import { buildSignalLevels, resolveOutcome, shouldTrackOpenSignal, shouldUseIntrabarRange } from "./scanner";
 import { deriveStructureAwareLevels } from "./replacement-intelligence";
 import { buildStrategyContext, buildStrategyRuleRecord } from "./routers";
 
@@ -69,6 +69,17 @@ describe("TradingGuardAI market helpers", () => {
     expect(resolveOutcome("BUY", 99, 95, 100, 101, 98)).toBe("WIN");
     expect(resolveOutcome("SELL", 91, 105, 90, 92, 89)).toBe("WIN");
     expect(resolveOutcome("BUY", 94, 95, 100, 96, 94)).toBe("LOSS");
+  });
+
+  it("does not track signals created in the same scanner cycle", () => {
+    const created = new Set([14610004]);
+    expect(shouldTrackOpenSignal(14610004, created)).toBe(false);
+    expect(shouldTrackOpenSignal(14610003, created)).toBe(true);
+  });
+
+  it("ignores pre-entry candle ranges when resolving a newly opened signal", () => {
+    expect(shouldUseIntrabarRange(new Date("2026-08-23T22:58:02.000Z"), "2026-08-23 22:00:00")).toBe(false);
+    expect(shouldUseIntrabarRange(new Date("2026-08-23T22:58:02.000Z"), "2026-08-23 23:00:00")).toBe(true);
   });
 
   it("builds timeframe-specific 1:2 signal geometry", () => {

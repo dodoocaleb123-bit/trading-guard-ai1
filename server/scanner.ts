@@ -102,6 +102,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
   series15m.forEach((series, symbol) => seriesCache.set(`${symbol}:15MIN`, series));
   series1h.forEach((series, symbol) => seriesCache.set(`${symbol}:1H`, series));
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
+  const createdSignalIds = new Set<number>();
   const mirroredRules = await fetchStrategyRulesFromSupabase();
   const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 6_000);
   await ensureReplacementIntelligenceVersion(userId);
@@ -293,6 +294,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         await recordTelegramDelivery({ userId, signalId: activeSignal.id, kind: "ADJUSTMENT", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: upgradeDedupeKey, error: delivery.error });
         await mirrorToSupabase("generated_signals", { user_id: userId, ...approvedLevels, signal_id: replacementSignalId, status: "PENDING", rationale: formatAuditResult(gated, market), confluence_score: gated.confluenceScore ?? 0 });
         created.push({ id: replacementSignalId, ...approvedLevels });
+        createdSignalIds.add(replacementSignalId);
         console.info(`[Scanner] ${asset} ${timeframe} emitted a stronger setup upgrade linked to signal #${activeSignal.id}.`);
         continue;
       }
@@ -303,11 +305,12 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, riskReward: approvedLevels.riskReward, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext }), asset);
       await recordTelegramDelivery({ userId, signalId: signal.id, kind: "SIGNAL", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: `signal:${signal.id}`, error: delivery.error });
       created.push(signal);
+      createdSignalIds.add(signal.id);
     } catch (error) {
       console.warn(`[Scanner] ${asset} ${timeframe} skipped:`, error instanceof Error ? error.message : error);
     }
   }
-  const tracked = await trackOpenSignals(userId, seriesCache);
+  const tracked = await trackOpenSignals(userId, seriesCache, createdSignalIds);
   const adjustments = await monitorOpenSignalContradictions(userId, decisions, seriesCache);
   return { created: created.length, tracked, adjustments, marketData: "available" };
 }
@@ -337,22 +340,39 @@ async function monitorOpenSignalContradictions(userId: number, decisions: Array<
   return sent;
 }
 
-export async function trackOpenSignals(userId: number, seriesCache?: Map<string, MarketSeries>) {
+export function shouldTrackOpenSignal(signalId: number, excludedSignalIds: ReadonlySet<number>) {
+  return !excludedSignalIds.has(signalId);
+}
+
+export function shouldUseIntrabarRange(signalOpenedAt: Date | string, candleStartedAt?: string | null) {
+  if (!candleStartedAt) return false;
+  const openedAt = signalOpenedAt instanceof Date ? signalOpenedAt.getTime() : new Date(signalOpenedAt).getTime();
+  const candleStart = new Date(candleStartedAt.includes("T") ? candleStartedAt : `${candleStartedAt.replace(" ", "T")}Z`).getTime();
+  return Number.isFinite(openedAt) && Number.isFinite(candleStart) && candleStart >= openedAt;
+}
+
+export async function trackOpenSignals(userId: number, seriesCache?: Map<string, MarketSeries>, excludedSignalIds: ReadonlySet<number> = new Set()) {
   const db = await getDb();
   if (!db) return 0;
   const open = await db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING")));
   let tracked = 0;
   for (const signal of open) {
+    if (!shouldTrackOpenSignal(signal.id, excludedSignalIds)) continue;
     try {
       const timeframe = signal.timeframe === "1H" ? "1H" : "15MIN";
       const cached = seriesCache?.get(`${signal.asset}:${timeframe}`);
+      const latestCandle = cached?.values.at(-1);
       const market = cached
-        ? { symbol: signal.asset, price: cached.close, close: cached.close, high: Number(cached.values.at(-1)?.high), low: Number(cached.values.at(-1)?.low), fetchedAt: cached.fetchedAt }
+        ? { symbol: signal.asset, price: cached.close, close: cached.close, high: Number(latestCandle?.high), low: Number(latestCandle?.low), fetchedAt: cached.fetchedAt }
         : await fetchMarketSnapshot(signal.asset, timeframe === "1H" ? "1h" : "15min");
       const price = market.price;
       const stop = Number(signal.stopLoss);
       const target = Number(signal.takeProfit);
-      const status = resolveOutcome(signal.direction, price, stop, target, Number(market.high), Number(market.low));
+      const candleStartedAt = typeof latestCandle?.datetime === "string" ? latestCandle.datetime : null;
+      const useIntrabarRange = shouldUseIntrabarRange(signal.openedAt, candleStartedAt);
+      const observedHigh = useIntrabarRange ? Number(market.high) : price;
+      const observedLow = useIntrabarRange ? Number(market.low) : price;
+      const status = resolveOutcome(signal.direction, price, stop, target, observedHigh, observedLow);
       if (!status) continue;
       const note = `Closed from live ${signal.asset} ${signal.timeframe} price ${price}.`;
       await db.update(generatedSignals).set({ status, closedAt: new Date(), outcomeNote: note }).where(eq(generatedSignals.id, signal.id));

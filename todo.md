@@ -847,3 +847,10 @@
 - [x] Check Twelve Data availability and freshness for EUR/USD and the other watched assets; the latest Heartbeat at 15:20 returned marketData=available and direct provider checks were healthy
 - [x] Verify post-fix v4 signal, outcome, and dashboard status; no post-fix signal qualified and the current locator-era sample remains one BTC/USD 1H LOSS
 - [x] Publish the EUR/USD diagnosis without creating live trades or bypassing freshness rules
+
+## Confidence threshold discrepancy and monitoring
+
+- [x] Trace why the BTC/USD card displays a 68% confidence threshold when earlier explanations referenced 60%; the rule is intentionally dynamic based on the number of strong setup indicators
+- [x] Verify current threshold configuration, live locator states, Heartbeat, and market-data availability; one strong-indicator setups use 68%/45%, two-or-more use 60%/45%, and the latest Heartbeat returned HTTP 200 with marketData=available
+- [x] Check post-fix v4 geometry and paper-outcome records while carrying out the monitoring follow-ups; no new post-fix signal qualified and the current locator-era sample remains one LOSS
+- [x] Correct any confirmed threshold-display or logic mismatch, test it, and publish the result without creating live trades; no mismatch was confirmed, so no threshold change was made

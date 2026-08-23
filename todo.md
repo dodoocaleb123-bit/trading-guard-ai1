@@ -821,3 +821,12 @@
 - [x] Check for a new post-fix locator-era v4 signal and exact 1:2 geometry; no new post-fix signal qualified and the existing locator-era record is the pre-fix BTC/USD 1H LOSS
 - [x] Update the current locator-era paper-outcome sample; it remains 1 LOSS, 0 WIN, 0 PENDING for the current locator-era sample and 0 post-fix outcomes
 - [x] Publish the monitoring result without changing thresholds or creating live trades
+
+## Latest post-fix monitoring cycle
+
+- [x] Check the newest Heartbeat execution and production health response; latest cycle reached the app and returned HTTP 200, while `/healthz` remains an Autoscale edge 503
+- [x] Check for a new post-fix v4 signal and verify exact 1:2 geometry if present; no new post-fix signal qualified
+- [x] Review the current locator-era paper-outcome sample; it remains one BTC/USD 1H LOSS and zero post-fix outcomes
+- [x] Publish the monitoring result without changing thresholds or creating live trades
+
+- [x] Treat Twelve Data timeout responses as failover-eligible, add regression coverage, and publish the correction without changing trading thresholds; focused 2-test, full 126-test, TypeScript, and build validation passed

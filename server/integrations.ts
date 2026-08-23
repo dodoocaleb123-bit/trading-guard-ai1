@@ -103,11 +103,12 @@ export function normalizeAsset(asset: string) {
 
 let twelveDataCursor = 0;
 
-function isTwelveDataFailoverError(error: unknown, payload?: any) {
+export function isTwelveDataFailoverError(error: unknown, payload?: any) {
   const status = (error as any)?.response?.status ?? (error as any)?.status;
   const code = payload?.code ?? (error as any)?.response?.data?.code;
+  const errorCode = String((error as any)?.code ?? "");
   const message = String(payload?.message ?? (error as any)?.response?.data?.message ?? (error as any)?.message ?? "");
-  return status === 401 || status === 403 || status === 429 || code === 401 || code === 403 || code === 429 || /credit|quota|rate.?limit|too many requests/i.test(message);
+  return status === 401 || status === 403 || status === 429 || code === 401 || code === 403 || code === 429 || errorCode === "ECONNABORTED" || errorCode === "ETIMEDOUT" || /credit|quota|rate.?limit|too many requests|timeout/i.test(message);
 }
 
 async function requestTwelveData(path: string, params: Record<string, string | number>, timeout: number) {

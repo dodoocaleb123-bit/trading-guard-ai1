@@ -59,13 +59,17 @@ export const generatedSignals = mysqlTable("generated_signals", {
   takeProfit: decimal("takeProfit", { precision: 18, scale: 8 }).notNull(),
   riskReward: decimal("riskReward", { precision: 8, scale: 2 }).notNull(),
   confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull(),
+  /** Nullable for legacy signals; populated for current v4 emissions and upgrades. */
+  confluenceScore: decimal("confluenceScore", { precision: 5, scale: 2 }),
   rationale: text("rationale"),
   intelligenceVersion: varchar("intelligenceVersion", { length: 64 }),
   /** Null for legacy rows; ENTRY_LOCATOR_V4 for current stateful locator emissions. */
   generationMode: varchar("generationMode", { length: 32 }),
   intelligenceComponents: mediumtext("intelligenceComponents"),
   marketRegime: varchar("marketRegime", { length: 128 }),
-  status: mysqlEnum("status", ["PENDING", "WIN", "LOSS", "INVALIDATED"]).default("PENDING").notNull(),
+  status: mysqlEnum("status", ["PENDING", "WIN", "LOSS", "INVALIDATED", "SUPERSEDED"]).default("PENDING").notNull(),
+  /** Links an older paper signal to the newer signal that superseded it. */
+  supersededBySignalId: int("supersededBySignalId"),
   outcomeNote: text("outcomeNote"),
   openedAt: timestamp("openedAt").defaultNow().notNull(),
   closedAt: timestamp("closedAt"),
@@ -132,7 +136,9 @@ export const paperTradeAdjustments = mysqlTable("paper_trade_adjustments", {
   currentPrice: decimal("currentPrice", { precision: 18, scale: 8 }).notNull(),
   confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull(),
   confluenceScore: decimal("confluenceScore", { precision: 5, scale: 2 }).notNull(),
-  action: mysqlEnum("action", ["REVIEW_DIRECTION", "TIGHTEN_STOP", "EXIT_PAPER_SETUP"]).notNull(),
+  action: mysqlEnum("action", ["REVIEW_DIRECTION", "TIGHTEN_STOP", "EXIT_PAPER_SETUP", "UPGRADE_PAPER_SETUP"]).notNull(),
+  /** Set when this record links an older active signal to a stronger replacement. */
+  replacementSignalId: int("replacementSignalId"),
   reason: text("reason").notNull(),
   evidenceJson: mediumtext("evidenceJson").notNull(),
   dedupeKey: varchar("dedupeKey", { length: 255 }).notNull().unique(),

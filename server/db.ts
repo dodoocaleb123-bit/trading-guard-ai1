@@ -276,11 +276,17 @@ export async function hasPaperTradeAdjustment(dedupeKey: string) {
   return rows.length > 0;
 }
 
-export async function createPaperTradeAdjustment(input: { userId: number; signalId: number; asset: string; timeframe: string; originalDirection: "BUY" | "SELL"; observedDirection: "BUY" | "SELL"; currentPrice: string; confidence: string; confluenceScore: string; action: "REVIEW_DIRECTION" | "TIGHTEN_STOP" | "EXIT_PAPER_SETUP"; reason: string; evidenceJson: string; dedupeKey: string }) {
+export async function createPaperTradeAdjustment(input: { userId: number; signalId: number; asset: string; timeframe: string; originalDirection: "BUY" | "SELL"; observedDirection: "BUY" | "SELL"; currentPrice: string; confidence: string; confluenceScore: string; action: "REVIEW_DIRECTION" | "TIGHTEN_STOP" | "EXIT_PAPER_SETUP" | "UPGRADE_PAPER_SETUP"; replacementSignalId?: number | null; reason: string; evidenceJson: string; dedupeKey: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.insert(paperTradeAdjustments).values(input).onDuplicateKeyUpdate({ set: { reason: input.reason, evidenceJson: input.evidenceJson } });
+  const result = await db.insert(paperTradeAdjustments).values({ ...input, replacementSignalId: input.replacementSignalId ?? null }).onDuplicateKeyUpdate({ set: { reason: input.reason, evidenceJson: input.evidenceJson, replacementSignalId: input.replacementSignalId ?? null } });
   return Number(result[0].insertId);
+}
+
+export async function supersedeGeneratedSignal(signalId: number, replacementSignalId: number, note: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(generatedSignals).set({ status: "SUPERSEDED", supersededBySignalId: replacementSignalId, outcomeNote: note, closedAt: new Date() }).where(and(eq(generatedSignals.id, signalId), eq(generatedSignals.status, "PENDING")));
 }
 
 export async function getTelegramDeliveryForSignal(userId: number, signalId: number, kind: "SIGNAL" | "OUTCOME" = "SIGNAL") {
@@ -487,17 +493,18 @@ export async function getRelevantRulesText(userId: number, query: string, maxCha
 
 
 type ReplacementOutcomeRow = { status: string; intelligenceComponents: string | null; marketRegime: string | null; confidence?: string | number | null };
-type ReplacementOutcomeBucket = { key: string; total: number; wins: number; losses: number; pending: number; invalidated: number };
+type ReplacementOutcomeBucket = { key: string; total: number; wins: number; losses: number; pending: number; invalidated: number; superseded: number };
 export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], version: "replacement-forex-v2" | "replacement-forex-v3" | "replacement-forex-v4" | "replacement-forex-v4-locator" = "replacement-forex-v2") {
   const componentMap = new Map<string, ReplacementOutcomeBucket>();
   const regimeMap = new Map<string, ReplacementOutcomeBucket>();
   const confidenceMap = new Map<string, ReplacementOutcomeBucket>();
   const add = (map: Map<string, ReplacementOutcomeBucket>, key: string, status: string) => {
-    const bucket = map.get(key) ?? { key, total: 0, wins: 0, losses: 0, pending: 0, invalidated: 0 };
+    const bucket = map.get(key) ?? { key, total: 0, wins: 0, losses: 0, pending: 0, invalidated: 0, superseded: 0 };
     bucket.total += 1;
     if (status === "WIN") bucket.wins += 1;
     else if (status === "LOSS") bucket.losses += 1;
     else if (status === "INVALIDATED") bucket.invalidated += 1;
+    else if (status === "SUPERSEDED") bucket.superseded += 1;
     else bucket.pending += 1;
     map.set(key, bucket);
   };
@@ -513,7 +520,7 @@ export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], vers
   const wins = rows.filter((row) => row.status === "WIN").length;
   const losses = rows.filter((row) => row.status === "LOSS").length;
   const resolved = wins + losses;
-  return { version, total: rows.length, components: Array.from(componentMap.values()).map(withRate).sort((a, b) => b.total - a.total), regimes: Array.from(regimeMap.values()).map(withRate).sort((a, b) => b.total - a.total), confidenceBands: Array.from(confidenceMap.values()).map(withRate).sort((a, b) => a.key.localeCompare(b.key)), validation: { resolved, wins, losses, pending: rows.filter((row) => row.status === "PENDING").length, invalidated: rows.filter((row) => row.status === "INVALIDATED").length, winRate: resolved ? Math.round((wins / resolved) * 100) : null, reviewThreshold: 50, reviewReady: resolved >= 50, reviewStatus: resolved >= 50 ? "READY_FOR_REVIEW" as const : "COLLECTING_EVIDENCE" as const } };
+  return { version, total: rows.length, components: Array.from(componentMap.values()).map(withRate).sort((a, b) => b.total - a.total), regimes: Array.from(regimeMap.values()).map(withRate).sort((a, b) => b.total - a.total), confidenceBands: Array.from(confidenceMap.values()).map(withRate).sort((a, b) => a.key.localeCompare(b.key)), validation: { resolved, wins, losses, pending: rows.filter((row) => row.status === "PENDING").length, invalidated: rows.filter((row) => row.status === "INVALIDATED").length, superseded: rows.filter((row) => row.status === "SUPERSEDED").length, winRate: resolved ? Math.round((wins / resolved) * 100) : null, reviewThreshold: 50, reviewReady: resolved >= 50, reviewStatus: resolved >= 50 ? "READY_FOR_REVIEW" as const : "COLLECTING_EVIDENCE" as const } };
 }
 
 export async function getReplacementOutcomeStats(userId: number) {

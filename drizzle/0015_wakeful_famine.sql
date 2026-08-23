@@ -1,0 +1,1 @@
+ALTER TABLE `generated_signals` ADD `confluenceScore` decimal(5,2);

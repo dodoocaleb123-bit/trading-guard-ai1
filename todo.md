@@ -741,3 +741,18 @@
 - [x] Monitor available Heartbeat cycles for a current locator-era signal and contradiction reply
 - [x] Reconcile any threaded Telegram adjustment reply with the persisted adjustment record
 - [x] Run verification and publish the close-of-day update without changing thresholds
+
+## Stronger setup while an asset/timeframe trade is unresolved
+
+- [x] Define a deterministic comparison between a new v4 setup and the active unresolved setup for the same asset/timeframe
+- [x] Decide whether a stronger setup should be a linked upgrade/adjustment rather than a second independent signal
+- [x] Preserve the original signal, avoid duplicate Telegram entries, and keep all changes paper-only
+- [x] Present the design for confirmation before implementing production behavior changes
+
+## Confirmed linked setup-upgrade implementation
+
+- [x] Add a durable linked upgrade record and superseded paper-signal lifecycle status
+- [x] Compare new qualified v4 candidates against the active unresolved thesis using deterministic improvement criteria
+- [x] Send one idempotent threaded setup-upgrade Telegram reply while preserving the original signal history
+- [x] Keep outcome accounting, duplicate suppression, and all trading actions paper-only
+- [x] Add regression coverage, run full verification, and publish the release

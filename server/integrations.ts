@@ -305,6 +305,26 @@ export function formatPaperTradeAdjustmentTelegramMessage(input: { signalId: num
   return lines.join("\n");
 }
 
+export function formatPaperTradeUpgradeTelegramMessage(input: { signalId: number; replacementSignalId: number; asset: string; timeframe: string; direction: string; entry: number | string; stopLoss: number | string; takeProfit: number | string; confidence: number; confluenceScore: number; reason: string; improvements: string[] }) {
+  const safe = (value: string) => escapeTelegramHtml(value);
+  return [
+    "TradingGuardAI · PAPER SETUP UPGRADE",
+    `Original signal #${input.signalId} · Replacement thesis #${input.replacementSignalId}`,
+    `${safe(input.direction)} ${safe(input.asset)} · ${safe(input.timeframe)}`,
+    "Paper only · UNVALIDATED · No live order changed",
+    "",
+    "Stronger setup detected",
+    `Entry: ${input.entry}`,
+    `Stop loss: ${input.stopLoss}`,
+    `Take profit: ${input.takeProfit}`,
+    `Confidence: ${input.confidence}% · Confluence: ${input.confluenceScore}%`,
+    safe(input.reason),
+    ...(input.improvements.length ? ["", "Why this setup is stronger", ...input.improvements.slice(0, 6).map((item) => `• ${safe(item)}`)] : []),
+    "",
+    "The original paper signal is preserved for audit history and marked SUPERSEDED; only the replacement thesis remains active.",
+  ].join("\\n");
+}
+
 export function formatReasonTelegramMessage(input: {
   signalId: number;
   asset: string;

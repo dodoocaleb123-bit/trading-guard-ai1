@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatReasonTelegramMessage, shouldNotifyApprovedAudit } from "./integrations";
+import { formatApprovedTelegramMessage, formatOutcomeCorrectionTelegramMessage, formatOutcomeTelegramMessage, formatReasonTelegramMessage, shouldNotifyApprovedAudit } from "./integrations";
 import { isAuthorizedScannerCron } from "./scheduled";
 
 describe("approved Telegram signal formatting", () => {
@@ -27,6 +27,14 @@ describe("approved Telegram signal formatting", () => {
     expect(win).toBe(["WIN", "BUY", "BTC/USD · 15MIN", "Entry: 65382.36", "Paper only · UNVALIDATED"].join("\n"));
     const loss = formatOutcomeTelegramMessage({ asset: "EUR/USD", timeframe: "1H", direction: "SELL", status: "LOSS", entry: "1.16000", stopLoss: "1.16140", takeProfit: "1.15720", closePrice: 1.1614, signalId: 1200011 });
     expect(loss).toContain("LOSS\nSELL\nEUR/USD · 1H");
+  });
+
+  it("renders an auditable correction for a retracted outcome", () => {
+    const message = formatOutcomeCorrectionTelegramMessage({ asset: "XAU/USD", timeframe: "1H", direction: "BUY", entry: "4607.84380000", signalId: 14610004, reason: "The earlier tracker used a pre-entry candle range." });
+    expect(message).toContain("OUTCOME CORRECTION");
+    expect(message).toContain("earlier WIN notification was incorrect and has been retracted");
+    expect(message).toContain("OPEN/PENDING");
+    expect(message).toContain("Paper only · UNVALIDATED");
   });
 
   it("renders detailed Reason explanations from stored signal metadata", () => {

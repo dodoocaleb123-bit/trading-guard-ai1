@@ -288,6 +288,18 @@ export function formatOutcomeTelegramMessage(input: { asset: string; timeframe: 
   ].join("\n");
 }
 
+export function formatOutcomeCorrectionTelegramMessage(input: { asset: string; timeframe: string; direction: string; entry: number | string; signalId: number; reason: string }) {
+  return [
+    "OUTCOME CORRECTION",
+    `${input.direction} ${input.asset} · ${input.timeframe}`,
+    `Entry: ${input.entry} · Signal #${input.signalId}`,
+    "The earlier WIN notification was incorrect and has been retracted.",
+    "The paper signal remains OPEN/PENDING; no take-profit touch was confirmed.",
+    input.reason,
+    "Paper only · UNVALIDATED · No live order changed",
+  ].join("\n");
+}
+
 export function formatPaperTradeAdjustmentTelegramMessage(input: { signalId: number; asset: string; timeframe: string; originalDirection: string; observedDirection: string; currentPrice: number; confidence: number; confluenceScore: number; action: string; reason: string; evidence: { opposingIndicators: string[]; supportingComponents: string[]; conflictingComponents: string[]; suggestedStopLoss?: number } }) {
   const safe = (value: string) => escapeTelegramHtml(value);
   const lines = [

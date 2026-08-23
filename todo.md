@@ -958,3 +958,16 @@
 - [x] Determine whether the WIN was caused by a price-level mismatch, wrong signal linkage, premature classification, or stale data; confirmed same-cycle look-ahead from the pre-entry candle range
 - [x] Correct the tracker only if the defect is confirmed, preserving an auditable paper-only history; signal #14610004 was reopened as PENDING with a correction note
 - [x] Add regression coverage, validate the outcome reply path, and publish any required correction; tracker tests, TypeScript, build, and live verification passed
+
+## Outcome correction and resolution telemetry
+
+- [x] Issue one auditable Telegram correction reply for the retracted XAU/USD 1H WIN
+- [x] Persist the resolution candle timestamp, observed price, high, low, and whether intrabar evidence was used
+- [x] Add dashboard/audit visibility for the evidence used to resolve each paper signal
+- [x] Add regression coverage, validate the corrected signal, and monitor its genuine post-entry outcome
+
+- [x] Execute and verify the one-time XAU/USD #14610004 correction notification
+- [x] Synchronize generated-signals resolution telemetry schema with the live database
+- [x] Add regression coverage for auditable Telegram outcome corrections
+- [x] Verify corrected XAU/USD #14610004 remains PENDING until a post-entry candle resolves it
+- [x] Show resolution candle timestamp, observed price, high/low range, intrabar mode, and audit note in Trade History for resolved paper signals

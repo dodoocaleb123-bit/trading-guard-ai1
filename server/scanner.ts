@@ -374,8 +374,9 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
       const observedLow = useIntrabarRange ? Number(market.low) : price;
       const status = resolveOutcome(signal.direction, price, stop, target, observedHigh, observedLow);
       if (!status) continue;
-      const note = `Closed from live ${signal.asset} ${signal.timeframe} price ${price}.`;
-      await db.update(generatedSignals).set({ status, closedAt: new Date(), outcomeNote: note }).where(eq(generatedSignals.id, signal.id));
+      const resolutionCandleAt = candleStartedAt ? new Date(candleStartedAt.includes("T") ? candleStartedAt : `${candleStartedAt.replace(" ", "T")}Z`) : null;
+      const note = `Closed from live ${signal.asset} ${signal.timeframe} price ${price}; evidence candle ${resolutionCandleAt?.toISOString() ?? "unavailable"}; intrabar range ${useIntrabarRange ? "used" : "not used"}.`;
+      await db.update(generatedSignals).set({ status, closedAt: new Date(), outcomeNote: note, resolutionCandleAt, resolutionPrice: String(price), resolutionHigh: Number.isFinite(Number(market.high)) ? String(market.high) : null, resolutionLow: Number.isFinite(Number(market.low)) ? String(market.low) : null, resolutionUsedIntrabar: useIntrabarRange }).where(eq(generatedSignals.id, signal.id));
       await mirrorToSupabase("trade_outcomes", { signal_id: signal.id, user_id: userId, status, close_price: price, note });
       const activeVersion = await getActiveIntelligenceVersion(userId);
       const sourceComponents = (() => { try { return JSON.parse(signal.intelligenceComponents ?? "[]") as string[]; } catch { return []; } })();

@@ -73,6 +73,12 @@ export const generatedSignals = mysqlTable("generated_signals", {
   outcomeNote: text("outcomeNote"),
   openedAt: timestamp("openedAt").defaultNow().notNull(),
   closedAt: timestamp("closedAt"),
+  /** Evidence used by the tracker when resolving a paper signal. */
+  resolutionCandleAt: timestamp("resolutionCandleAt"),
+  resolutionPrice: decimal("resolutionPrice", { precision: 18, scale: 8 }),
+  resolutionHigh: decimal("resolutionHigh", { precision: 18, scale: 8 }),
+  resolutionLow: decimal("resolutionLow", { precision: 18, scale: 8 }),
+  resolutionUsedIntrabar: boolean("resolutionUsedIntrabar"),
 });
 
 export const auditTrades = mysqlTable("audit_trades", {

@@ -177,13 +177,13 @@ function parseMarketSeries(symbol: string, interval: "15min" | "1h", payload: an
 
 export async function fetchMarketSeries(asset: string, interval: "15min" | "1h") {
   const symbol = normalizeAsset(asset);
-  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol, interval, outputsize: 30, order: "ASC" }, 15000);
+  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol, interval, outputsize: 30, order: "ASC", timezone: "UTC" }, 15000);
   return parseMarketSeries(symbol, interval, response.data);
 }
 
 export async function fetchMarketSeriesBatch(assets: readonly string[], interval: "15min" | "1h") {
   const symbols = assets.map(normalizeAsset);
-  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 30, order: "ASC" }, 20000);
+  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 30, order: "ASC", timezone: "UTC" }, 20000);
   if (response.data?.status === "error") throw new Error(response.data.message ?? "OHLCV batch unavailable");
   const result = new Map<string, MarketSeries>();
   for (const symbol of symbols) {

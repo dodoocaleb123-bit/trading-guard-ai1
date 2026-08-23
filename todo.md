@@ -854,3 +854,12 @@
 - [x] Verify current threshold configuration, live locator states, Heartbeat, and market-data availability; one strong-indicator setups use 68%/45%, two-or-more use 60%/45%, and the latest Heartbeat returned HTTP 200 with marketData=available
 - [x] Check post-fix v4 geometry and paper-outcome records while carrying out the monitoring follow-ups; no new post-fix signal qualified and the current locator-era sample remains one LOSS
 - [x] Correct any confirmed threshold-display or logic mismatch, test it, and publish the result without creating live trades; no mismatch was confirmed, so no threshold change was made
+
+## Renewed EUR/USD snapshot investigation
+
+- [x] Trace EUR/USD inclusion in the scanner market-data request and active Heartbeat schedule; EUR/USD remains in the four-asset watchlist and is requested for both 15min and 1h on every active five-minute cycle
+- [x] Verify live Twelve Data EUR/USD availability and locator freshness for both timeframes; Twelve Data returned EUR/USD data, but the default exchange-local timestamp was interpreted as future UTC and rejected by the freshness gate
+- [x] Carry out post-fix signal, geometry, outcome, and monitoring checks; no new post-fix signal qualified, the current locator-era sample remains one BTC/USD 1H LOSS, and exact-2R tests remain passing
+- [x] Apply and publish a safe correction only if a confirmed blocker exists; explicit UTC time-series requests were added and validated without changing thresholds or creating trades
+
+- [x] Add an explicit UTC timezone to Twelve Data time-series requests so provider exchange-local timestamps cannot be rejected as future snapshots; add regression coverage and publish; focused 11-test, full 128-test, TypeScript, and build validation passed

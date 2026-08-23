@@ -14,6 +14,7 @@ import { scanAllUsers } from "../scanner";
 import { isAuthorizedScannerCron } from "../scheduled";
 import { sendWeeklyStrategySummary } from "../weekly-summary";
 import { handleTelegramWebhookUpdate, isTelegramWebhookAuthorized } from "../telegram-webhook";
+import { finishScannerRun, startScannerRun } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -76,14 +77,23 @@ async function startServer() {
     }
   });
   app.post("/api/scheduled/trading-guard-scanner", async (req, res) => {
+    let runId: number | null = null;
     try {
       const user = await sdk.authenticateRequest(req);
       if (!isAuthorizedScannerCron(user)) return res.status(403).json({ error: "cron-only" });
+      const run = await startScannerRun(user.taskUid!);
+      runId = run.row?.id ?? null;
+      if (run.duplicate) {
+        console.info(`[Scanner] Duplicate Heartbeat callback suppressed for run ${run.row?.runKey ?? "unknown"}.`);
+        return res.json({ ok: true, duplicate: true, runId });
+      }
       const result = await scanAllUsers();
+      await finishScannerRun(runId!, { status: "SUCCEEDED", usersProcessed: result.users, createdSignals: result.created, trackedSignals: result.tracked, adjustments: result.adjustments, marketData: result.marketData });
       console.info(`[Scanner] Scheduled run complete: users=${result.users} created=${result.created} tracked=${result.tracked} adjustments=${result.adjustments} marketData=${result.marketData}`);
-      return res.json({ ok: true, ...result });
+      return res.json({ ok: true, runId, ...result });
     } catch (error) {
-      return res.status(500).json({ error: error instanceof Error ? error.message : "scanner failed", timestamp: new Date().toISOString() });
+      if (runId) await finishScannerRun(runId, { status: "FAILED", marketData: "unavailable", error: error instanceof Error ? error.message : String(error) });
+      return res.status(500).json({ error: error instanceof Error ? error.message : "scanner failed", runId, timestamp: new Date().toISOString() });
     }
   });
   // tRPC API

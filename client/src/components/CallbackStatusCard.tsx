@@ -20,6 +20,7 @@ export function CallbackStatusCard() {
   const status = data?.status ?? "SCHEDULER_UNAVAILABLE";
   const healthy = status === "HEALTHY";
   const unavailable = status === "SCHEDULER_UNAVAILABLE";
+  const staleCycle = Boolean(data?.staleCycle);
   const StatusIcon = healthy ? CheckCircle2 : unavailable ? ServerCog : AlertTriangle;
   const badgeClass = healthy
     ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700"
@@ -56,6 +57,22 @@ export function CallbackStatusCard() {
               <StatusIcon className={`mt-0.5 h-4 w-4 shrink-0 ${healthy ? "text-emerald-600" : unavailable ? "text-slate-600" : "text-amber-600"}`} />
               <p className="text-sm leading-6 text-muted-foreground">{data?.diagnosis ?? "Loading scheduler status…"}</p>
             </div>
+            {staleCycle && (
+              <div className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>The next Heartbeat time is overdue by more than two minutes. This is a platform scheduling warning; the app cannot force a missed callback, but the durable run ledger will show whether a later callback reached the app.</p>
+              </div>
+            )}
+            {data?.latestRun && (
+              <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">Latest app-side run ledger</span>
+                  <Badge variant="outline">{data.latestRun.status}</Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Started {formatDateTime(data.latestRun.startedAt)}{data.latestRun.finishedAt ? ` · finished ${formatDateTime(data.latestRun.finishedAt)}` : " · still running"}</p>
+                {data.latestRun.error && <p className="mt-1 text-xs text-rose-700">{data.latestRun.error}</p>}
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl border bg-muted/20 p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 className="h-3.5 w-3.5" />Last app scan</div>

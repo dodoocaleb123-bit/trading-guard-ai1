@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV4OutcomeStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV4MonitoringStats, listEntryLocatorStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV4OutcomeStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV4MonitoringStats, listEntryLocatorStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, resolveLessonPatternReview } from "./intelligence";
@@ -255,7 +255,11 @@ Matched strategy rules:\n${rulesText || "No matching rule excerpt was found."}\n
         const db = await getDb();
         if (db) await db.update(appSettings).set({ scheduleCronTaskUid: taskUid }).where(eq(appSettings.userId, ctx.user.id));
       }
-      return buildCallbackStatus({ scannerEnabled: settings.scannerEnabled, scheduleCronTaskUid: taskUid, strategyEngineStatus: settings.strategyEngineStatus, strategyEngineLastRunAt: settings.strategyEngineLastRunAt, schedulerJob, schedulerRegistryAvailable: registryAvailable });
+      const status = buildCallbackStatus({ scannerEnabled: settings.scannerEnabled, scheduleCronTaskUid: taskUid, strategyEngineStatus: settings.strategyEngineStatus, strategyEngineLastRunAt: settings.strategyEngineLastRunAt, schedulerJob, schedulerRegistryAvailable: registryAvailable });
+      const recentRuns = taskUid ? await listRecentScannerRuns(taskUid, 5) : [];
+      const latestRun = recentRuns[0] ?? null;
+      const stale = Boolean(schedulerJob?.isEnable && schedulerJob.nextExecutionAt && new Date(schedulerJob.nextExecutionAt).getTime() < Date.now() - 120000);
+      return { ...status, recentRuns, latestRun, staleCycle: stale };
     }),
     cooldownHistory: protectedProcedure.query(({ ctx }) => listCooldownChanges(ctx.user.id)),
     updateCooldown: protectedProcedure.input(z.object({ minutes: z.number().int().min(0).max(1440) })).mutation(async ({ ctx, input }) => {

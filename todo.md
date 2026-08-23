@@ -876,11 +876,11 @@
 
 ## Five-minute Heartbeat reliability
 
-- [ ] Audit the active scanner Heartbeat lifecycle, callback authentication, timeout behavior, and duplicate-run safeguards
-- [ ] Assess reliable missed-run detection and recovery options that remain compatible with free Autoscale
-- [ ] Implement safe idempotent observability or recovery improvements if the application can control them
-- [ ] Validate and publish the reliability update, keeping v4 paper-only and unchanged
-- [ ] Document what the platform can guarantee and what remains outside application control
+- [x] Audit the active scanner Heartbeat lifecycle, callback authentication, timeout behavior, and duplicate-run safeguards
+- [x] Assess reliable missed-run detection and recovery options that remain compatible with free Autoscale; added app-side stale-cycle detection and documented platform-managed recovery boundaries
+- [x] Implement safe idempotent observability or recovery improvements if the application can control them; added a unique five-minute UTC run ledger and duplicate callback suppression
+- [x] Validate and publish the reliability update, keeping v4 paper-only and unchanged; full tests, TypeScript, build, and dashboard verification passed
+- [x] Document what the platform can guarantee and what remains outside application control in HEARTBEAT_RELIABILITY.md
 
 ## Heartbeat task identity reconciliation
 

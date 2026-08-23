@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildCallbackStatus, selectScannerSchedulerJob, type SchedulerJobSnapshot } from "./scheduler-status";
+import { buildScannerRunKey } from "./db";
 
 const job: SchedulerJobSnapshot = {
   taskUid: "task-123",
@@ -12,6 +13,16 @@ const job: SchedulerJobSnapshot = {
   lastExecutedAt: "2026-08-23T02:00:00.000Z",
   nextExecutionAt: "2026-08-23T02:05:00.000Z",
 };
+
+describe("scanner run key", () => {
+  it("is stable within a five-minute UTC bucket", () => {
+    const first = buildScannerRunKey("task-123", new Date("2026-08-23T02:00:01.000Z"));
+    const retry = buildScannerRunKey("task-123", new Date("2026-08-23T02:04:59.000Z"));
+    const next = buildScannerRunKey("task-123", new Date("2026-08-23T02:05:00.000Z"));
+    expect(retry).toBe(first);
+    expect(next).not.toBe(first);
+  });
+});
 
 describe("scheduler job selection", () => {
   it("keeps the exact stored scanner task when it is still registered", () => {

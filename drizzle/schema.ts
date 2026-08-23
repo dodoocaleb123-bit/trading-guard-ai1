@@ -1,4 +1,4 @@
-import { boolean, decimal, int, mediumtext, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, decimal, index, int, mediumtext, mysqlEnum, mysqlTable, text, timestamp, unique, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -228,6 +228,28 @@ export const appSettings = mysqlTable("app_settings", {
   scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
+
+export const scannerRunLedger = mysqlTable("scanner_run_ledger", {
+  id: int("id").autoincrement().primaryKey(),
+  taskUid: varchar("taskUid", { length: 65 }).notNull(),
+  runKey: varchar("runKey", { length: 128 }).notNull(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  finishedAt: timestamp("finishedAt"),
+  status: mysqlEnum("status", ["RUNNING", "SUCCEEDED", "FAILED"]).default("RUNNING").notNull(),
+  usersProcessed: int("usersProcessed").default(0).notNull(),
+  createdSignals: int("createdSignals").default(0).notNull(),
+  trackedSignals: int("trackedSignals").default(0).notNull(),
+  adjustments: int("adjustments").default(0).notNull(),
+  marketData: mysqlEnum("marketData", ["available", "unavailable", "not-run"]).default("not-run").notNull(),
+  error: text("error"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  runKeyUnique: unique("scanner_run_ledger_run_key_unique").on(table.runKey),
+  taskUidIdx: index("scanner_run_ledger_task_uid_idx").on(table.taskUid),
+  startedAtIdx: index("scanner_run_ledger_started_at_idx").on(table.startedAt),
+}));
+
+export type ScannerRunLedger = typeof scannerRunLedger.$inferSelect;
 
 export type StrategyRule = typeof strategyRules.$inferSelect;
 export type GeneratedSignal = typeof generatedSignals.$inferSelect;

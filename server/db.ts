@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte, inArray, isNull, lt, notInArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
 
@@ -379,6 +379,40 @@ export async function getSettings(userId: number) {
   if (rows[0]) return rows[0];
   await db.insert(appSettings).values({ userId });
   return { onboardingComplete: false, scannerEnabled: true, setupCooldownMinutes: 30, strategyEngineStatus: "NOT_RUN" as const, strategyEngineLastRunAt: null, strategyEngineLastError: null, strategyEngineTotalSnapshots: 0, strategyEngineCompleteResponses: 0, strategyEngineRetryCount: 0, strategyEngineUnavailableCycles: 0, scheduleCronTaskUid: null };
+}
+
+export function buildScannerRunKey(taskUid: string, at = new Date()) {
+  const fiveMinuteBucket = Math.floor(at.getTime() / (5 * 60 * 1000));
+  return `${taskUid}:${fiveMinuteBucket}`;
+}
+
+export async function startScannerRun(taskUid: string, at = new Date()) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const runKey = buildScannerRunKey(taskUid, at);
+  const existing = await db.select().from(scannerRunLedger).where(eq(scannerRunLedger.runKey, runKey)).limit(1);
+  if (existing[0]) return { row: existing[0], duplicate: true };
+  try {
+    const result = await db.insert(scannerRunLedger).values({ taskUid, runKey, startedAt: at, status: "RUNNING" });
+    const rows = await db.select().from(scannerRunLedger).where(eq(scannerRunLedger.id, Number(result[0].insertId))).limit(1);
+    return { row: rows[0], duplicate: false };
+  } catch (error) {
+    const raced = await db.select().from(scannerRunLedger).where(eq(scannerRunLedger.runKey, runKey)).limit(1);
+    if (raced[0]) return { row: raced[0], duplicate: true };
+    throw error;
+  }
+}
+
+export async function finishScannerRun(id: number, input: { status: "SUCCEEDED" | "FAILED"; usersProcessed?: number; createdSignals?: number; trackedSignals?: number; adjustments?: number; marketData?: "available" | "unavailable" | "not-run"; error?: string | null }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(scannerRunLedger).set({ ...input, finishedAt: new Date(), error: input.error ?? null }).where(eq(scannerRunLedger.id, id));
+}
+
+export async function listRecentScannerRuns(taskUid: string, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(scannerRunLedger).where(eq(scannerRunLedger.taskUid, taskUid)).orderBy(desc(scannerRunLedger.startedAt)).limit(limit);
 }
 
 export async function updateStrategyEngineStatus(userId: number, input: { status: "AVAILABLE" | "UNAVAILABLE" | "NOT_RUN"; error?: string | null }) {

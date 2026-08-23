@@ -559,3 +559,10 @@
 - [x] Measure per-asset/timeframe wait duration before qualification
 - [x] Compare accumulated-snapshot and immediate setup classes when resolved outcomes exist
 - [x] Calculate observed scanner-to-Telegram delivery duration and report timing limitations
+
+
+## Missing Telegram Signal Investigation
+
+- [x] Diagnose why the latest v4 scan has not produced a new Telegram signal
+- [x] Verify locator qualification, active-signal suppression, market-data freshness, and Telegram delivery records
+- [x] Report the verified cause and any required user action

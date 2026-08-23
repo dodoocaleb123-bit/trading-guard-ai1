@@ -598,3 +598,11 @@
 - [x] Add a protected callback-status data procedure with schedule and latest-run diagnostics
 - [x] Add a responsive dashboard status card showing last callback, next run, HTTP status, and failure reason
 - [x] Add regression tests, verify one active scanner schedule, and report remaining limitations
+
+
+## Heartbeat Regression Comparison
+
+- [x] Capture the last known successful Heartbeat and current failed-run evidence
+- [x] Compare historical and current callback route, bundle, deployment, and schedule configuration
+- [x] Identify the most likely regression cause without changing production data
+- [x] Report what changed and the safest remedy

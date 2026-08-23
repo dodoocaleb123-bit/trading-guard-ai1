@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { summarizeReplacementOutcomes, summarizeWinningRate } from "./db";
+import { buildWinningRateReconciliation, summarizeReplacementOutcomes, summarizeWinningRate } from "./db";
 
 describe("replacement outcome statistics", () => {
   it("aggregates by component and market regime without losing paper statuses", () => {
@@ -21,6 +21,11 @@ describe("replacement outcome statistics", () => {
 
   it("returns an empty collecting state before the first replacement outcome", () => {
     expect(summarizeReplacementOutcomes([])).toMatchObject({ total: 0, components: [], regimes: [], confidenceBands: [], validation: { resolved: 0, pending: 0, winRate: null, reviewThreshold: 50, reviewReady: false, reviewStatus: "COLLECTING_EVIDENCE" } });
+  });
+
+  it("flags source records outside the recognized v1-v4 analytics set", () => {
+    expect(buildWinningRateReconciliation(14, 14)).toEqual({ sourceTotal: 14, includedTotal: 14, excludedTotal: 0, status: "RECONCILED" });
+    expect(buildWinningRateReconciliation(16, 14)).toEqual({ sourceTotal: 16, includedTotal: 14, excludedTotal: 2, status: "MISMATCH" });
   });
 
   it("keeps v1 through v4 separate across assets, timeframes, and requested confidence bands", () => {

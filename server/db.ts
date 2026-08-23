@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -530,11 +530,19 @@ export function summarizeWinningRate(rows: WinningRateRow[]) {
   });
   return { versions: byVersion, confidenceBandLabels: [...WINNING_RATE_BANDS], assets: [...WINNING_RATE_ASSETS], timeframes: [...WINNING_RATE_TIMEFRAMES] };
 }
+export type WinningRateReconciliation = { sourceTotal: number; includedTotal: number; excludedTotal: number; status: "RECONCILED" | "MISMATCH" };
+export function buildWinningRateReconciliation(sourceTotal: number, includedTotal: number): WinningRateReconciliation {
+  const excludedTotal = Math.max(sourceTotal - includedTotal, 0);
+  return { sourceTotal, includedTotal, excludedTotal, status: excludedTotal ? "MISMATCH" : "RECONCILED" };
+}
 export async function getWinningRateStats(userId: number) {
   const db = await getDb();
-  if (!db) return summarizeWinningRate([]);
-  const rows = await db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, confidence: generatedSignals.confidence, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), inArray(generatedSignals.intelligenceVersion, WINNING_RATE_VERSIONS)));
-  return summarizeWinningRate(rows.map((row) => ({ ...row, version: row.version ?? "" })));
+  if (!db) return { ...summarizeWinningRate([]), generatedAt: new Date(), reconciliation: buildWinningRateReconciliation(0, 0) };
+  const [rows, sourceCountRows] = await Promise.all([
+    db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, confidence: generatedSignals.confidence, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), inArray(generatedSignals.intelligenceVersion, WINNING_RATE_VERSIONS))),
+    db.select({ total: count() }).from(generatedSignals).where(eq(generatedSignals.userId, userId)),
+  ]);
+  return { ...summarizeWinningRate(rows.map((row) => ({ ...row, version: row.version ?? "" }))), generatedAt: new Date(), reconciliation: buildWinningRateReconciliation(Number(sourceCountRows[0]?.total ?? 0), rows.length) };
 }
 
 type TimingSignalRow = { version: string; asset: string; timeframe: string; status: string; openedAt: Date | string };

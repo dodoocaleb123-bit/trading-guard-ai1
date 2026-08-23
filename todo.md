@@ -645,3 +645,10 @@
 - [x] Reconcile the card’s filter with live generated-signal intelligenceVersion values
 - [x] Fix the mismatch or stale-query behavior without changing trade records
 - [x] Add regression coverage and verify the corrected displayed count
+
+
+## Winning Rate Freshness UX
+
+- [x] Add a last-updated timestamp to the Winning Rate analytics data
+- [x] Add an informational version-count reconciliation warning when source totals differ from displayed version totals
+- [x] Add regression coverage and verify desktop/mobile rendering

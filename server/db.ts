@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, lt, notInArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -539,10 +539,16 @@ export async function getWinningRateStats(userId: number) {
   const db = await getDb();
   if (!db) return { ...summarizeWinningRate([]), generatedAt: new Date(), reconciliation: buildWinningRateReconciliation(0, 0) };
   const [rows, sourceCountRows] = await Promise.all([
-    db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, confidence: generatedSignals.confidence, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), inArray(generatedSignals.intelligenceVersion, WINNING_RATE_VERSIONS))),
+    db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, confidence: generatedSignals.confidence, status: generatedSignals.status }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), inArray(generatedSignals.intelligenceVersion, [...WINNING_RATE_VERSIONS]))),
     db.select({ total: count() }).from(generatedSignals).where(eq(generatedSignals.userId, userId)),
   ]);
   return { ...summarizeWinningRate(rows.map((row) => ({ ...row, version: row.version ?? "" }))), generatedAt: new Date(), reconciliation: buildWinningRateReconciliation(Number(sourceCountRows[0]?.total ?? 0), rows.length) };
+}
+export async function listExcludedWinningRateSignals(userId: number, limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 500);
+  return db.select({ id: generatedSignals.id, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, direction: generatedSignals.direction, entry: generatedSignals.entry, stopLoss: generatedSignals.stopLoss, takeProfit: generatedSignals.takeProfit, confidence: generatedSignals.confidence, status: generatedSignals.status, intelligenceVersion: generatedSignals.intelligenceVersion, openedAt: generatedSignals.openedAt, closedAt: generatedSignals.closedAt }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), or(isNull(generatedSignals.intelligenceVersion), notInArray(generatedSignals.intelligenceVersion, [...WINNING_RATE_VERSIONS])))).orderBy(desc(generatedSignals.openedAt)).limit(safeLimit);
 }
 
 type TimingSignalRow = { version: string; asset: string; timeframe: string; status: string; openedAt: Date | string };
@@ -579,7 +585,7 @@ export function summarizeBestDaysToTrade(rows: TimingSignalRow[]) { return { uni
 async function getTimingStats(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, status: generatedSignals.status, openedAt: generatedSignals.openedAt }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), inArray(generatedSignals.intelligenceVersion, WINNING_RATE_VERSIONS)));
+  return db.select({ version: generatedSignals.intelligenceVersion, asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, status: generatedSignals.status, openedAt: generatedSignals.openedAt }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), inArray(generatedSignals.intelligenceVersion, [...WINNING_RATE_VERSIONS])));
 }
 export async function getBestTimeToTradeStats(userId: number) { return summarizeBestTimeToTrade((await getTimingStats(userId)).map((row) => ({ ...row, version: row.version ?? "" }))); }
 export async function getBestDaysToTradeStats(userId: number) { return summarizeBestDaysToTrade((await getTimingStats(userId)).map((row) => ({ ...row, version: row.version ?? "" }))); }

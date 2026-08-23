@@ -652,3 +652,22 @@
 - [x] Add a last-updated timestamp to the Winning Rate analytics data
 - [x] Add an informational version-count reconciliation warning when source totals differ from displayed version totals
 - [x] Add regression coverage and verify desktop/mobile rendering
+
+
+## Analytics Controls and v4 Signal Inventory
+
+- [x] Add an excluded-record inspection view for records outside recognized v1–v4 versions
+- [x] Add manual and automatic refresh controls to Winning Rate analytics
+- [x] Show latest scanner and Heartbeat timestamps beside analytics freshness
+- [x] Add regression coverage and verify responsive rendering
+- [x] Query every v4 Telegram signal and report its details and delivery status
+
+- [x] Fix Winning Rate analytics queries to accept the readonly v1–v4 version tuple without a Drizzle TypeScript error
+- [x] Add a protected excluded-record drill-down procedure for source records outside the recognized v1–v4 analytics set
+- [x] Add Winning Rate manual refresh, 60-second automatic refresh, scanner/Heartbeat telemetry, and excluded-record inspection UI
+- [x] Query the live database and compile the complete inventory of all trade signals sent by authoritative Replacement Intelligence v4
+- [x] Monitor the production Heartbeat after the analytics release and confirm whether callback routing has stabilized on free Autoscale
+
+## Pending live verification
+
+- [x] Re-run the live scanner and scheduler checks without mutating trade data; all outputs remain paper-only and UNVALIDATED

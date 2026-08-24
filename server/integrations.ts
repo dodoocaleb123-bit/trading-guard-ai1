@@ -183,19 +183,27 @@ export async function fetchMarketSeries(asset: string, interval: "15min" | "1h")
 
 export async function fetchMarketSeriesBatch(assets: readonly string[], interval: "15min" | "1h") {
   const symbols = assets.map(normalizeAsset);
-  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 30, order: "ASC", timezone: "UTC" }, 20000);
-  if (response.data?.status === "error") throw new Error(response.data.message ?? "OHLCV batch unavailable");
-  const result = new Map<string, MarketSeries>();
-  for (const symbol of symbols) {
-    const payload = response.data?.[symbol];
-    if (!payload) continue;
-    try {
-      result.set(symbol, parseMarketSeries(symbol, interval, payload));
-    } catch (error) {
-      console.warn(`[Market] ${symbol} ${interval} skipped:`, error instanceof Error ? error.message : error);
+  const startedAt = Date.now();
+  console.info(`[Market] Twelve Data batch started interval=${interval} assets=${symbols.length} at=${new Date(startedAt).toISOString()}`);
+  try {
+    const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 30, order: "ASC", timezone: "UTC" }, 20000);
+    if (response.data?.status === "error") throw new Error(response.data.message ?? "OHLCV batch unavailable");
+    const result = new Map<string, MarketSeries>();
+    for (const symbol of symbols) {
+      const payload = response.data?.[symbol];
+      if (!payload) continue;
+      try {
+        result.set(symbol, parseMarketSeries(symbol, interval, payload));
+      } catch (error) {
+        console.warn(`[Market] ${symbol} ${interval} skipped:`, error instanceof Error ? error.message : error);
+      }
     }
+    console.info(`[Market] Twelve Data batch completed interval=${interval} assets=${symbols.length} series=${result.size} durationMs=${Date.now() - startedAt} at=${new Date().toISOString()}`);
+    return result;
+  } catch (error) {
+    console.warn(`[Market] Twelve Data batch failed interval=${interval} assets=${symbols.length} durationMs=${Date.now() - startedAt}:`, error instanceof Error ? error.message : error);
+    throw error;
   }
-  return result;
 }
 
 export function shouldNotifyApprovedAudit(verdict: string) {

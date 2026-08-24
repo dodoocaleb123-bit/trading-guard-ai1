@@ -132,11 +132,14 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
 
   let series15m: Map<string, MarketSeries>;
   let series1h: Map<string, MarketSeries>;
+  const marketDataStartedAt = Date.now();
+  console.info(`[Scanner] Market-data window started user=${userId} at=${new Date(marketDataStartedAt).toISOString()}`);
   try {
     [series15m, series1h] = await Promise.all([
       fetchMarketSeriesBatch(WATCHLIST, "15min"),
       fetchMarketSeriesBatch(WATCHLIST, "1h"),
     ]);
+    console.info(`[Scanner] Market-data window completed user=${userId} series15m=${series15m.size} series1h=${series1h.size} durationMs=${Date.now() - marketDataStartedAt} at=${new Date().toISOString()}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await updateStrategyEngineStatus(userId, { status: "UNAVAILABLE", error: message });

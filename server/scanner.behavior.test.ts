@@ -88,7 +88,7 @@ vi.mock("./integrations", () => ({
   sendTelegramMessage,
 }));
 
-import { attachSetupIndicators, compactStrategyContext, scanUser, shouldNotifyScannerSignal } from "./scanner";
+import { attachSetupIndicators, compactStrategyContext, isEligibleContradictoryReplacement, scanUser, shouldNotifyScannerSignal } from "./scanner";
 
 const series = (symbol: string, interval: "15min" | "1h") => {
   const values = [{ open: "0.9", high: "1.1", low: "0.8", close: "1" }, { open: "1.9", high: "2.1", low: "1.8", close: "2" }, { open: "2.9", high: "3.1", low: "2.8", close: "3" }];
@@ -108,6 +108,13 @@ describe("scanner context bounds", () => {
     const decision = attachSetupIndicators({ direction: "BUY" as const, market: { close: 100 } }, indicators);
     expect(decision.setupIndicators).toEqual(indicators);
     expect(decision.market.setupIndicators).toEqual(indicators);
+  });
+
+  it("requires locator readiness and an allowed exact ratio for contradiction replacements", () => {
+    const base = { contradictionLocatorReady: true, entry: 100, stopLoss: 98, takeProfit: 104, decisionTrace: { levelDerivation: { selectedRiskReward: 2 } } };
+    expect(isEligibleContradictoryReplacement(base)).toBe(true);
+    expect(isEligibleContradictoryReplacement({ ...base, contradictionLocatorReady: false })).toBe(false);
+    expect(isEligibleContradictoryReplacement({ ...base, decisionTrace: { levelDerivation: { selectedRiskReward: 1 } } })).toBe(false);
   });
 
   it("limits the strategy context to the configured prompt budget", () => {

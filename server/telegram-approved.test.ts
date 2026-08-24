@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatApprovedTelegramMessage, formatOutcomeCorrectionTelegramMessage, formatOutcomeTelegramMessage, formatReasonTelegramMessage, shouldNotifyApprovedAudit } from "./integrations";
+import { formatApprovedTelegramMessage, formatOutcomeCorrectionTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatReasonTelegramMessage, shouldNotifyApprovedAudit } from "./integrations";
 import { isAuthorizedScannerCron } from "./scheduled";
 
 describe("approved Telegram signal formatting", () => {
@@ -27,6 +27,14 @@ describe("approved Telegram signal formatting", () => {
     expect(win).toBe(["WIN", "BUY", "BTC/USD · 15MIN", "Entry: 65382.36", "Paper only · UNVALIDATED"].join("\n"));
     const loss = formatOutcomeTelegramMessage({ asset: "EUR/USD", timeframe: "1H", direction: "SELL", status: "LOSS", entry: "1.16000", stopLoss: "1.16140", takeProfit: "1.15720", closePrice: 1.1614, signalId: 1200011 });
     expect(loss).toContain("LOSS\nSELL\nEUR/USD · 1H");
+  });
+
+  it("renders a concise warning when contradiction cannot qualify a replacement", () => {
+    const message = formatPaperTradeContradictionWarningTelegramMessage({ signalId: 14580001, asset: "GBP/USD", timeframe: "1H", originalDirection: "SELL", observedDirection: "BUY", currentPrice: 1.36538, confidence: 84, confluenceScore: 83, reason: "The opposing setup has not passed the replacement gates." });
+    expect(message).toContain("PAPER WARNING");
+    expect(message).toContain("no replacement signal was issued");
+    expect(message).toContain("Paper only · UNVALIDATED");
+    expect(message).not.toContain("Entry:");
   });
 
   it("renders an auditable correction for a retracted outcome", () => {

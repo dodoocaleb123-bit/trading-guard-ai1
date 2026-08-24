@@ -300,6 +300,20 @@ export function formatOutcomeCorrectionTelegramMessage(input: { asset: string; t
   ].join("\n");
 }
 
+export function formatPaperTradeContradictionWarningTelegramMessage(input: { signalId: number; asset: string; timeframe: string; originalDirection: string; observedDirection: string; currentPrice: number; confidence: number; confluenceScore: number; reason: string }) {
+  const safe = (value: string) => escapeTelegramHtml(value);
+  return [
+    "TradingGuardAI · PAPER WARNING",
+    `Original: ${safe(input.originalDirection)} ${safe(input.asset)} · ${safe(input.timeframe)} · Signal #${input.signalId}`,
+    "Paper only · UNVALIDATED · No live order changed",
+    "",
+    `Contradicting v4 direction: ${safe(input.observedDirection)}`,
+    `Current price: ${input.currentPrice} · Confidence: ${input.confidence}% · Confluence: ${input.confluenceScore}%`,
+    "The opposing setup is strong, but it did not pass the replacement Entry Locator and exact 1:2/1:3 geometry gates.",
+    "Review the original paper setup; no replacement signal was issued.",
+  ].join("\n");
+}
+
 export function formatPaperTradeAdjustmentTelegramMessage(input: { signalId: number; asset: string; timeframe: string; originalDirection: string; observedDirection: string; currentPrice: number; confidence: number; confluenceScore: number; action: string; reason: string; evidence: { opposingIndicators: string[]; supportingComponents: string[]; conflictingComponents: string[]; suggestedStopLoss?: number } }) {
   const safe = (value: string) => escapeTelegramHtml(value);
   const lines = [

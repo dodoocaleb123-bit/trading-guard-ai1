@@ -8,7 +8,7 @@ import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildRepl
 import { advanceEntryLocator, countStrongSetupIndicators, hasBreakoutConfirmationTransition, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
-import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
+import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
 import { notifyOwner } from "./_core/notification";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -57,6 +57,12 @@ export function compactStrategyContext(localRules: string, mirroredRules: string
 
 export function attachSetupIndicators<T extends { market: Record<string, unknown> }>(decision: T, setupIndicators: unknown[]) {
   return { ...decision, setupIndicators, market: { ...decision.market, setupIndicators } };
+}
+
+export function isEligibleContradictoryReplacement(decision: { contradictionLocatorReady?: boolean; entry?: unknown; stopLoss?: unknown; takeProfit?: unknown; decisionTrace?: { levelDerivation?: { selectedRiskReward?: unknown } } }) {
+  const selectedRiskReward = Number(decision.decisionTrace?.levelDerivation?.selectedRiskReward);
+  const hasLevels = [decision.entry, decision.stopLoss, decision.takeProfit].every((value) => value != null && Number.isFinite(Number(value)));
+  return decision.contradictionLocatorReady === true && hasLevels && (ALLOWED_RISK_REWARD_RATIOS as readonly number[]).includes(selectedRiskReward);
 }
 
 type ScanUserResult = { created: number; tracked: number; adjustments: number; marketData: ScanMarketDataStatus };
@@ -149,7 +155,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         const detectedIndicators = market.marketContext ? detectSetupIndicators({ market: { asset, close: series.close, interval: series.interval }, context: market.marketContext, fundamentalContext }, replacementModel) : [];
         const hasDirectionalIndicator = detectedIndicators.some((indicator) => indicator.direction !== "NEUTRAL");
         if (!market.marketContext || !hasDirectionalIndicator) {
-          return { asset, timeframe, noDirectionalSetup: true, verdict: "SKIPPED" as const, confidence: 0, confluenceScore: 0, marketRegime: "WAITING/ACCUMULATING", adjustments: "No directional setup indicator detected; accumulating fresh scanner snapshots before constructing a v4 candidate.", direction: "NEUTRAL" as const, entry: null, stopLoss: null, takeProfit: null, ruleEvidence: [], ruleFindings: [], decisionTrace: undefined, setupIndicators: detectedIndicators, market: { ...market, fundamentalContext, setupIndicators: detectedIndicators, replacementIntelligence: undefined, v3BaselineIntelligence: undefined, replacementMarketRegime: "WAITING/ACCUMULATING" } };
+          return { asset, timeframe, noDirectionalSetup: true, entryLocatorReady: false, entryLocatorReason: "No directional setup indicator detected; accumulating fresh scanner snapshots.", verdict: "SKIPPED" as const, confidence: 0, confluenceScore: 0, marketRegime: "WAITING/ACCUMULATING", adjustments: "No directional setup indicator detected; accumulating fresh scanner snapshots before constructing a v4 candidate.", direction: "NEUTRAL" as const, entry: null, stopLoss: null, takeProfit: null, ruleEvidence: [], ruleFindings: [], decisionTrace: undefined, setupIndicators: detectedIndicators, market: { ...market, fundamentalContext, setupIndicators: detectedIndicators, replacementIntelligence: undefined, v3BaselineIntelligence: undefined, replacementMarketRegime: "WAITING/ACCUMULATING" } };
         }
         const replacementIntelligence = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementModel);
         const v3BaselineIntelligence = market.marketContext ? evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementBaselineModel) : undefined;
@@ -157,6 +163,8 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         return attachSetupIndicators({
           asset,
           timeframe,
+          entryLocatorReady: false,
+          entryLocatorReason: "Entry locator status is assigned after this decision is observed.",
           verdict: "APPROVED" as const,
           confidence: replacementIntelligence.confidence,
           confluenceScore: replacementIntelligence.confluenceScore,
@@ -216,10 +224,14 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
     let previousLocator: Record<string, unknown> | null = null;
     try { previousLocator = storedLocator?.stateJson ? JSON.parse(storedLocator.stateJson) : null; } catch { previousLocator = null; }
     const locatorResult = advanceEntryLocator({ previous: previousLocator, observation, hasOpenSignal });
+    gated.entryLocatorReady = locatorResult.ready;
+    gated.entryLocatorReason = locatorResult.reason;
     const activeSignal = activeCurrentSignals.find((signal) => signal.asset === asset && signal.timeframe === timeframe);
     const upgradeLocatorResult = activeSignal
       ? advanceEntryLocator({ previous: previousLocator ? { ...previousLocator, status: "WAITING" } : null, observation, hasOpenSignal: false })
       : null;
+    gated.contradictionLocatorReady = activeSignal ? Boolean(upgradeLocatorResult?.ready) : locatorResult.ready;
+    gated.contradictionLocatorReason = activeSignal ? upgradeLocatorResult?.reason ?? locatorResult.reason : locatorResult.reason;
     const locatorState = locatorResult.ready ? markEntryLocatorEmitted(locatorResult.state, observation.fingerprint) : locatorResult.state;
     await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null,       lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify(locatorState), lastEmittedAt: locatorResult.ready ? new Date() : storedLocator?.lastEmittedAt ?? null });
     if (hasBreakoutConfirmationTransition(previousLocator, observation)) {
@@ -320,6 +332,8 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
 }
 
 async function monitorOpenSignalContradictions(userId: number, decisions: Array<any>, seriesCache: Map<string, MarketSeries>) {
+  const db = await getDb();
+  if (!db) return 0;
   const openSignals = await listOpenCurrentV4Signals(userId);
   let sent = 0;
   for (const signal of openSignals) {
@@ -331,10 +345,27 @@ async function monitorOpenSignalContradictions(userId: number, decisions: Array<
       if (!contradiction) continue;
       const signalDelivery = await getTelegramDeliveryForSignal(userId, signal.id, "SIGNAL");
       if (signalDelivery?.status !== "DELIVERED" || !signalDelivery.telegramMessageId) continue;
-      const dedupeKey = `adjustment:${signal.id}:${contradiction.fingerprint}`;
+      const selectedRiskReward = Number(decision.decisionTrace?.levelDerivation?.selectedRiskReward);
+      const replacementReady = isEligibleContradictoryReplacement(decision);
+      const dedupeKey = `adjustment:${signal.id}:${contradiction.fingerprint}:${replacementReady ? "REPLACEMENT" : "WARNING"}`;
       if (await hasTelegramDelivery(dedupeKey)) continue;
-      await createPaperTradeAdjustment({ userId, signalId: signal.id, asset: signal.asset, timeframe: signal.timeframe, originalDirection: signal.direction, observedDirection: contradiction.observedDirection, currentPrice: String(contradiction.evidence.currentPrice), confidence: String(contradiction.confidence), confluenceScore: String(contradiction.confluenceScore), action: contradiction.action, reason: contradiction.reason, evidenceJson: JSON.stringify(contradiction.evidence), dedupeKey });
-      const delivery = await sendTelegramMessage(formatPaperTradeAdjustmentTelegramMessage({ signalId: signal.id, asset: signal.asset, timeframe: signal.timeframe, originalDirection: signal.direction, observedDirection: contradiction.observedDirection, currentPrice: contradiction.evidence.currentPrice, confidence: contradiction.confidence, confluenceScore: contradiction.confluenceScore, action: contradiction.action, reason: contradiction.reason, evidence: contradiction.evidence }), signal.asset, { replyToMessageId: signalDelivery.telegramMessageId });
+      let replacementSignalId: number | null = null;
+      let message: string;
+      let action: "REVIEW_DIRECTION" | "TIGHTEN_STOP" | "EXIT_PAPER_SETUP" | "UPGRADE_PAPER_SETUP" = contradiction.action;
+      let reason = contradiction.reason;
+      if (replacementReady) {
+        const [replacementResult] = await db.insert(generatedSignals).values({ userId, asset: signal.asset, timeframe: signal.timeframe, direction: contradiction.observedDirection, entry: String(decision.entry), stopLoss: String(decision.stopLoss), takeProfit: String(decision.takeProfit), riskReward: selectedRiskReward.toFixed(2), confidence: String(decision.confidence), confluenceScore: String(decision.confluenceScore), rationale: formatAuditResult(decision, market), intelligenceVersion: "forex-trading-combined-document-v4", generationMode: ENTRY_LOCATOR_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify(decision.decisionTrace?.supportingComponents ?? decision.ruleEvidence ?? []), marketRegime: decision.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
+        replacementSignalId = Number(replacementResult.insertId);
+        action = "UPGRADE_PAPER_SETUP";
+        reason = `A contradictory ${contradiction.observedDirection} setup passed the Entry Locator with exact 1:${selectedRiskReward} geometry. The original ${signal.direction} paper setup is preserved for audit history and superseded by replacement signal #${replacementSignalId}.`;
+        await supersedeGeneratedSignal(signal.id, replacementSignalId, reason);
+        await mirrorToSupabase("generated_signals", { user_id: userId, signal_id: replacementSignalId, asset: signal.asset, timeframe: signal.timeframe, direction: contradiction.observedDirection, entry: decision.entry, stopLoss: decision.stopLoss, takeProfit: decision.takeProfit, riskReward: selectedRiskReward, confidence: decision.confidence, confluence_score: decision.confluenceScore, status: "PENDING", rationale: formatAuditResult(decision, market) });
+        message = formatApprovedTelegramMessage({ asset: signal.asset, timeframe: signal.timeframe, direction: contradiction.observedDirection, entry: decision.entry, stopLoss: decision.stopLoss, takeProfit: decision.takeProfit, confidence: decision.confidence, riskReward: selectedRiskReward, adjustments: reason, ruleEvidence: decision.ruleEvidence, confluenceScore: decision.confluenceScore, decisionTrace: decision.decisionTrace, fundamentalContext: market.fundamentalContext });
+      } else {
+        message = formatPaperTradeContradictionWarningTelegramMessage({ signalId: signal.id, asset: signal.asset, timeframe: signal.timeframe, originalDirection: signal.direction, observedDirection: contradiction.observedDirection, currentPrice: contradiction.evidence.currentPrice, confidence: contradiction.confidence, confluenceScore: contradiction.confluenceScore, reason: `${contradiction.reason} ${decision.contradictionLocatorReason ?? decision.entryLocatorReason ?? "The replacement setup has not qualified."}` });
+      }
+      await createPaperTradeAdjustment({ userId, signalId: signal.id, asset: signal.asset, timeframe: signal.timeframe, originalDirection: signal.direction, observedDirection: contradiction.observedDirection, currentPrice: String(contradiction.evidence.currentPrice), confidence: String(contradiction.confidence), confluenceScore: String(contradiction.confluenceScore), action, replacementSignalId, reason, evidenceJson: JSON.stringify({ ...contradiction.evidence, replacementReady, entryLocatorReason: decision.contradictionLocatorReason ?? decision.entryLocatorReason ?? null, selectedRiskReward: replacementReady ? selectedRiskReward : null }), dedupeKey });
+      const delivery = await sendTelegramMessage(message, signal.asset, { replyToMessageId: signalDelivery.telegramMessageId });
       await recordTelegramDelivery({ userId, signalId: signal.id, kind: "ADJUSTMENT", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey, error: delivery.error });
       if (delivery.delivered) sent += 1;
     } catch (error) {

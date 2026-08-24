@@ -977,4 +977,12 @@
 - [x] Verify v4 continues accumulating new setup indicators for every open current v4 signal
 - [x] Verify strong opposing indicators can create a deduplicated threaded Telegram adjustment reply
 - [x] Verify adjustment monitoring does not prematurely close or rewrite paper outcomes
-- [ ] Add or update regression coverage and report live contradiction-monitor state
+- [x] Add or update regression coverage and report live contradiction-monitor state
+
+## Contradiction replacement-signal follow-up
+
+- [ ] Define when a contradictory v4 setup is eligible to become a replacement paper signal
+- [ ] Send a threaded replacement signal when the opposing setup passes Entry Locator and exact 1:2 or 1:3 geometry
+- [ ] Send a concise threaded failure-warning reply when contradiction is strong but replacement qualification fails
+- [ ] Persist replacement/warning linkage without prematurely rewriting the original outcome
+- [ ] Add regression coverage, verify the GBP/USD case, and publish the update

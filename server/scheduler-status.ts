@@ -86,6 +86,27 @@ export function buildCallbackStatus(input: CallbackStatusInput) {
     };
   }
 
+  const nextExecutionAt = asDate(input.schedulerJob.nextExecutionAt);
+  const schedulerIsStale = Boolean(
+    input.schedulerJob.isEnable &&
+      nextExecutionAt &&
+      nextExecutionAt.getTime() < now.getTime() - 120000,
+  );
+
+  if (schedulerIsStale) {
+    return {
+      status: "SCHEDULER_STALE" as const,
+      label: "SCHEDULER STALE",
+      diagnosis: "The enabled Heartbeat task has passed its next execution time without a newer scheduled attempt. The last application scan may be healthy historically, but the current five-minute cycle is overdue.",
+      taskUid: configuredTaskUid,
+      schedulerJob: input.schedulerJob,
+      appLastRunAt,
+      schedulerLastAttemptAt,
+      nextExecutionAt,
+      minutesSinceApplicationRun: appLastRunAt ? Math.max(0, Math.round((now.getTime() - appLastRunAt.getTime()) / 60000)) : null,
+    };
+  }
+
   const applicationWasReached = Boolean(
     appLastRunAt &&
       schedulerLastAttemptAt &&
@@ -105,7 +126,7 @@ export function buildCallbackStatus(input: CallbackStatusInput) {
       schedulerJob: input.schedulerJob,
       appLastRunAt,
       schedulerLastAttemptAt,
-      nextExecutionAt: asDate(input.schedulerJob.nextExecutionAt),
+      nextExecutionAt,
       minutesSinceApplicationRun: appLastRunAt ? Math.max(0, Math.round((now.getTime() - appLastRunAt.getTime()) / 60000)) : null,
     };
   }

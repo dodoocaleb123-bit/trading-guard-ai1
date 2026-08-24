@@ -86,6 +86,21 @@ describe("callback status", () => {
     expect(result.diagnosis).toContain("reached the app");
   });
 
+  it("reports a stale scheduler when the next execution window has passed", () => {
+    const result = buildCallbackStatus({
+      scannerEnabled: true,
+      scheduleCronTaskUid: job.taskUid,
+      schedulerJob: { ...job, nextExecutionAt: "2026-08-23T02:05:00.000Z" },
+      schedulerRegistryAvailable: true,
+      strategyEngineStatus: "AVAILABLE",
+      strategyEngineLastRunAt: "2026-08-23T02:00:02.000Z",
+      now: new Date("2026-08-23T02:08:00.000Z"),
+    });
+    expect(result.status).toBe("SCHEDULER_STALE");
+    expect(result.label).toBe("SCHEDULER STALE");
+    expect(result.diagnosis).toContain("current five-minute cycle is overdue");
+  });
+
   it("reports callback not reached when the scheduler is newer than the app run", () => {
     const result = buildCallbackStatus({
       scannerEnabled: true,

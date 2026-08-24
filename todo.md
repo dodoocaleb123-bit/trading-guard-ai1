@@ -1047,3 +1047,13 @@
 - [x] Move the Trading Guard AI description outside the application project
 - [x] Remove the project copy without changing runtime code or behavior
 - [x] Verify the app remains healthy and publish the source cleanup
+
+## Fresh full application audit
+
+- [x] Establish a fresh code, test, typecheck, build, and runtime baseline
+- [x] Audit database, scanner, scheduler, market-data, Telegram, and outcome paths
+- [x] Audit dashboard, chat, analytics, responsive UI, and client logs
+- [x] Fix confirmed defects and add regression coverage
+- [ ] Repeat full validation, verify production behavior, and publish the verified result
+
+- [x] Correct callback-health classification so a missed/stale scheduled cycle cannot be reported as CALLBACK HEALTHY; add regression coverage and re-run the full audit.

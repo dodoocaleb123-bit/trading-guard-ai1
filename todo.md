@@ -1041,3 +1041,9 @@
 ## Trading Guard AI system description
 
 - [x] Prepare a complete current-state description of the app’s purpose, architecture, decision workflow, operations, auditing, and limitations
+
+## Standalone system-description document
+
+- [x] Move the Trading Guard AI description outside the application project
+- [x] Remove the project copy without changing runtime code or behavior
+- [x] Verify the app remains healthy and publish the source cleanup

@@ -1004,3 +1004,40 @@
 - [x] Correct Telegram delivery diagnostics so signal, outcome, adjustment, warning, upgrade, reason, and correction messages are classified accurately
 - [x] Replace literal undefined text in historical LOSS outcome notes with an explicit unavailable-forensics audit note
 - [x] Return HTTP 403 for missing or invalid scheduled-callback authentication instead of leaking an HTTP 500
+
+## Telegram delivery delay investigation
+
+- [x] Check latest Heartbeat execution and scanner run ledger status
+- [x] Check current v4 locator qualification and open-signal gating
+- [x] Check recent Telegram signal, outcome, and adjustment deliveries
+- [x] Report the verified cause and apply only a confirmed safe fix
+
+## BTC/USD breakout follow-up
+
+- [x] Verify whether later BTC/USD snapshots recorded a confirmed breakout
+- [x] Compare the breakout with cleared structural space and exact 1:2/1:3 geometry
+- [x] Check whether the locator emitted a signal or Telegram delivery occurred
+- [x] Explain the verified result and fix only a confirmed defect
+
+## BTC/USD 12:00 breakout check
+
+- [x] Verify the 12:00 UTC BTC/USD breakout flag and state
+- [x] Verify the associated geometry and Telegram result
+- [x] Report the precise 12:00 UTC result
+
+## Current all-asset Entry Locator diagnosis
+
+- [x] Collect current locator states and latest v4 decision reasons for all assets and timeframes
+- [x] Classify each blocked candidate by evidence, geometry, contradiction, duplicate, or open-signal gate
+- [x] Report whether the current no-emission pattern is expected or indicates a defect
+
+## XAU/USD geometry verification
+
+- [x] Inspect the latest XAU/USD v4 support/resistance and geometry inputs
+- [x] Recalculate exact 1:2 and 1:3 clearance independently
+- [x] Determine whether the XAU/USD rejection is expected or defective
+- [x] Report the verified result and apply only a confirmed safe correction
+
+## Trading Guard AI system description
+
+- [x] Prepare a complete current-state description of the app’s purpose, architecture, decision workflow, operations, auditing, and limitations

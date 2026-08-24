@@ -11,7 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import { ENV } from "./env";
 import { scanAllUsers } from "../scanner";
-import { isAuthorizedScannerCron } from "../scheduled";
+import { isAuthorizedScannerCron, isCronAuthenticationFailure } from "../scheduled";
 import { sendWeeklyStrategySummary } from "../weekly-summary";
 import { handleTelegramWebhookUpdate, isTelegramWebhookAuthorized } from "../telegram-webhook";
 import { finishScannerRun, listRecentScannerRuns, startScannerRun } from "../db";
@@ -75,6 +75,7 @@ async function startServer() {
       console.info(`[WeeklySummary] Scheduled run complete: decisions=${result.decisions ?? 0} delivery=${result.delivery ?? result.skipped ?? "none"}`);
       return res.json(result);
     } catch (error) {
+      if (isCronAuthenticationFailure(error)) return res.status(403).json({ error: "cron-only" });
       return res.status(500).json({ error: error instanceof Error ? error.message : "weekly summary failed", timestamp: new Date().toISOString() });
     }
   });
@@ -107,6 +108,7 @@ async function startServer() {
           console.warn(`[Scanner] Repeated-failure owner alert ${delivered ? "delivered" : "unavailable"}.`);
         }
       }
+      if (isCronAuthenticationFailure(error)) return res.status(403).json({ error: "cron-only" });
       return res.status(500).json({ error: error instanceof Error ? error.message : "scanner failed", runId, timestamp: new Date().toISOString() });
     }
   });

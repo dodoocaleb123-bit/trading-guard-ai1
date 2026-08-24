@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatApprovedTelegramMessage, formatOutcomeCorrectionTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatReasonTelegramMessage, shouldNotifyApprovedAudit } from "./integrations";
-import { isAuthorizedScannerCron } from "./scheduled";
+import { isAuthorizedScannerCron, isCronAuthenticationFailure } from "./scheduled";
 
 describe("approved Telegram signal formatting", () => {
   it("notifies only for approved audit verdicts", () => {
@@ -13,6 +13,12 @@ describe("approved Telegram signal formatting", () => {
     expect(isAuthorizedScannerCron({ isCron: true, taskUid: "task-123" })).toBe(true);
     expect(isAuthorizedScannerCron({ isCron: true, taskUid: null })).toBe(false);
     expect(isAuthorizedScannerCron({ isCron: false, taskUid: "task-123" })).toBe(false);
+  });
+
+  it("classifies invalid cron authentication for a clear 403 response", () => {
+    expect(isCronAuthenticationFailure(new Error("Invalid session cookie"))).toBe(true);
+    expect(isCronAuthenticationFailure(new Error("Missing session cookie"))).toBe(true);
+    expect(isCronAuthenticationFailure(new Error("Twelve Data timeout"))).toBe(false);
   });
 
   it("renders the requested compact signal format", () => {

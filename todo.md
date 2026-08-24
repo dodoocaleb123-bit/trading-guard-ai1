@@ -1002,3 +1002,5 @@
 - [x] Bound and pace historical outcome processing so a large pending backlog cannot trigger Telegram 429 storms
 - [x] Quarantine historical strategy lessons with literal undefined forensic fields so corrupted lessons cannot appear active or influence learning
 - [x] Correct Telegram delivery diagnostics so signal, outcome, adjustment, warning, upgrade, reason, and correction messages are classified accurately
+- [x] Replace literal undefined text in historical LOSS outcome notes with an explicit unavailable-forensics audit note
+- [x] Return HTTP 403 for missing or invalid scheduled-callback authentication instead of leaking an HTTP 500

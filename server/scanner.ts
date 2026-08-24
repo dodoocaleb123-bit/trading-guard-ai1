@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_LOCATOR_V4_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, claimOwnerAlert, listAcceptedStrategyLessons, listIntelligenceComponents, listOpenCurrentV4Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, markOwnerAlertNotified, supersedeGeneratedSignal, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_LOCATOR_V4_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, claimOwnerAlert, listAcceptedStrategyLessons, listFailedOutcomeDeliveries, listIntelligenceComponents, listOpenCurrentV4Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, markOwnerAlertNotified, supersedeGeneratedSignal, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
@@ -8,7 +8,7 @@ import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildRepl
 import { advanceEntryLocator, countStrongSetupIndicators, hasBreakoutConfirmationTransition, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
-import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, sendTelegramMessage, type MarketSeries } from "./integrations";
+import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, normalizeForensicFinding, sendTelegramMessage, type MarketSeries } from "./integrations";
 import { notifyOwner } from "./_core/notification";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -65,7 +65,43 @@ export function isEligibleContradictoryReplacement(decision: { contradictionLoca
   return decision.contradictionLocatorReady === true && hasLevels && (ALLOWED_RISK_REWARD_RATIOS as readonly number[]).includes(selectedRiskReward);
 }
 
+export function buildSignalDeliveryDedupeKey(signalId: number) {
+  return `signal:${signalId}`;
+}
+
+export const MAX_OUTCOME_TRACKS_PER_RUN = 4;
+export const MAX_FAILED_OUTCOME_RETRIES_PER_RUN = 2;
+
 type ScanUserResult = { created: number; tracked: number; adjustments: number; marketData: ScanMarketDataStatus };
+
+export function outcomeFallbackPrice(signal: { status: string; entry: string | number; stopLoss: string | number; takeProfit: string | number; outcomeNote?: string | null; resolutionPrice?: string | number | null }) {
+  const resolutionPrice = Number(signal.resolutionPrice);
+  if (Number.isFinite(resolutionPrice)) return resolutionPrice;
+  const notePrice = signal.outcomeNote?.match(/price\s+([0-9]+(?:\.[0-9]+)?)/i)?.[1];
+  if (notePrice && Number.isFinite(Number(notePrice))) return Number(notePrice);
+  return Number(signal.status === "WIN" ? signal.takeProfit : signal.stopLoss);
+}
+
+export function selectOutcomeTrackingBatch<T extends { openedAt: Date | string }>(signals: T[], limit = MAX_OUTCOME_TRACKS_PER_RUN) {
+  return [...signals].sort((left, right) => new Date(right.openedAt).getTime() - new Date(left.openedAt).getTime()).slice(0, limit);
+}
+
+async function retryFailedOutcomeDeliveries(userId: number) {
+  const failed = await listFailedOutcomeDeliveries(userId, MAX_FAILED_OUTCOME_RETRIES_PER_RUN);
+  let retried = 0;
+  for (const { delivery: failedDelivery, signal } of failed) {
+    try {
+      const signalDelivery = await getTelegramDeliveryForSignal(userId, signal.id, "SIGNAL");
+      const closePrice = outcomeFallbackPrice(signal);
+      const delivery = await sendTelegramMessage(formatOutcomeTelegramMessage({ asset: signal.asset, timeframe: signal.timeframe, direction: signal.direction, status: signal.status as "WIN" | "LOSS", entry: signal.entry, stopLoss: signal.stopLoss, takeProfit: signal.takeProfit, closePrice, signalId: signal.id, note: signal.outcomeNote ?? undefined }), signal.asset, { replyToMessageId: signalDelivery?.status === "DELIVERED" ? signalDelivery.telegramMessageId ?? undefined : undefined });
+      await recordTelegramDelivery({ userId, signalId: signal.id, kind: "OUTCOME", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: failedDelivery.dedupeKey, error: delivery.error });
+      if (delivery.delivered) retried += 1;
+    } catch (error) {
+      console.warn(`[Tracker] Retry for ${signal.asset} ${signal.timeframe} skipped:`, error instanceof Error ? error.message : error);
+    }
+  }
+  return retried;
+}
 
 async function ensureReplacementIntelligenceVersion(userId: number) {
   const active = await getActiveIntelligenceVersion(userId);
@@ -308,6 +344,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
         const originalDelivery = await getTelegramDeliveryForSignal(userId, activeSignal.id, "SIGNAL");
         const delivery = await sendTelegramMessage(formatPaperTradeUpgradeTelegramMessage({ signalId: activeSignal.id, replacementSignalId, asset, timeframe, direction: gated.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: gated.confidence, riskReward: approvedLevels.riskReward, confluenceScore: gated.confluenceScore, reason: upgradeReason, improvements: upgrade.evidence.improvements }), asset, { replyToMessageId: originalDelivery?.status === "DELIVERED" ? originalDelivery.telegramMessageId ?? undefined : undefined });
         await recordTelegramDelivery({ userId, signalId: activeSignal.id, kind: "ADJUSTMENT", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: upgradeDedupeKey, error: delivery.error });
+        if (delivery.delivered && delivery.telegramMessageId) await recordTelegramDelivery({ userId, signalId: replacementSignalId, kind: "SIGNAL", status: "DELIVERED", telegramMessageId: delivery.telegramMessageId, dedupeKey: buildSignalDeliveryDedupeKey(replacementSignalId) });
         await mirrorToSupabase("generated_signals", { user_id: userId, ...approvedLevels, signal_id: replacementSignalId, status: "PENDING", rationale: formatAuditResult(gated, market), confluence_score: gated.confluenceScore ?? 0 });
         created.push({ id: replacementSignalId, ...approvedLevels });
         createdSignalIds.add(replacementSignalId);
@@ -319,16 +356,18 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       const signal = { id: Number(result.insertId), ...approvedLevels };
       await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
       const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, riskReward: approvedLevels.riskReward, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext }), asset);
-      await recordTelegramDelivery({ userId, signalId: signal.id, kind: "SIGNAL", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: `signal:${signal.id}`, error: delivery.error });
+      await recordTelegramDelivery({ userId, signalId: signal.id, kind: "SIGNAL", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: buildSignalDeliveryDedupeKey(signal.id), error: delivery.error });
       created.push(signal);
       createdSignalIds.add(signal.id);
     } catch (error) {
       console.warn(`[Scanner] ${asset} ${timeframe} skipped:`, error instanceof Error ? error.message : error);
     }
   }
-  const tracked = await trackOpenSignals(userId, seriesCache, createdSignalIds);
+  const newlyTracked = await trackOpenSignals(userId, seriesCache, createdSignalIds);
+  const retriedOutcomes = await retryFailedOutcomeDeliveries(userId);
+  if (retriedOutcomes) console.info(`[Tracker] Retried ${retriedOutcomes} previously failed outcome notification(s).`);
   const adjustments = await monitorOpenSignalContradictions(userId, decisions, seriesCache);
-  return { created: created.length, tracked, adjustments, marketData: "available" };
+  return { created: created.length, tracked: newlyTracked + retriedOutcomes, adjustments, marketData: "available" };
 }
 
 async function monitorOpenSignalContradictions(userId: number, decisions: Array<any>, seriesCache: Map<string, MarketSeries>) {
@@ -367,6 +406,7 @@ async function monitorOpenSignalContradictions(userId: number, decisions: Array<
       await createPaperTradeAdjustment({ userId, signalId: signal.id, asset: signal.asset, timeframe: signal.timeframe, originalDirection: signal.direction, observedDirection: contradiction.observedDirection, currentPrice: String(contradiction.evidence.currentPrice), confidence: String(contradiction.confidence), confluenceScore: String(contradiction.confluenceScore), action, replacementSignalId, reason, evidenceJson: JSON.stringify({ ...contradiction.evidence, replacementReady, entryLocatorReason: decision.contradictionLocatorReason ?? decision.entryLocatorReason ?? null, selectedRiskReward: replacementReady ? selectedRiskReward : null }), dedupeKey });
       const delivery = await sendTelegramMessage(message, signal.asset, { replyToMessageId: signalDelivery.telegramMessageId });
       await recordTelegramDelivery({ userId, signalId: signal.id, kind: "ADJUSTMENT", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey, error: delivery.error });
+      if (delivery.delivered && replacementSignalId && delivery.telegramMessageId) await recordTelegramDelivery({ userId, signalId: replacementSignalId, kind: "SIGNAL", status: "DELIVERED", telegramMessageId: delivery.telegramMessageId, dedupeKey: buildSignalDeliveryDedupeKey(replacementSignalId) });
       if (delivery.delivered) sent += 1;
     } catch (error) {
       console.warn(`[Adjustment] ${signal.asset} ${signal.timeframe} skipped:`, error instanceof Error ? error.message : error);
@@ -389,7 +429,8 @@ export function shouldUseIntrabarRange(signalOpenedAt: Date | string, candleStar
 export async function trackOpenSignals(userId: number, seriesCache?: Map<string, MarketSeries>, excludedSignalIds: ReadonlySet<number> = new Set()) {
   const db = await getDb();
   if (!db) return 0;
-  const open = await db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING")));
+  const openRows = await db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING")));
+  const open = selectOutcomeTrackingBatch(openRows);
   let tracked = 0;
   for (const signal of open) {
     if (!shouldTrackOpenSignal(signal.id, excludedSignalIds)) continue;
@@ -430,7 +471,7 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
       };
       if (status === "LOSS") {
         try {
-          const forensics = await forensicAnalysis({ asset: signal.asset, direction: signal.direction, entry: String(signal.entry), stopLoss: String(signal.stopLoss), takeProfit: String(signal.takeProfit) }, market, await getAllRulesText(userId));
+          const forensics = normalizeForensicFinding(await forensicAnalysis({ asset: signal.asset, direction: signal.direction, entry: String(signal.entry), stopLoss: String(signal.stopLoss), takeProfit: String(signal.takeProfit) }, market, await getAllRulesText(userId)));
           lesson = { ...lesson, rootCause: forensics.rootCause, lesson: forensics.lesson, guardrail: forensics.guardrail, forensicStatus: "AVAILABLE" };
           await db.update(generatedSignals).set({ outcomeNote: `${note} Proposed lesson: ${forensics.rootCause}` }).where(eq(generatedSignals.id, signal.id));
         } catch (forensicError) {

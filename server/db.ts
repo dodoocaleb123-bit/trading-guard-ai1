@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, isNull, lt, notInArray, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, notInArray, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, ownerAlertLedger, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -297,6 +297,17 @@ export async function listOpenCurrentV4Signals(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE))).orderBy(desc(generatedSignals.openedAt));
+}
+
+export async function listFailedOutcomeDeliveries(userId: number, limit = 2) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ delivery: telegramDeliveries, signal: generatedSignals })
+    .from(telegramDeliveries)
+    .innerJoin(generatedSignals, eq(telegramDeliveries.signalId, generatedSignals.id))
+    .where(and(eq(telegramDeliveries.userId, userId), eq(telegramDeliveries.kind, "OUTCOME"), eq(telegramDeliveries.status, "FAILED"), inArray(generatedSignals.status, ["WIN", "LOSS"])))
+    .orderBy(asc(telegramDeliveries.createdAt))
+    .limit(limit);
 }
 
 export async function hasPaperTradeAdjustment(dedupeKey: string) {

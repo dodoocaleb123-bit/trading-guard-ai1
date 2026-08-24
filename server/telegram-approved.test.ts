@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatApprovedTelegramMessage, formatOutcomeCorrectionTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatReasonTelegramMessage, shouldNotifyApprovedAudit } from "./integrations";
+import { formatApprovedTelegramMessage, formatOutcomeCorrectionTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatReasonTelegramMessage, shouldNotifyApprovedAudit } from "./integrations";
 import { isAuthorizedScannerCron } from "./scheduled";
 
 describe("approved Telegram signal formatting", () => {
@@ -42,6 +42,14 @@ describe("approved Telegram signal formatting", () => {
     expect(message).toContain("OUTCOME CORRECTION");
     expect(message).toContain("earlier WIN notification was incorrect and has been retracted");
     expect(message).toContain("OPEN/PENDING");
+    expect(message).toContain("Paper only · UNVALIDATED");
+  });
+
+  it("renders replacement upgrades with real Telegram line breaks", () => {
+    const message = formatPaperTradeUpgradeTelegramMessage({ signalId: 14580001, replacementSignalId: 14580003, asset: "GBP/USD", timeframe: "1H", direction: "BUY", entry: 1.36538, stopLoss: 1.36356, takeProfit: 1.36902, confidence: 84, riskReward: 2, confluenceScore: 83, reason: "The opposing setup passed the Entry Locator.", improvements: ["Momentum confirmation"] });
+    expect(message).toContain("PAPER SETUP UPGRADE\nOriginal signal #14580001");
+    expect(message).not.toContain("\\n");
+    expect(message).toContain("Risk/reward: 1:2");
     expect(message).toContain("Paper only · UNVALIDATED");
   });
 

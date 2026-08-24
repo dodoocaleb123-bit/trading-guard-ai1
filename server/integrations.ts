@@ -353,7 +353,7 @@ export function formatPaperTradeUpgradeTelegramMessage(input: { signalId: number
     ...(input.improvements.length ? ["", "Why this setup is stronger", ...input.improvements.slice(0, 6).map((item) => `• ${safe(item)}`)] : []),
     "",
     "The original paper signal is preserved for audit history and marked SUPERSEDED; only the replacement thesis remains active.",
-  ].join("\\n");
+  ].join("\n");
 }
 
 export function formatReasonTelegramMessage(input: {
@@ -431,7 +431,8 @@ export async function sendTelegramMessage(text: string, asset?: string, options?
       ...(options?.replyToMessageId && Number.isInteger(Number(options.replyToMessageId)) ? { reply_parameters: { message_id: Number(options.replyToMessageId) } } : {}),
     }, { timeout: 12000 });
     const telegramMessageId = response.data.result?.message_id != null ? String(response.data.result.message_id) : undefined;
-    console.info(`[Telegram] ${asset ?? "BTC/USD"} notification delivered (${text.startsWith("<b>TradingGuardAI signal</b>") ? "signal" : "outcome"})`);
+    const notificationKind = text.includes("PAPER SETUP UPGRADE") ? "upgrade" : text.includes("PAPER ADJUSTMENT") ? "adjustment" : text.includes("PAPER WARNING") ? "warning" : text.includes("OUTCOME CORRECTION") ? "correction" : text.includes("· REASON") ? "reason" : text.startsWith("WIN\n") || text.startsWith("LOSS\n") ? "outcome" : "signal";
+    console.info(`[Telegram] ${asset ?? "BTC/USD"} ${notificationKind} notification delivered${options?.replyToMessageId ? " as reply" : ""}`);
     return { delivered: true, telegramMessageId };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -700,6 +701,18 @@ export function normalizeScannerDecisionResults(input: { candidates: ScannerDeci
   });
 }
 
+export type ForensicFinding = { rootCause: string; lesson: string; guardrail: string };
+
+export function normalizeForensicFinding(raw: unknown): ForensicFinding {
+  const source = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  const text = (value: unknown, fallback: string) => typeof value === "string" && value.trim() ? value.trim() : fallback;
+  return {
+    rootCause: text(source.rootCause, "Forensic analysis returned no root-cause detail; review the structured signal evidence against the post-entry candle."),
+    lesson: text(source.lesson, "Do not promote this loss into active intelligence until the structured evidence is reviewed."),
+    guardrail: text(source.guardrail, "Keep this lesson advisory and require repeated paper evidence before changing qualification rules."),
+  };
+}
+
 export async function forensicAnalysis(signal: { asset: string; direction: string; entry: string; stopLoss: string; takeProfit: string }, market: MarketSnapshot, rules: string) {
   const response = await invokeLLM({
     messages: [
@@ -721,5 +734,7 @@ export async function forensicAnalysis(signal: { asset: string; direction: strin
     },
   });
   const content = response.choices?.[0]?.message?.content;
-  return JSON.parse(typeof content === "string" ? content : "{}");
+    return normalizeForensicFinding(JSON.parse(typeof content === "string" ? content : "{}"));
 }
+
+

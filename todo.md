@@ -981,8 +981,24 @@
 
 ## Contradiction replacement-signal follow-up
 
-- [ ] Define when a contradictory v4 setup is eligible to become a replacement paper signal
-- [ ] Send a threaded replacement signal when the opposing setup passes Entry Locator and exact 1:2 or 1:3 geometry
-- [ ] Send a concise threaded failure-warning reply when contradiction is strong but replacement qualification fails
-- [ ] Persist replacement/warning linkage without prematurely rewriting the original outcome
-- [ ] Add regression coverage, verify the GBP/USD case, and publish the update
+- [x] Define when a contradictory v4 setup is eligible to become a replacement paper signal
+- [x] Send a threaded replacement signal when the opposing setup passes Entry Locator and exact 1:2 or 1:3 geometry
+- [x] Send a concise threaded failure-warning reply when contradiction is strong but replacement qualification fails
+- [x] Persist replacement/warning linkage without prematurely rewriting the original outcome
+- [x] Add regression coverage, verify the GBP/USD case, and publish the update
+
+## Full application checkup
+
+- [x] Establish clean baseline for tests, typecheck, build, runtime logs, and database connectivity
+- [x] Audit server routes, schema alignment, and database helper failures
+- [x] Audit Twelve Data retrieval, scanner, v4 locator, outcome tracking, and contradiction monitoring
+- [x] Audit Heartbeat schedule execution, callback authorization, Telegram delivery, and threaded replies
+- [x] Audit dashboard, chat, analytics, responsive rendering, and browser console/network errors
+- [x] Fix confirmed defects and add regression coverage
+- [ ] Rerun the complete checkup after fixes and publish the verified checkpoint
+- [x] Archive four legacy pending v4 1:1 signals so invalid historical geometry cannot block current v4 entry or contradiction monitoring
+- [x] Prevent undefined forensic root-cause text from entering LOSS outcome notes and preserve a safe fallback lesson
+- [x] Fix replacement upgrade Telegram messages so they use real line breaks and add formatting regression coverage
+- [x] Bound and pace historical outcome processing so a large pending backlog cannot trigger Telegram 429 storms
+- [x] Quarantine historical strategy lessons with literal undefined forensic fields so corrupted lessons cannot appear active or influence learning
+- [x] Correct Telegram delivery diagnostics so signal, outcome, adjustment, warning, upgrade, reason, and correction messages are classified accurately

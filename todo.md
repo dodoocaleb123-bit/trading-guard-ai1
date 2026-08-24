@@ -995,7 +995,7 @@
 - [x] Audit Heartbeat schedule execution, callback authorization, Telegram delivery, and threaded replies
 - [x] Audit dashboard, chat, analytics, responsive rendering, and browser console/network errors
 - [x] Fix confirmed defects and add regression coverage
-- [ ] Rerun the complete checkup after fixes and publish the verified checkpoint
+- [x] Rerun the complete checkup after fixes and publish the verified checkpoint
 - [x] Archive four legacy pending v4 1:1 signals so invalid historical geometry cannot block current v4 entry or contradiction monitoring
 - [x] Prevent undefined forensic root-cause text from entering LOSS outcome notes and preserve a safe fallback lesson
 - [x] Fix replacement upgrade Telegram messages so they use real line breaks and add formatting regression coverage

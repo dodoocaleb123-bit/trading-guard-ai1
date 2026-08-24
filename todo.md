@@ -1058,6 +1058,8 @@
 
 - [x] Correct callback-health classification so a missed/stale scheduled cycle cannot be reported as CALLBACK HEALTHY; add regression coverage and re-run the full audit.
 
-- [ ] Diagnose and correct scanner executions arriving every 10–15 minutes instead of reliably every five minutes; verify Heartbeat cadence, callback reachability, run duration, and Twelve Data retrieval timing.
+- [x] Diagnose and correct scanner executions arriving every 10–15 minutes instead of reliably every five minutes; verify Heartbeat cadence, callback reachability, run duration, and Twelve Data retrieval timing.
 
-- [ ] Verify whether missing five-minute snapshot windows, rather than slow Twelve Data calls, are the primary scanner reliability problem; measure scheduled, started, finished, and market-data timestamps separately.
+- [x] Verify whether missing five-minute snapshot windows, rather than slow Twelve Data calls, are the primary scanner reliability problem; measure scheduled, started, finished, and market-data timestamps separately.
+
+- [x] Continue monitoring the managed Heartbeat scheduler as best-effort five-minute execution; do not enable Reserved Hosting or add a duplicate scanner worker.

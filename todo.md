@@ -1127,3 +1127,10 @@
 
 - [x] Add document-informed chart and candlestick detectors that contribute supporting or conflicting evidence to v4 using scanner-fed OHLCV history, without overriding existing detectors, Entry Locator gates, exact 1:2/1:3 geometry, paper-only, or UNVALIDATED safeguards.
 - [x] Add detector decision-trace visibility and regression coverage for confirmed, unconfirmed, conflicting, stale, and insufficient-history patterns.
+
+- [x] Implement Entry Forger as a fallback only after Entry Locator denial, using v4-supported target-zone evidence and a 2:1 reward-to-risk construction (stop distance = half target distance) without overriding existing v4 or Entry Locator logic.
+- [x] Add Entry Locator/Entry Forger precedence, asset-timeframe locks, contradiction replacement threading, source labels, audit visibility, and regression coverage.
+
+- [x] Update existing Telegram formatter regression expectations for the new explicit Entry Locator/Entry Forger provenance footer, then rerun the full validation suite.
+
+- [x] Fix the confirmed fallback control-flow defect so Entry Forger is evaluated after a valid v4 candidate reaches Entry Locator but the Locator denies only its ratio/geometry; it must not bypass no-indicator, incomplete, or strategy-gate exits.

@@ -264,7 +264,7 @@ export function formatDetailedApprovedTelegramMessage(input: {
   return lines.join("\n");
 }
 
-export function formatApprovedTelegramMessage(input: { asset: string; timeframe: string; direction: string; entry: number | null | undefined; stopLoss: number | null | undefined; takeProfit: number | null | undefined; confidence: number; riskReward?: number | null; adjustments?: string; ruleEvidence?: string[]; fundamentalContext?: FundamentalContext; confluenceScore?: number; decisionTrace?: IntelligenceDecisionTrace }) {
+export function formatApprovedTelegramMessage(input: { asset: string; timeframe: string; direction: string; entry: number | null | undefined; stopLoss: number | null | undefined; takeProfit: number | null | undefined; confidence: number; riskReward?: number | null; adjustments?: string; ruleEvidence?: string[]; fundamentalContext?: FundamentalContext; confluenceScore?: number; decisionTrace?: IntelligenceDecisionTrace; generationSource?: "ENTRY_LOCATOR" | "ENTRY_FORGER" }) {
   const optional = (value: number | null | undefined) => value == null ? "—" : String(value);
   const trace = input.decisionTrace;
   const confluence = trace?.scoreSummary.confluenceScore ?? input.confluenceScore;
@@ -278,7 +278,7 @@ export function formatApprovedTelegramMessage(input: { asset: string; timeframe:
     `Risk/reward: ${input.riskReward == null ? "—" : `1:${input.riskReward}`}`,
     `Confidence: ${input.confidence}%${confluence == null ? "" : ` · Confluence: ${confluence}%`}`,
     score,
-    "Paper only · UNVALIDATED · v4 active",
+    `Paper only · UNVALIDATED · v4 active · ${input.generationSource === "ENTRY_FORGER" ? "ENTRY FORGER" : "ENTRY LOCATOR"}`,
   ].join("\n");
 }
 
@@ -286,13 +286,13 @@ function escapeTelegramHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
 }
 
-export function formatOutcomeTelegramMessage(input: { asset: string; timeframe: string; direction: string; status: "WIN" | "LOSS"; entry: number | string; stopLoss: number | string; takeProfit: number | string; closePrice: number; signalId: number; note?: string }) {
+export function formatOutcomeTelegramMessage(input: { asset: string; timeframe: string; direction: string; status: "WIN" | "LOSS"; entry: number | string; stopLoss: number | string; takeProfit: number | string; closePrice: number; signalId: number; note?: string; generationSource?: "ENTRY_LOCATOR" | "ENTRY_FORGER" }) {
   return [
     input.status,
     input.direction,
     `${input.asset} · ${input.timeframe}`,
     `Entry: ${input.entry}`,
-    "Paper only · UNVALIDATED",
+    `Paper only · UNVALIDATED · ${input.generationSource === "ENTRY_FORGER" ? "ENTRY FORGER" : "ENTRY LOCATOR"}`,
   ].join("\n");
 }
 

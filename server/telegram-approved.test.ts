@@ -23,14 +23,14 @@ describe("approved Telegram signal formatting", () => {
 
   it("renders the requested compact signal format", () => {
     const message = formatApprovedTelegramMessage({ asset: "EUR/USD", timeframe: "1H", direction: "SELL", entry: 1.16736, stopLoss: 1.16876, takeProfit: 1.16456, confidence: 84, riskReward: 2, confluenceScore: 80, decisionTrace: { matchedComponents: [], supportingComponents: [], conflictingComponents: [], scoreSummary: { buyScore: 2, sellScore: 8, dominantDirection: "SELL", confluenceScore: 80 }, levelDerivation: { entry: "", stopLoss: "", takeProfit: "", riskDistance: 0.0014, riskReward: 2 } } });
-    expect(message).toBe(["SELL", "EUR/USD · 1H", "Entry: 1.16736", "Stop loss: 1.16876", "Take profit: 1.16456", "Risk/reward: 1:2", "Confidence: 84% · Confluence: 80%", "Score: BUY 2 vs SELL 8", "Paper only · UNVALIDATED · v4 active"].join("\n"));
+    expect(message).toBe(["SELL", "EUR/USD · 1H", "Entry: 1.16736", "Stop loss: 1.16876", "Take profit: 1.16456", "Risk/reward: 1:2", "Confidence: 84% · Confluence: 80%", "Score: BUY 2 vs SELL 8", "Paper only · UNVALIDATED · v4 active · ENTRY LOCATOR"].join("\n"));
     expect(message).not.toContain("Decision summary");
     expect(message).not.toContain("<b>");
   });
 
   it("renders compact outcomes with the original signal direction", () => {
     const win = formatOutcomeTelegramMessage({ asset: "BTC/USD", timeframe: "15MIN", direction: "BUY", status: "WIN", entry: 65382.36, stopLoss: 65250.0715, takeProfit: 65646.937, closePrice: 65646.937, signalId: 1200010 });
-    expect(win).toBe(["WIN", "BUY", "BTC/USD · 15MIN", "Entry: 65382.36", "Paper only · UNVALIDATED"].join("\n"));
+    expect(win).toBe(["WIN", "BUY", "BTC/USD · 15MIN", "Entry: 65382.36", "Paper only · UNVALIDATED · ENTRY LOCATOR"].join("\n"));
     const loss = formatOutcomeTelegramMessage({ asset: "EUR/USD", timeframe: "1H", direction: "SELL", status: "LOSS", entry: "1.16000", stopLoss: "1.16140", takeProfit: "1.15720", closePrice: 1.1614, signalId: 1200011 });
     expect(loss).toContain("LOSS\nSELL\nEUR/USD · 1H");
   });

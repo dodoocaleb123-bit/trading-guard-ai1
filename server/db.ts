@@ -245,6 +245,7 @@ export async function getPaperTradeUpgradeSummary(userId: number) {
 }
 
 export const ENTRY_LOCATOR_V4_GENERATION_MODE = "ENTRY_LOCATOR_V4" as const;
+export const ENTRY_FORGER_V4_GENERATION_MODE = "ENTRY_FORGER_V4" as const;
 
 export async function hasOpenGeneratedSignal(userId: number, asset: string, timeframe: string, intelligenceVersion?: string, generationMode?: string) {
   const db = await getDb();
@@ -309,7 +310,7 @@ export async function listPaperTradeAdjustments(userId: number, limit = 100) {
 export async function listOpenCurrentV4Signals(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE))).orderBy(desc(generatedSignals.openedAt));
+  return db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), inArray(generatedSignals.generationMode, [ENTRY_LOCATOR_V4_GENERATION_MODE, ENTRY_FORGER_V4_GENERATION_MODE]))).orderBy(desc(generatedSignals.openedAt));
 }
 
 export const OUTCOME_RETRY_WINDOW_MINUTES = 20;

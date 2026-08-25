@@ -1,11 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_LOCATOR_V4_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, claimOwnerAlert, listAcceptedStrategyLessons, listFailedOutcomeDeliveries, listIntelligenceComponents, listOpenCurrentV4Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, markOwnerAlertNotified, supersedeGeneratedSignal, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_FORGER_V4_GENERATION_MODE, ENTRY_LOCATOR_V4_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, claimOwnerAlert, listAcceptedStrategyLessons, listFailedOutcomeDeliveries, listIntelligenceComponents, listOpenCurrentV4Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, markOwnerAlertNotified, supersedeGeneratedSignal, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
 import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { advanceEntryLocator, countStrongSetupIndicators, hasBreakoutConfirmationTransition, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
+import { canUseEntryForgerFallback, deriveEntryForgerLevels } from "./entry-forger";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, normalizeForensicFinding, sendTelegramMessage, type MarketSeries } from "./integrations";
@@ -307,7 +308,9 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       cooldownKey,
     });
     try {
-      if (!locatorResult.ready) {
+      const locatorGeometryDenied = /no allowed ratio fits|no allowed adaptive ratio|adaptive target geometry did not qualify/i.test(`${gated.adjustments ?? ""} ${locatorResult.reason}`);
+      const eligibleForgerFallback = canUseEntryForgerFallback({ locatorReady: locatorResult.ready, geometryDenied: locatorGeometryDenied, v4Active: replacementModel.id.endsWith("v4"), strategyApproved: shouldNotifyScannerSignal(gated.verdict), hasCompleteLevels: gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null, activeSignal: Boolean(activeSignal) });
+      if (!locatorResult.ready && !eligibleForgerFallback) {
         console.info(`[Scanner] ${asset} ${timeframe} entry locator waiting: ${locatorResult.reason}`);
         continue;
       }
@@ -324,7 +327,22 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       const selectedRiskReward = adaptiveV4 ? (traceRatio == null ? Number.NaN : Number(traceRatio)) : Number(gated.riskReward ?? 2);
       const allowedRatios = adaptiveV4 ? (ALLOWED_RISK_REWARD_RATIOS as readonly number[]) : [2];
       if (!allowedRatios.includes(selectedRiskReward)) {
-        console.info(`[Scanner] ${asset} ${timeframe} has no allowed adaptive ratio; no signal sent.`);
+        const canForge = adaptiveV4 && locatorGeometryDenied && !activeSignal && Boolean(gated.direction) && gated.entry != null;
+        const forged = canForge ? deriveEntryForgerLevels({ entry: Number(gated.entry), direction: gated.direction as "BUY" | "SELL", targetBoundary: observation.targetBoundary, atr: market.marketContext?.volatility.atr }) : { ready: false as const, reason: "Entry Forger not eligible until Entry Locator geometry denial." };
+        if (forged.ready) {
+          const forgedLevels = { asset, timeframe, direction: gated.direction, entry: forged.entry, stopLoss: forged.stopLoss, takeProfit: forged.takeProfit, riskReward: forged.riskReward, confidence: gated.confidence };
+          const forgedRationale = `${formatAuditResult(gated, market)} Entry Forger: ${forged.reason}`;
+          const [forgedResult] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: forgedLevels.direction as "BUY" | "SELL", entry: String(forgedLevels.entry), stopLoss: String(forgedLevels.stopLoss), takeProfit: String(forgedLevels.takeProfit), riskReward: forgedLevels.riskReward.toFixed(2), confidence: String(forgedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale: forgedRationale, intelligenceVersion: replacementModel.id, generationMode: ENTRY_FORGER_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify([...(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), "ENTRY FORGER: target-first fallback after Entry Locator geometry denial"]), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
+          const forgedSignal = { id: Number(forgedResult.insertId), ...forgedLevels };
+          await mirrorToSupabase("generated_signals", { user_id: userId, ...forgedSignal, status: "PENDING", rationale: forgedRationale, generation_mode: ENTRY_FORGER_V4_GENERATION_MODE, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
+          const forgedDelivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: forgedLevels.direction, entry: forgedLevels.entry, stopLoss: forgedLevels.stopLoss, takeProfit: forgedLevels.takeProfit, confidence: forgedLevels.confidence, riskReward: forgedLevels.riskReward, adjustments: `${gated.adjustments ?? ""} Entry Locator denied the exact allowed geometry; Entry Forger selected the target-first fallback.`, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext, generationSource: "ENTRY_FORGER" }), asset);
+          await recordTelegramDelivery({ userId, signalId: forgedSignal.id, kind: "SIGNAL", status: forgedDelivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: forgedDelivery.telegramMessageId, dedupeKey: buildSignalDeliveryDedupeKey(forgedSignal.id), error: forgedDelivery.error });
+          created.push(forgedSignal);
+          createdSignalIds.add(forgedSignal.id);
+          console.info(`[Scanner] ${asset} ${timeframe} emitted an Entry Forger fallback after Entry Locator denial.`);
+          continue;
+        }
+        console.info(`[Scanner] ${asset} ${timeframe} has no allowed adaptive ratio; Entry Forger did not qualify: ${forged.reason}`);
         continue;
       }
       const approvedLevels = { asset, timeframe, direction: gated.direction, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: selectedRiskReward, confidence: gated.confidence };
@@ -360,7 +378,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: approvedLevels.riskReward.toFixed(2), confidence: String(approvedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale, intelligenceVersion: replacementModel.id, generationMode: ENTRY_LOCATOR_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
       const signal = { id: Number(result.insertId), ...approvedLevels };
       await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
-      const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, riskReward: approvedLevels.riskReward, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext }), asset);
+      const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, riskReward: approvedLevels.riskReward, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext, generationSource: "ENTRY_LOCATOR" }), asset);
       await recordTelegramDelivery({ userId, signalId: signal.id, kind: "SIGNAL", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: buildSignalDeliveryDedupeKey(signal.id), error: delivery.error });
       created.push(signal);
       createdSignalIds.add(signal.id);
@@ -485,7 +503,7 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
       }
       await createStrategyLesson({ userId, signalId: signal.id, sourceVersionId: activeVersion?.id ?? null, outcome: status, status: "PROPOSED", observation: note, lessonJson: JSON.stringify(lesson) });
       const signalDelivery = await getTelegramDeliveryForSignal(userId, signal.id, "SIGNAL");
-      const delivery = await sendTelegramMessage(formatOutcomeTelegramMessage({ asset: signal.asset, timeframe: signal.timeframe, direction: signal.direction, status, entry: signal.entry, stopLoss: signal.stopLoss, takeProfit: signal.takeProfit, closePrice: price, signalId: signal.id, note }), signal.asset, { replyToMessageId: signalDelivery?.status === "DELIVERED" ? signalDelivery.telegramMessageId ?? undefined : undefined });
+      const delivery = await sendTelegramMessage(formatOutcomeTelegramMessage({ asset: signal.asset, timeframe: signal.timeframe, direction: signal.direction, status, entry: signal.entry, stopLoss: signal.stopLoss, takeProfit: signal.takeProfit, closePrice: price, signalId: signal.id, note, generationSource: signal.generationMode === ENTRY_FORGER_V4_GENERATION_MODE ? "ENTRY_FORGER" : "ENTRY_LOCATOR" }), signal.asset, { replyToMessageId: signalDelivery?.status === "DELIVERED" ? signalDelivery.telegramMessageId ?? undefined : undefined });
       await recordTelegramDelivery({ userId, signalId: signal.id, kind: "OUTCOME", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: `outcome:${signal.id}:${status}`, error: delivery.error });
       tracked += 1;
     } catch (error) {

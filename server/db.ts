@@ -310,13 +310,22 @@ export async function listOpenCurrentV4Signals(userId: number) {
   return db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE))).orderBy(desc(generatedSignals.openedAt));
 }
 
-export async function listFailedOutcomeDeliveries(userId: number, limit = 2) {
+export const OUTCOME_RETRY_WINDOW_MINUTES = 20;
+
+export function isOutcomeDeliveryRetryable(createdAt: Date | string, now = new Date(), windowMinutes = OUTCOME_RETRY_WINDOW_MINUTES) {
+  const created = createdAt instanceof Date ? createdAt.getTime() : new Date(createdAt).getTime();
+  const current = now.getTime();
+  return Number.isFinite(created) && created >= current - windowMinutes * 60_000 && created <= current;
+}
+
+export async function listFailedOutcomeDeliveries(userId: number, limit = 2, now = new Date()) {
   const db = await getDb();
   if (!db) return [];
+  const retrySince = new Date(now.getTime() - OUTCOME_RETRY_WINDOW_MINUTES * 60_000);
   return db.select({ delivery: telegramDeliveries, signal: generatedSignals })
     .from(telegramDeliveries)
     .innerJoin(generatedSignals, eq(telegramDeliveries.signalId, generatedSignals.id))
-    .where(and(eq(telegramDeliveries.userId, userId), eq(telegramDeliveries.kind, "OUTCOME"), eq(telegramDeliveries.status, "FAILED"), inArray(generatedSignals.status, ["WIN", "LOSS"])))
+    .where(and(eq(telegramDeliveries.userId, userId), eq(telegramDeliveries.kind, "OUTCOME"), eq(telegramDeliveries.status, "FAILED"), gte(telegramDeliveries.createdAt, retrySince), inArray(generatedSignals.status, ["WIN", "LOSS"])))
     .orderBy(asc(telegramDeliveries.createdAt))
     .limit(limit);
 }

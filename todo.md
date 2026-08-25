@@ -1110,3 +1110,9 @@
 - [x] Add next-session five-minute cadence and Telegram delivery monitoring guidance/diagnostics without changing paper-only behavior.
 
 - [x] Prevent the cadence banner from showing a false health warning while its live diagnostics query is still loading; revalidate the loaded and loading states.
+
+- [ ] Verify the reported EUR/USD breakout against the latest v4 snapshots, breakout-confirmation evidence, and Entry Locator geometry for 15MIN and 1H.
+
+- [x] Investigate and stop repeated XAU/USD 15MIN WIN Telegram notifications while preserving the underlying paper outcome and audit trail.
+
+- [x] Stop stale historical Telegram outcome failures, especially old HTTP 429 rows, from being retried on every five-minute scanner run; preserve their FAILED audit records and allow only recent retryable failures.

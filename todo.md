@@ -1077,7 +1077,7 @@
 
 - [x] Implement the approved external five-minute trigger path while retaining Heartbeat fallback.
 - [x] Add authenticated idempotency keys and a database lease so overlapping triggers cannot duplicate scanner runs or Telegram signals.
-- [ ] Connect and verify the external trigger, then monitor actual five-minute callback cadence and failure recovery.
+- [x] Connect and verify the external trigger, then monitor actual five-minute callback cadence and failure recovery.
 
 - [x] Determine whether three-minute scanner polling fits the available Twelve Data daily quota and preserve a safe quota ceiling before any cadence change.
 

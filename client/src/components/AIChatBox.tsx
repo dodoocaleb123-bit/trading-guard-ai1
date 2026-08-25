@@ -14,6 +14,13 @@ export type Message = {
   content: string;
 };
 
+export function displayChatMessage(content: string) {
+  if (content.trim() === '"I could not produce a response."' || content.trim() === "I could not produce a response.") {
+    return "The assistant did not return readable text for this question. Please try again; no trade decision was created.";
+  }
+  return content;
+}
+
 export type AIChatBoxProps = {
   /**
    * Messages array to display in the chat.
@@ -270,7 +277,7 @@ export function AIChatBox({
                     >
                       {message.role === "assistant" ? (
                         <div className="prose prose-sm dark:prose-invert w-full min-w-0 max-w-none break-words [overflow-wrap:anywhere]">
-                          <Streamdown>{message.content}</Streamdown>
+                          <Streamdown>{displayChatMessage(message.content)}</Streamdown>
                         </div>
                       ) : (
                         <p className="whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">

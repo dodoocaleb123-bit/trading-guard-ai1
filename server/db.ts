@@ -167,10 +167,20 @@ export async function updateStrategyLessonPatternStatus(userId: number, outcome:
   return { updated: matchingIds.length, lessonIds: matchingIds };
 }
 
+export function isUsableStrategyRule(rule: { title?: string | null; content?: string | null }) {
+  const title = String(rule.title ?? "").trim();
+  const content = String(rule.content ?? "").trim();
+  if (!title || !content) return false;
+  if (content.toLowerCase() === "undefined") return false;
+  if (/guardrail:\s*undefined\b/i.test(content)) return false;
+  return true;
+}
+
 export async function listStrategyRules(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(strategyRules).where(eq(strategyRules.userId, userId)).orderBy(desc(strategyRules.createdAt));
+  const rows = await db.select().from(strategyRules).where(eq(strategyRules.userId, userId)).orderBy(desc(strategyRules.createdAt));
+  return rows.filter(isUsableStrategyRule);
 }
 
 export async function createStrategyRule(input: typeof strategyRules.$inferInsert) {

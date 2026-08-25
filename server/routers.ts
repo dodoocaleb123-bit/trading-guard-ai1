@@ -26,6 +26,20 @@ export function summarizeChatSignals(signals: Array<{ asset: string; status: str
     return { asset, generated: rows.length, resolved: resolved.length, wins, losses: rows.filter((signal) => signal.status === "LOSS").length, winRate: resolved.length ? Math.round((wins / resolved.length) * 100) : null };
   });
 }
+
+export function normalizeChatResponseContent(content: unknown): string {
+  if (typeof content === "string" && content.trim()) return content;
+  if (Array.isArray(content)) {
+    const text: string = content.map((part) => normalizeChatResponseContent(part)).filter(Boolean).join("\n").trim();
+    if (text) return text;
+  }
+  if (content && typeof content === "object") {
+    const candidate = content as { text?: unknown; content?: unknown };
+    const text: string = normalizeChatResponseContent(candidate.text ?? candidate.content);
+    if (text) return text;
+  }
+  return "The assistant returned no readable text for this question. Please try again; no trade decision was created.";
+}
 import { systemRouter } from "./_core/systemRouter";
 
 export function buildStrategyRuleRecord(input: { userId: number; title: string; sourceType: "pdf" | "docx" | "text"; fileName: string; content: string; storageKey: string; supabaseId: string | null }) {
@@ -207,7 +221,7 @@ export const appRouter = router({
 
 Matched strategy rules:\n${rulesText || "No matching rule excerpt was found."}\n\nPaper outcomes in last 24 hours:\n${assetPerformance}\n\nStrategy judgment totals:\n${JSON.stringify(judgment)}\n\nRequested live market context:\n${marketText}`;
       const response = await invokeLLM({ model: "gpt-5-mini", messages: [{ role: "system", content: system }, ...input.messages] , maxTokens: 1400 });
-      const content = typeof response.choices[0]?.message.content === "string" ? response.choices[0].message.content : JSON.stringify(response.choices[0]?.message.content ?? "I could not produce a response.");
+      const content = normalizeChatResponseContent(response.choices[0]?.message.content);
       await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content });
       return { role: "assistant" as const, content, verdict: null, confidence: null, telegramDelivered: false };
     }),

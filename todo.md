@@ -1094,3 +1094,5 @@
 
 - [x] Identify and retire open paper signals created during the loosened Entry Locator era without deleting records, falsifying outcomes, or changing unrelated signals.
 - [x] Verify retired loosened-era signals no longer block new entries for their asset/timeframe; the existing PENDING-only blocker query and full regression suite passed.
+
+- [x] Run consecutive full diagnostics across runtime health, database integrity, external integrations, scanner cadence, v4 Entry Locator, paper outcomes, Telegram delivery, automated tests, build, production endpoint, and responsive UI; repair confirmed defects and repeat until the final pass is clean.

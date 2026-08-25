@@ -1090,7 +1090,7 @@
 - [x] Revert only the balanced Entry Locator pullback/breakout loosenings to the prior conservative v4 qualification baseline while preserving scanner cadence, external trigger, cadence diagnostics, and paper-trading safeguards.
 - [x] Validate the rollback with focused tests, full build, and live-safety checks before publishing.
 
-- [ ] Evaluate one- and two-minute polling against the five-key Twelve Data quota and determine whether forming-candle snapshots add useful v4 evidence without exhausting credits.
+- [x] Evaluate one- and two-minute polling against the five-key Twelve Data quota: with two batched intervals across four assets, 5-minute polling is approximately 2,304 requests/day versus 5,760 at 2-minute and 11,520 at 1-minute; retain the quota-safe 5-minute cadence and do not add forming-candle polling.
 
 - [x] Identify and retire open paper signals created during the loosened Entry Locator era without deleting records, falsifying outcomes, or changing unrelated signals.
 - [x] Verify retired loosened-era signals no longer block new entries for their asset/timeframe; the existing PENDING-only blocker query and full regression suite passed.

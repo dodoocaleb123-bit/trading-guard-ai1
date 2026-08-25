@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, Send, User, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
+import { displayChatMessage } from "@/lib/chat-display";
 
 /**
  * Message type matching server-side LLM Message interface
@@ -13,13 +14,6 @@ export type Message = {
   role: "system" | "user" | "assistant";
   content: string;
 };
-
-export function displayChatMessage(content: string) {
-  if (content.trim() === '"I could not produce a response."' || content.trim() === "I could not produce a response.") {
-    return "The assistant did not return readable text for this question. Please try again; no trade decision was created.";
-  }
-  return content;
-}
 
 export type AIChatBoxProps = {
   /**

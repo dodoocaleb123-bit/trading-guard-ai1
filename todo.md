@@ -1120,3 +1120,7 @@
 - [x] Verify the next five-minute scanner cycle does not repeat the resolved XAU/USD WIN outcome: the post-fix cycle recorded no new XAU/USD 15MIN outcome delivery and no retry log.
 - [x] Add durable Telegram outcome retry-attempt tracking with bounded retry visibility.
 - [x] Add a dashboard review control for stale failed Telegram outcome deliveries without changing their audit records.
+
+- [x] Run another complete top-to-bottom diagnostic across runtime, database, scheduler, market data, v4, Entry Locator, Telegram, chat, UI, tests, build, and endpoints; repair confirmed defects and repeat affected checks.
+
+- [x] Investigate the chat-audit conversation showing a non-readable assistant response and repair the active response/rendering path without altering historical audit truth.

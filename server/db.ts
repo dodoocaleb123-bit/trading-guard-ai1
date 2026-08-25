@@ -406,9 +406,11 @@ export async function markOwnerAlertNotified(dedupeKey: string) {
   await db.update(ownerAlertLedger).set({ notifiedAt: new Date() }).where(eq(ownerAlertLedger.dedupeKey, dedupeKey));
 }
 
-export function buildScannerRunKey(taskUid: string, at = new Date()) {
+const SCANNER_RUN_NAMESPACE = "trading-guard-scanner";
+
+export function buildScannerRunKey(_taskUid: string, at = new Date()) {
   const fiveMinuteBucket = Math.floor(at.getTime() / (5 * 60 * 1000));
-  return `${taskUid}:${fiveMinuteBucket}`;
+  return `${SCANNER_RUN_NAMESPACE}:${fiveMinuteBucket}`;
 }
 
 export async function startScannerRun(taskUid: string, at = new Date()) {

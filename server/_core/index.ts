@@ -11,12 +11,43 @@ import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import { ENV } from "./env";
 import { scanAllUsers } from "../scanner";
-import { isAuthorizedScannerCron, isCronAuthenticationFailure } from "../scheduled";
+import { isAuthorizedScannerCron, isCronAuthenticationFailure, isExternalScannerTriggerAuthorized } from "../scheduled";
 import { sendWeeklyStrategySummary } from "../weekly-summary";
 import { handleTelegramWebhookUpdate, isTelegramWebhookAuthorized } from "../telegram-webhook";
 import { finishScannerRun, listRecentScannerRuns, startScannerRun } from "../db";
 import { hasRepeatedScannerFailures } from "../scheduler-status";
 import { notifyOwner } from "./notification";
+
+const EXTERNAL_SCANNER_TASK_UID = "external-cron-job";
+
+async function executeScannerRun(taskUid: string, source: string) {
+  let runId: number | null = null;
+  try {
+    const run = await startScannerRun(taskUid);
+    runId = run.row?.id ?? null;
+    if (run.duplicate) {
+      console.info(`[Scanner] Duplicate ${source} callback suppressed for run ${run.row?.runKey ?? "unknown"}.`);
+      return { ok: true, duplicate: true, runId };
+    }
+    const result = await scanAllUsers();
+    await finishScannerRun(runId!, { status: "SUCCEEDED", usersProcessed: result.users, createdSignals: result.created, trackedSignals: result.tracked, adjustments: result.adjustments, marketData: result.marketData });
+    console.info(`[Scanner] ${source} run complete: users=${result.users} created=${result.created} tracked=${result.tracked} adjustments=${result.adjustments} marketData=${result.marketData}`);
+    return { ok: true, runId, ...result };
+  } catch (error) {
+    if (runId) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await finishScannerRun(runId, { status: "FAILED", marketData: "unavailable", error: errorMessage });
+      const recentRuns = await listRecentScannerRuns(taskUid, 3);
+      const failureThresholdReached = hasRepeatedScannerFailures(recentRuns);
+      const thresholdJustCrossed = recentRuns[0]?.status === "FAILED" && recentRuns[1]?.status === "FAILED" && recentRuns[2]?.status !== "FAILED";
+      if (failureThresholdReached && thresholdJustCrossed) {
+        const delivered = await notifyOwner({ title: "Trading Guard AI scanner failures", content: `Two consecutive app-side scanner runs failed for ${source} task ${taskUid}. Latest error: ${errorMessage}. Review the trigger execution history and the scanner callback run ledger.` });
+        console.warn(`[Scanner] Repeated-failure owner alert ${delivered ? "delivered" : "unavailable"}.`);
+      }
+    }
+    throw error;
+  }
+}
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -80,36 +111,25 @@ async function startServer() {
     }
   });
   app.post("/api/scheduled/trading-guard-scanner", async (req, res) => {
-    let runId: number | null = null;
-    let taskUid: string | null = null;
     try {
       const user = await sdk.authenticateRequest(req);
       if (!isAuthorizedScannerCron(user)) return res.status(403).json({ error: "cron-only" });
-      taskUid = user.taskUid!;
-      const run = await startScannerRun(taskUid);
-      runId = run.row?.id ?? null;
-      if (run.duplicate) {
-        console.info(`[Scanner] Duplicate Heartbeat callback suppressed for run ${run.row?.runKey ?? "unknown"}.`);
-        return res.json({ ok: true, duplicate: true, runId });
-      }
-      const result = await scanAllUsers();
-      await finishScannerRun(runId!, { status: "SUCCEEDED", usersProcessed: result.users, createdSignals: result.created, trackedSignals: result.tracked, adjustments: result.adjustments, marketData: result.marketData });
-      console.info(`[Scanner] Scheduled run complete: users=${result.users} created=${result.created} tracked=${result.tracked} adjustments=${result.adjustments} marketData=${result.marketData}`);
-      return res.json({ ok: true, runId, ...result });
+      return res.json(await executeScannerRun(user.taskUid!, "Heartbeat"));
     } catch (error) {
-      if (runId) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        await finishScannerRun(runId, { status: "FAILED", marketData: "unavailable", error: errorMessage });
-        const recentRuns = taskUid ? await listRecentScannerRuns(taskUid, 3) : [];
-        const failureThresholdReached = hasRepeatedScannerFailures(recentRuns);
-        const thresholdJustCrossed = recentRuns[0]?.status === "FAILED" && recentRuns[1]?.status === "FAILED" && recentRuns[2]?.status !== "FAILED";
-        if (failureThresholdReached && thresholdJustCrossed) {
-          const delivered = await notifyOwner({ title: "Trading Guard AI scanner failures", content: `Two consecutive app-side scanner runs failed for Heartbeat task ${taskUid}. Latest error: ${errorMessage}. Review the Heartbeat execution history and the scanner callback run ledger.` });
-          console.warn(`[Scanner] Repeated-failure owner alert ${delivered ? "delivered" : "unavailable"}.`);
-        }
-      }
       if (isCronAuthenticationFailure(error)) return res.status(403).json({ error: "cron-only" });
-      return res.status(500).json({ error: error instanceof Error ? error.message : "scanner failed", runId, timestamp: new Date().toISOString() });
+      return res.status(500).json({ error: error instanceof Error ? error.message : "scanner failed", timestamp: new Date().toISOString() });
+    }
+  });
+  app.get("/api/external/trading-guard-scanner/health", (req, res) => {
+    if (!isExternalScannerTriggerAuthorized(req.headers["x-scanner-trigger-secret"], ENV.externalScannerTriggerSecret)) return res.status(403).json({ error: "external-trigger-only" });
+    return res.json({ ok: true, externalTrigger: true });
+  });
+  app.post("/api/external/trading-guard-scanner", async (req, res) => {
+    if (!isExternalScannerTriggerAuthorized(req.headers["x-scanner-trigger-secret"], ENV.externalScannerTriggerSecret)) return res.status(403).json({ error: "external-trigger-only" });
+    try {
+      return res.json(await executeScannerRun(EXTERNAL_SCANNER_TASK_UID, "External trigger"));
+    } catch (error) {
+      return res.status(500).json({ error: error instanceof Error ? error.message : "scanner failed", timestamp: new Date().toISOString() });
     }
   });
   // tRPC API

@@ -22,6 +22,7 @@ export const ENV = {
   telegramChatId: process.env.TELEGRAM_CHAT_ID ?? "",
   telegramGroupChatId: process.env.TELEGRAM_BTC_GROUP_CHAT_ID ?? "",
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET ?? "",
+  externalScannerTriggerSecret: process.env.EXTERNAL_SCANNER_TRIGGER_SECRET ?? "",
   telegramAssetBots: {
     "EUR/USD": { token: process.env.TELEGRAM_EURUSD_BOT_TOKEN ?? "", chatId: process.env.TELEGRAM_EURUSD_CHAT_ID ?? "", groupChatId: process.env.TELEGRAM_EURUSD_GROUP_CHAT_ID ?? "" },
     "XAU/USD": { token: process.env.TELEGRAM_XAUUSD_BOT_TOKEN ?? "", chatId: process.env.TELEGRAM_XAUUSD_CHAT_ID ?? "", groupChatId: process.env.TELEGRAM_XAUUSD_GROUP_CHAT_ID ?? "" },

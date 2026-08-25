@@ -1072,3 +1072,13 @@
 - [x] Implement confirmed-breakout re-anchoring and explicit range-reaction qualification without fabricating targets.
 - [x] Persist near-miss rejection reasons for audit without emitting a signal, and preserve contradiction/duplicate safeguards.
 - [x] Add regression coverage and stored-evaluation simulation for the balanced locator before enabling Telegram paper signals.
+
+- [x] Evaluate alternatives to the best-effort Heartbeat trigger for five-minute Twelve Data retrieval, including an always-on worker and a lighter hybrid fallback, with duplicate-run protection.
+
+- [x] Implement the approved external five-minute trigger path while retaining Heartbeat fallback.
+- [x] Add authenticated idempotency keys and a database lease so overlapping triggers cannot duplicate scanner runs or Telegram signals.
+- [ ] Connect and verify the external trigger, then monitor actual five-minute callback cadence and failure recovery.
+
+- [x] Determine whether three-minute scanner polling fits the available Twelve Data daily quota and preserve a safe quota ceiling before any cadence change.
+
+- [x] Retain exactly five Twelve Data keys and a five-minute scanner cadence; do not implement two- or three-minute polling.

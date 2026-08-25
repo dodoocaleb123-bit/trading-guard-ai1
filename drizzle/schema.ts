@@ -246,6 +246,9 @@ export const scannerRunLedger = mysqlTable("scanner_run_ledger", {
   createdSignals: int("createdSignals").default(0).notNull(),
   trackedSignals: int("trackedSignals").default(0).notNull(),
   adjustments: int("adjustments").default(0).notNull(),
+  /** Number of overlapping callbacks suppressed by this shared five-minute run bucket. */
+  duplicateCallbacks: int("duplicateCallbacks").default(0).notNull(),
+  lastDuplicateAt: timestamp("lastDuplicateAt"),
   marketData: mysqlEnum("marketData", ["available", "unavailable", "not-run"]).default("not-run").notNull(),
   error: text("error"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV4OutcomeStats, getAdaptiveRatioStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV4MonitoringStats, listEntryLocatorStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, getScannerCadenceDiagnostics, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV4OutcomeStats, getAdaptiveRatioStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV4MonitoringStats, listEntryLocatorStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, resolveLessonPatternReview } from "./intelligence";
@@ -229,6 +229,7 @@ Matched strategy rules:\n${rulesText || "No matching rule excerpt was found."}\n
     }),
     summary: protectedProcedure.query(({ ctx }) => getStrategyDecisionSummary(ctx.user.id)),
     health: protectedProcedure.query(({ ctx }) => getStrategyEngineHealth(ctx.user.id)),
+    cadence: protectedProcedure.query(({ ctx }) => getScannerCadenceDiagnostics(ctx.user.id)),
     callbackStatus: protectedProcedure.query(async ({ ctx }) => {
       const settings = await getSettings(ctx.user.id);
       const session = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";

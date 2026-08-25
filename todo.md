@@ -1082,3 +1082,7 @@
 - [x] Determine whether three-minute scanner polling fits the available Twelve Data daily quota and preserve a safe quota ceiling before any cadence change.
 
 - [x] Retain exactly five Twelve Data keys and a five-minute scanner cadence; do not implement two- or three-minute polling.
+
+- [x] Monitor external five-minute scanner execution history and compare live callback timestamps with the run ledger.
+- [x] Add dashboard cadence diagnostics for scheduled, received, skipped, duplicate-suppressed, and completed scanner cycles.
+- [x] Add regression coverage and publish the verified cadence-diagnostics update without changing signal rules or quota cadence.

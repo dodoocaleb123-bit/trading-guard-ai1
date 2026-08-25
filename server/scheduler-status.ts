@@ -36,6 +36,43 @@ export function selectScannerSchedulerJob(storedTaskUid: string | null | undefin
   return { job: replacement, taskUid: replacement.taskUid, reconciled: true };
 }
 
+export type ScannerCadenceRun = {
+  id?: number;
+  runKey: string;
+  taskUid: string;
+  startedAt: Date | string;
+  finishedAt?: Date | string | null;
+  status: string;
+  duplicateCallbacks?: number | null;
+};
+
+export function summarizeScannerCadence(runs: ScannerCadenceRun[]) {
+  const byRunKey = new Map<string, ScannerCadenceRun>();
+  for (const run of runs) {
+    const prior = byRunKey.get(run.runKey);
+    if (!prior || new Date(run.startedAt).getTime() < new Date(prior.startedAt).getTime()) byRunKey.set(run.runKey, run);
+  }
+  const uniqueRows = Array.from(byRunKey.values()).sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+  const intervals = uniqueRows.slice(1).map((row, index) => (new Date(row.startedAt).getTime() - new Date(uniqueRows[index].startedAt).getTime()) / 60000);
+  const firstAt = uniqueRows[0] ? new Date(uniqueRows[0].startedAt).getTime() : null;
+  const lastAt = uniqueRows.at(-1) ? new Date(uniqueRows.at(-1)!.startedAt).getTime() : null;
+  const observedWindows = firstAt == null || lastAt == null ? 0 : Math.floor((lastAt - firstAt) / (5 * 60 * 1000)) + 1;
+  return {
+    observedWindows,
+    receivedCycles: uniqueRows.length,
+    completedCycles: uniqueRows.filter((run) => run.status === "SUCCEEDED").length,
+    failedCycles: uniqueRows.filter((run) => run.status === "FAILED").length,
+    skippedWindows: Math.max(0, observedWindows - uniqueRows.length),
+    duplicateSuppressed: runs.reduce((sum, run) => sum + Number(run.duplicateCallbacks ?? 0), 0),
+    averageIntervalMinutes: intervals.length ? Math.round((intervals.reduce((sum, value) => sum + value, 0) / intervals.length) * 10) / 10 : null,
+    lastRunAt: uniqueRows.at(-1)?.startedAt ?? null,
+    lastSource: uniqueRows.at(-1) ? (uniqueRows.at(-1)!.taskUid === "external-cron-job" ? "EXTERNAL_TRIGGER" : "HEARTBEAT") : null,
+    externalCycles: uniqueRows.filter((run) => run.taskUid === "external-cron-job").length,
+    heartbeatCycles: uniqueRows.filter((run) => run.taskUid !== "external-cron-job").length,
+    runs: uniqueRows.slice(-12).reverse(),
+  };
+}
+
 export type CallbackStatusInput = {
   scannerEnabled: boolean;
   scheduleCronTaskUid?: string | null;

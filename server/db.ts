@@ -1,8 +1,9 @@
-import { and, asc, count, desc, eq, gte, inArray, isNull, lt, notInArray, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, ownerAlertLedger, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
+import { summarizeScannerCadence } from "./scheduler-status";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -418,7 +419,10 @@ export async function startScannerRun(taskUid: string, at = new Date()) {
   if (!db) throw new Error("Database unavailable");
   const runKey = buildScannerRunKey(taskUid, at);
   const existing = await db.select().from(scannerRunLedger).where(eq(scannerRunLedger.runKey, runKey)).limit(1);
-  if (existing[0]) return { row: existing[0], duplicate: true };
+  if (existing[0]) {
+    await db.update(scannerRunLedger).set({ duplicateCallbacks: sql`${scannerRunLedger.duplicateCallbacks} + 1`, lastDuplicateAt: at }).where(eq(scannerRunLedger.id, existing[0].id));
+    return { row: { ...existing[0], duplicateCallbacks: Number(existing[0].duplicateCallbacks ?? 0) + 1, lastDuplicateAt: at }, duplicate: true };
+  }
   try {
     const result = await db.insert(scannerRunLedger).values({ taskUid, runKey, startedAt: at, status: "RUNNING" });
     const rows = await db.select().from(scannerRunLedger).where(eq(scannerRunLedger.id, Number(result[0].insertId))).limit(1);
@@ -440,6 +444,16 @@ export async function listRecentScannerRuns(taskUid: string, limit = 20) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(scannerRunLedger).where(eq(scannerRunLedger.taskUid, taskUid)).orderBy(desc(scannerRunLedger.startedAt)).limit(limit);
+}
+
+export async function getScannerCadenceDiagnostics(userId: number, now = new Date()) {
+  const db = await getDb();
+  if (!db) return { windowHours: 24, expectedIntervalMinutes: 5, observedWindows: 0, receivedCycles: 0, completedCycles: 0, failedCycles: 0, skippedWindows: 0, duplicateSuppressed: 0, averageIntervalMinutes: null, lastRunAt: null, lastSource: null, externalCycles: 0, heartbeatCycles: 0, runs: [] };
+  const settings = await getSettings(userId);
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const taskUids = [settings.scheduleCronTaskUid, "external-cron-job"].filter((taskUid): taskUid is string => Boolean(taskUid));
+  const rows = taskUids.length ? await db.select().from(scannerRunLedger).where(and(gte(scannerRunLedger.startedAt, since), inArray(scannerRunLedger.taskUid, taskUids))).orderBy(desc(scannerRunLedger.startedAt)).limit(500) : [];
+  return { windowHours: 24, expectedIntervalMinutes: 5, ...summarizeScannerCadence(rows) };
 }
 
 export async function updateStrategyEngineStatus(userId: number, input: { status: "AVAILABLE" | "UNAVAILABLE" | "NOT_RUN"; error?: string | null }) {

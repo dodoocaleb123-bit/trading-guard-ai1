@@ -366,6 +366,33 @@ export async function hasTelegramDelivery(dedupeKey: string) {
   return rows[0]?.status === "DELIVERED";
 }
 
+export function summarizeTelegramDeliveryHealth(deliveries: Array<{ kind: string; status: string; error?: string | null; createdAt?: Date | string | null }>, now = new Date(), windowHours = 24) {
+  const windowStart = now.getTime() - windowHours * 60 * 60 * 1000;
+  const parseTime = (value: Date | string | null | undefined) => value instanceof Date ? value.getTime() : value ? new Date(value).getTime() : Number.NaN;
+  const isRateLimit = (error: string | null | undefined) => /429|rate.?limit|too many requests/i.test(error ?? "");
+  const recent = deliveries.filter((delivery) => {
+    const createdAt = parseTime(delivery.createdAt);
+    return Number.isFinite(createdAt) && createdAt >= windowStart;
+  });
+  const recentTelegram = recent;
+  const recentFailed = recentTelegram.filter((delivery) => delivery.status === "FAILED");
+  const recentDelivered = recentTelegram.filter((delivery) => delivery.status === "DELIVERED");
+  const failed = deliveries.filter((delivery) => delivery.status === "FAILED");
+  const historicalRateLimitFailures = failed.filter((delivery) => !recent.includes(delivery) && isRateLimit(delivery.error));
+  const historicalOtherFailures = failed.filter((delivery) => !recent.includes(delivery) && !isRateLimit(delivery.error));
+  const failureTimestamps = failed.map((delivery) => parseTime(delivery.createdAt)).filter(Number.isFinite);
+  return {
+    windowHours,
+    recentAttempts: recentTelegram.length,
+    recentDelivered: recentDelivered.length,
+    recentFailed: recentFailed.length,
+    recentFailureRate: recentTelegram.length ? Math.round((recentFailed.length / recentTelegram.length) * 100) : null,
+    historicalRateLimitFailures: historicalRateLimitFailures.length,
+    historicalOtherFailures: historicalOtherFailures.length,
+    latestFailureAt: failureTimestamps.length ? new Date(Math.max(...failureTimestamps)) : null,
+  };
+}
+
 export function summarizeDeliveryCounts(signals: Array<{ status: string }>, audits: Array<{ verdict: string }>, deliveries: Array<{ kind: string; status: string }>) {
   const count = (kind: "SIGNAL" | "AUDIT" | "OUTCOME" | "REASON" | "ADJUSTMENT", status?: "DELIVERED" | "FAILED") => deliveries.filter((delivery) => delivery.kind === kind && (!status || delivery.status === status)).length;
   return {
@@ -387,11 +414,11 @@ export function summarizeDeliveryCounts(signals: Array<{ status: string }>, audi
 
 export async function getSignalDeliverySummary(userId: number) {
   const db = await getDb();
-  if (!db) return summarizeDeliveryCounts([], [], []);
+  if (!db) return { ...summarizeDeliveryCounts([], [], []), deliveryHealth: summarizeTelegramDeliveryHealth([]) };
   const signals = await db.select().from(generatedSignals).where(eq(generatedSignals.userId, userId));
   const audits = await db.select().from(auditTrades).where(eq(auditTrades.userId, userId));
   const deliveries = await db.select().from(telegramDeliveries).where(eq(telegramDeliveries.userId, userId));
-  return summarizeDeliveryCounts(signals, audits, deliveries);
+  return { ...summarizeDeliveryCounts(signals, audits, deliveries), deliveryHealth: summarizeTelegramDeliveryHealth(deliveries) };
 }
 
 export async function getSettings(userId: number) {

@@ -1096,3 +1096,7 @@
 - [x] Verify retired loosened-era signals no longer block new entries for their asset/timeframe; the existing PENDING-only blocker query and full regression suite passed.
 
 - [x] Run consecutive full diagnostics across runtime health, database integrity, external integrations, scanner cadence, v4 Entry Locator, paper outcomes, Telegram delivery, automated tests, build, production endpoint, and responsive UI; repair confirmed defects and repeat until the final pass is clean.
+
+- [x] Reduce client bundle cost with safe route-level code-splitting and verify the generated chunks.
+- [x] Separate historical Telegram rate-limit delivery failures from current delivery-health diagnostics.
+- [x] Add authenticated chat smoke coverage proving a fresh assistant response contains readable content and remains paper-only.

@@ -1111,7 +1111,7 @@
 
 - [x] Prevent the cadence banner from showing a false health warning while its live diagnostics query is still loading; revalidate the loaded and loading states.
 
-- [ ] Verify the reported EUR/USD breakout against the latest v4 snapshots, breakout-confirmation evidence, and Entry Locator geometry for 15MIN and 1H.
+- [x] Verify the reported EUR/USD breakout against the latest v4 snapshots, breakout-confirmation evidence, and Entry Locator geometry for 15MIN and 1H: the latest 15MIN state remained WITHIN_RANGE with breakoutConfirmed=false, while 15MIN and 1H both remained WAITING because permitted 1:2/1:3 geometry was not coherent.
 
 - [x] Investigate and stop repeated XAU/USD 15MIN WIN Telegram notifications while preserving the underlying paper outcome and audit trail.
 

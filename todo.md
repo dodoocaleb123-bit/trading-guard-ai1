@@ -1100,3 +1100,7 @@
 - [x] Reduce client bundle cost with safe route-level code-splitting and verify the generated chunks.
 - [x] Separate historical Telegram rate-limit delivery failures from current delivery-health diagnostics.
 - [x] Add authenticated chat smoke coverage proving a fresh assistant response contains readable content and remains paper-only.
+
+- [x] Run the final top-to-bottom diagnostic across scheduler, Twelve Data, v4 Entry Locator, paper signals, Telegram, database, automated checks, endpoints, and responsive UI; repair confirmed defects, repeat affected checks, and publish the clean result.
+
+- [x] Repeat several complete diagnostics until one full pass finishes without a confirmed application problem or error; repair and revalidate any confirmed defect before the clean pass.

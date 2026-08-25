@@ -14,8 +14,9 @@ export type EntryForgerLevels = {
 };
 
 const MIN_RELATIVE_DISTANCE = 0.00005;
+const MIN_EXECUTABLE_TARGET_RELATIVE_DISTANCE = 0.0012;
 const TARGET_CLEARANCE_ATR = 0.15;
-const MIN_TARGET_DISTANCE_ATR = 0.15;
+const MIN_TARGET_DISTANCE_ATR = 0.5;
 
 export function canUseEntryForgerFallback(input: {
   locatorReady: boolean;
@@ -42,8 +43,8 @@ export function deriveEntryForgerLevels(input: { entry: number; direction: Entry
   const atrBuffer = Number.isFinite(atr) && atr > 0 ? atr * TARGET_CLEARANCE_ATR : 0;
   const clearance = Math.max(relativeBuffer, atrBuffer);
   const targetDistance = favorableDistance - clearance;
-  const minimumDistance = Math.max(relativeBuffer, Number.isFinite(atr) && atr > 0 ? atr * MIN_TARGET_DISTANCE_ATR : 0);
-  if (!(targetDistance >= minimumDistance)) return { ready: false, reason: "Entry Forger target boundary is too close after the clearance buffer." };
+  const minimumDistance = Math.max(relativeBuffer, Math.abs(entry) * MIN_EXECUTABLE_TARGET_RELATIVE_DISTANCE, Number.isFinite(atr) && atr > 0 ? atr * MIN_TARGET_DISTANCE_ATR : 0);
+  if (!(targetDistance >= minimumDistance)) return { ready: false, reason: `Entry Forger target boundary is too close for an executable paper setup after clearance; minimum target distance is ${minimumDistance}.` };
 
   const takeProfit = input.direction === "BUY" ? entry + targetDistance : entry - targetDistance;
   const stopLoss = input.direction === "BUY" ? entry - targetDistance / 2 : entry + targetDistance / 2;

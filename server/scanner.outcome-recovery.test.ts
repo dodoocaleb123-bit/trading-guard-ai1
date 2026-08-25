@@ -9,7 +9,10 @@ describe("scanner outcome recovery safeguards", () => {
     }));
 
     expect(selectOutcomeTrackingBatch(signals)).toHaveLength(MAX_OUTCOME_TRACKS_PER_RUN);
-    expect(selectOutcomeTrackingBatch(signals).map((signal) => signal.id)).toEqual([7, 6, 5, 4]);
+    const selected = selectOutcomeTrackingBatch(signals);
+    expect(selected[0]?.id).toBe(MAX_OUTCOME_TRACKS_PER_RUN + 3);
+    expect(selected.at(-1)?.id).toBe(4);
+    expect(selected).toHaveLength(MAX_OUTCOME_TRACKS_PER_RUN);
   });
 
   it("uses persisted or auditable fallback prices for retry messages", () => {

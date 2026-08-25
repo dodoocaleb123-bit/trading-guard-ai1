@@ -1155,3 +1155,7 @@
 - [x] Diagnose why the authenticated application interface is not reflecting current backend scanner, threshold, signal, and delivery state; one-shot queries and hardcoded Overview Market pulse values were confirmed as the main causes.
 - [x] Fix the confirmed dashboard synchronization defect by adding one-minute refetching with focus refresh and replacing hardcoded Market pulse values with authenticated live scanner data; scanner and trading behavior were unchanged.
 - [x] Validate current data visibility across Overview, Scanner, and Trade History at desktop and mobile widths; live prices, saved timestamps, source metrics, and scanner warnings rendered correctly.
+
+- [x] Diagnose why recent GBP/USD and EUR/USD signal entry-to-stop/target distances are impractically small, and identify a safe geometry correction without weakening the shared 60%/45% quality gate.
+- [x] Diagnose and repair recent v4 outcome tracking and Telegram WIN/LOSS reply delivery for trades from the last three hours; current v4-only tracking now processes a bounded backlog of up to 32 rows and recent resolved outcomes show delivered replies.
+- [x] Inventory legacy v1–v3 records and dependent rows, then prepare a precise non-destructive purge plan that preserves current v4 records until the user confirms deletion; purge execution remains pending explicit scope confirmation.

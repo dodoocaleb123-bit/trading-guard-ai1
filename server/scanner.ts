@@ -73,7 +73,7 @@ export function buildSignalDeliveryDedupeKey(signalId: number) {
   return `signal:${signalId}`;
 }
 
-export const MAX_OUTCOME_TRACKS_PER_RUN = 4;
+export const MAX_OUTCOME_TRACKS_PER_RUN = 32;
 export const MAX_FAILED_OUTCOME_RETRIES_PER_RUN = 2;
 
 type ScanUserResult = { created: number; tracked: number; adjustments: number; marketData: ScanMarketDataStatus; marketDataError?: string | null };
@@ -476,7 +476,7 @@ export function shouldUseIntrabarRange(signalOpenedAt: Date | string, candleStar
 export async function trackOpenSignals(userId: number, seriesCache?: Map<string, MarketSeries>, excludedSignalIds: ReadonlySet<number> = new Set()) {
   const db = await getDb();
   if (!db) return 0;
-  const openRows = await db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING")));
+  const openRows = await listOpenCurrentV4Signals(userId);
   const open = selectOutcomeTrackingBatch(openRows);
   let tracked = 0;
   for (const signal of open) {

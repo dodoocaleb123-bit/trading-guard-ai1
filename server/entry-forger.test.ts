@@ -26,6 +26,17 @@ describe("Entry Forger", () => {
     expect(deriveEntryForgerLevels({ entry: 100, direction: "BUY", targetBoundary: null, atr: 1 }).ready).toBe(false);
   });
 
+  it("rejects an impractically tight target even when it is favorable", () => {
+    const result = deriveEntryForgerLevels({ entry: 1.16721, direction: "BUY", targetBoundary: 1.1675, atr: 0.0003 });
+    expect(result.ready).toBe(false);
+    if (!result.ready) expect(result.reason).toContain("executable paper setup");
+  });
+
+  it("accepts a target that clears the executable volatility floor", () => {
+    const result = deriveEntryForgerLevels({ entry: 1.16721, direction: "BUY", targetBoundary: 1.1695, atr: 0.0003 });
+    expect(result.ready).toBe(true);
+  });
+
   it("only enables fallback after a geometry denial and preserves lock and gate safeguards", () => {
     const base = { locatorReady: false, geometryDenied: true, v4Active: true, strategyApproved: true, qualityApproved: true, hasCompleteLevels: true, activeSignal: false };
     expect(canUseEntryForgerFallback(base)).toBe(true);

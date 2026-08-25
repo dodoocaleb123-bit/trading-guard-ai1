@@ -48,4 +48,11 @@ describe("dashboard terminology", () => {
     expect(homeSource).not.toContain("scanner decisions");
     expect(homeSource).not.toContain("scanner candidates reference");
   });
+
+  it("hides empty legacy analytics histories after the purge", () => {
+    expect(homeSource).toContain("const visibleVersions = (stats.data?.versions ?? []).filter((version) => version.overall.generated > 0)");
+    expect(homeSource).toContain("const visibleVersions = (query.data?.versions ?? []).filter((version) => groups.some");
+    expect(homeSource).toContain("No persisted paper-signal records are available for the selected analytics scope.");
+    expect(homeSource).toContain("<V2V3Comparison versions={visibleVersions} />");
+  });
 });

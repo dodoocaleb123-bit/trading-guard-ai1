@@ -17,6 +17,15 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("strategy-engine judgments");
   });
 
+  it("exposes the v4 source comparison controls and provenance labels", () => {
+    expect(homeSource).toContain("V4 source performance");
+    expect(homeSource).toContain("Filter source performance by asset");
+    expect(homeSource).toContain("Filter source performance by timeframe");
+    expect(homeSource).toContain("Filter source performance by signal source");
+    expect(homeSource).toContain("Entry Locator");
+    expect(homeSource).toContain("Entry Forger");
+  });
+
   it("does not reintroduce scanner-decision wording in the revised pages", () => {
     expect(homeSource).not.toContain("scanner decisions");
     expect(homeSource).not.toContain("scanner candidates reference");

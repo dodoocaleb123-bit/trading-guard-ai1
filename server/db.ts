@@ -751,6 +751,30 @@ export function summarizeAdaptiveRatioStats(rows: Array<{ riskReward: string | n
     return { ratio, generated: matching.length, resolved, wins, losses, winRate: resolved ? Math.round((wins / resolved) * 100) : null };
   });
 }
+export type V4SourceMetric = { source: "ENTRY_LOCATOR" | "ENTRY_FORGER"; generated: number; resolved: number; wins: number; losses: number; winRate: number | null };
+const V4_SOURCE_MODES = [ENTRY_LOCATOR_V4_GENERATION_MODE, ENTRY_FORGER_V4_GENERATION_MODE] as const;
+
+export function summarizeV4SourceStats(rows: Array<{ generationMode: string | null; status: string }>): V4SourceMetric[] {
+  return V4_SOURCE_MODES.map((mode) => {
+    const matching = rows.filter((row) => row.generationMode === mode);
+    const wins = matching.filter((row) => row.status === "WIN").length;
+    const losses = matching.filter((row) => row.status === "LOSS").length;
+    const resolved = wins + losses;
+    return { source: mode === ENTRY_LOCATOR_V4_GENERATION_MODE ? "ENTRY_LOCATOR" : "ENTRY_FORGER", generated: matching.length, resolved, wins, losses, winRate: resolved ? Math.round((wins / resolved) * 100) : null };
+  });
+}
+
+export async function getV4SourceStats(userId: number, filters: { asset?: string; timeframe?: string; source?: "ENTRY_LOCATOR" | "ENTRY_FORGER" } = {}) {
+  const db = await getDb();
+  const selectedMode = filters.source === "ENTRY_LOCATOR" ? ENTRY_LOCATOR_V4_GENERATION_MODE : filters.source === "ENTRY_FORGER" ? ENTRY_FORGER_V4_GENERATION_MODE : undefined;
+  if (!db) return { sources: summarizeV4SourceStats([]), generatedAt: new Date(), asset: filters.asset ?? "ALL", timeframe: filters.timeframe ?? "ALL", source: filters.source ?? "ALL" };
+  const predicates = [eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), selectedMode ? eq(generatedSignals.generationMode, selectedMode) : inArray(generatedSignals.generationMode, [...V4_SOURCE_MODES])];
+  if (filters.asset) predicates.push(eq(generatedSignals.asset, filters.asset));
+  if (filters.timeframe) predicates.push(eq(generatedSignals.timeframe, filters.timeframe));
+  const rows = await db.select({ generationMode: generatedSignals.generationMode, status: generatedSignals.status }).from(generatedSignals).where(and(...predicates));
+  return { sources: summarizeV4SourceStats(rows), generatedAt: new Date(), asset: filters.asset ?? "ALL", timeframe: filters.timeframe ?? "ALL", source: filters.source ?? "ALL" };
+}
+
 export async function getAdaptiveRatioStats(userId: number, filters: { asset?: string; timeframe?: string } = {}) {
   const db = await getDb();
   if (!db) return { ratios: summarizeAdaptiveRatioStats([]), generatedAt: new Date(), asset: filters.asset ?? "ALL", timeframe: filters.timeframe ?? "ALL" };

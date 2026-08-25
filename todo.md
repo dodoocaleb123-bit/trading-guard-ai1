@@ -1134,3 +1134,6 @@
 - [x] Update existing Telegram formatter regression expectations for the new explicit Entry Locator/Entry Forger provenance footer, then rerun the full validation suite.
 
 - [x] Fix the confirmed fallback control-flow defect so Entry Forger is evaluated after a valid v4 candidate reaches Entry Locator but the Locator denies only its ratio/geometry; it must not bypass no-indicator, incomplete, or strategy-gate exits.
+
+- [x] Monitor the next five-minute scanner cycles for Entry Forger activity, source attribution, and delivery outcomes without changing scanner cadence or trading safeguards.
+- [x] Add a dashboard comparison filter for Entry Locator versus Entry Forger signal frequency and resolved outcomes using persisted source data.

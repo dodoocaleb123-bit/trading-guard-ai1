@@ -7,6 +7,7 @@ import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutable
 import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { advanceEntryLocator, countStrongSetupIndicators, hasBreakoutConfirmationTransition, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
 import { canUseEntryForgerFallback, deriveEntryForgerLevels } from "./entry-forger";
+import { describePaperSignalQuality, hasMinimumPaperSignalQuality } from "./paper-signal-quality";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
 import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, normalizeForensicFinding, sendTelegramMessage, type MarketSeries } from "./integrations";
@@ -76,6 +77,23 @@ export const MAX_OUTCOME_TRACKS_PER_RUN = 4;
 export const MAX_FAILED_OUTCOME_RETRIES_PER_RUN = 2;
 
 type ScanUserResult = { created: number; tracked: number; adjustments: number; marketData: ScanMarketDataStatus; marketDataError?: string | null };
+type SharedMarketData = { series15m: Map<string, MarketSeries>; series1h: Map<string, MarketSeries> };
+type ScanUserInput = { marketData?: SharedMarketData; marketDataError?: string | null };
+
+async function fetchSharedMarketData(): Promise<SharedMarketData> {
+  const startedAt = Date.now();
+  console.info(`[Scanner] Shared market-data window started at=${new Date(startedAt).toISOString()}`);
+  const batchResults = await Promise.allSettled([
+    fetchMarketSeriesBatch(WATCHLIST, "15min"),
+    fetchMarketSeriesBatch(WATCHLIST, "1h"),
+  ]);
+  const batchLabels = ["15min", "1h"] as const;
+  const failures = batchResults.flatMap((result, index) => result.status === "rejected" ? [{ interval: batchLabels[index], message: result.reason instanceof Error ? result.reason.message : String(result.reason) }] : []);
+  if (failures.length) throw new Error(failures.map((failure) => `Twelve Data ${failure.interval} unavailable: ${failure.message}`).join(" | "));
+  const [series15m, series1h] = batchResults.map((result) => (result as PromiseFulfilledResult<Map<string, MarketSeries>>).value) as [Map<string, MarketSeries>, Map<string, MarketSeries>];
+  console.info(`[Scanner] Shared market-data window completed series15m=${series15m.size} series1h=${series1h.size} durationMs=${Date.now() - startedAt} at=${new Date().toISOString()}`);
+  return { series15m, series1h };
+}
 
 export function outcomeFallbackPrice(signal: { status: string; entry: string | number; stopLoss: string | number; takeProfit: string | number; outcomeNote?: string | null; resolutionPrice?: string | number | null }) {
   const resolutionPrice = Number(signal.resolutionPrice);
@@ -129,24 +147,22 @@ async function loadExecutableIntelligence(userId: number): Promise<ExecutableCom
   return components;
 }
 
-export async function scanUser(userId: number): Promise<ScanUserResult> {
+export async function scanUser(userId: number, input?: ScanUserInput): Promise<ScanUserResult> {
   const db = await getDb();
   if (!db) return { created: 0, tracked: 0, adjustments: 0, marketData: "not-run", marketDataError: null };
 
   let series15m: Map<string, MarketSeries>;
   let series1h: Map<string, MarketSeries>;
   const marketDataStartedAt = Date.now();
-  console.info(`[Scanner] Market-data window started user=${userId} at=${new Date(marketDataStartedAt).toISOString()}`);
+  console.info(`[Scanner] Market-data window ${input?.marketData ? "reused" : "started"} user=${userId} at=${new Date(marketDataStartedAt).toISOString()}`);
   try {
-    const batchResults = await Promise.allSettled([
-      fetchMarketSeriesBatch(WATCHLIST, "15min"),
-      fetchMarketSeriesBatch(WATCHLIST, "1h"),
-    ]);
-    const batchLabels = ["15min", "1h"] as const;
-    const failures = batchResults.flatMap((result, index) => result.status === "rejected" ? [{ interval: batchLabels[index], message: result.reason instanceof Error ? result.reason.message : String(result.reason) }] : []);
-    if (failures.length) throw new Error(failures.map((failure) => `Twelve Data ${failure.interval} unavailable: ${failure.message}`).join(" | "));
-    [series15m, series1h] = batchResults.map((result) => (result as PromiseFulfilledResult<Map<string, MarketSeries>>).value) as [Map<string, MarketSeries>, Map<string, MarketSeries>];
-    console.info(`[Scanner] Market-data window completed user=${userId} series15m=${series15m.size} series1h=${series1h.size} durationMs=${Date.now() - marketDataStartedAt} at=${new Date().toISOString()}`);
+    if (input?.marketDataError) throw new Error(input.marketDataError);
+    if (input?.marketData) {
+      ({ series15m, series1h } = input.marketData);
+    } else {
+      ({ series15m, series1h } = await fetchSharedMarketData());
+    }
+    console.info(`[Scanner] Market-data window ready user=${userId} series15m=${series15m.size} series1h=${series1h.size} durationMs=${Date.now() - marketDataStartedAt} at=${new Date().toISOString()}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await updateStrategyEngineStatus(userId, { status: "UNAVAILABLE", error: message });
@@ -270,16 +286,20 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
     let previousLocator: Record<string, unknown> | null = null;
     try { previousLocator = storedLocator?.stateJson ? JSON.parse(storedLocator.stateJson) : null; } catch { previousLocator = null; }
     const locatorResult = advanceEntryLocator({ previous: previousLocator, observation, hasOpenSignal });
-    gated.entryLocatorReady = locatorResult.ready;
-    gated.entryLocatorReason = locatorResult.reason;
+    const paperSignalQualityApproved = hasMinimumPaperSignalQuality(gated.confidence, gated.confluenceScore);
+    const paperSignalQualityReason = describePaperSignalQuality(gated.confidence, gated.confluenceScore);
+    const locatorReadyForEmission = locatorResult.ready && paperSignalQualityApproved;
+    gated.entryLocatorReady = locatorReadyForEmission;
+    gated.entryLocatorReason = !paperSignalQualityApproved && locatorResult.ready ? `Entry Locator blocked emission: ${paperSignalQualityReason}` : locatorResult.reason;
     const activeSignal = activeCurrentSignals.find((signal) => signal.asset === asset && signal.timeframe === timeframe);
     const upgradeLocatorResult = activeSignal
       ? advanceEntryLocator({ previous: previousLocator ? { ...previousLocator, status: "WAITING" } : null, observation, hasOpenSignal: false })
       : null;
-    gated.contradictionLocatorReady = activeSignal ? Boolean(upgradeLocatorResult?.ready) : locatorResult.ready;
-    gated.contradictionLocatorReason = activeSignal ? upgradeLocatorResult?.reason ?? locatorResult.reason : locatorResult.reason;
-    const locatorState = locatorResult.ready ? markEntryLocatorEmitted(locatorResult.state, observation.fingerprint) : locatorResult.state;
-    await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null,       lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify(locatorState), lastEmittedAt: locatorResult.ready ? new Date() : storedLocator?.lastEmittedAt ?? null });
+    gated.contradictionLocatorReady = activeSignal ? Boolean(upgradeLocatorResult?.ready && paperSignalQualityApproved) : locatorReadyForEmission;
+    gated.contradictionLocatorReason = activeSignal ? (paperSignalQualityApproved ? upgradeLocatorResult?.reason ?? locatorResult.reason : `Contradiction monitor blocked: ${paperSignalQualityReason}`) : gated.entryLocatorReason;
+    const qualitySafeLocatorState = !paperSignalQualityApproved && locatorResult.ready ? { ...locatorResult.state, status: "WAITING" as const, waitReason: `Entry Locator blocked emission: ${paperSignalQualityReason}` } : locatorResult.state;
+    const locatorState = locatorReadyForEmission ? markEntryLocatorEmitted(qualitySafeLocatorState, observation.fingerprint) : qualitySafeLocatorState;
+    await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null,       lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify(locatorState), lastEmittedAt: locatorReadyForEmission ? new Date() : storedLocator?.lastEmittedAt ?? null });
     if (hasBreakoutConfirmationTransition(previousLocator, observation)) {
       const dedupeKey = `BREAKOUT_CONFIRMED:${userId}:${asset}:${timeframe}:${observation.fingerprint}`;
       const content = `${asset} ${timeframe} has transitioned to a confirmed ${observation.direction} breakout. Geometry mode: ${observation.geometryMode ?? "UNKNOWN"}. Next opposing zone: ${observation.direction === "BUY" ? observation.nextResistance ?? "not recorded" : observation.nextSupport ?? "not recorded"}. This is an operational paper-trading alert; it is not a guarantee and does not itself emit a signal.`;
@@ -292,8 +312,8 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
     }
     const strongIndicatorCount = countStrongSetupIndicators(observation.supportingComponents);
     const indicatorBucket = strongIndicatorCount === 1 ? "ONE_STRONG" : strongIndicatorCount >= 2 ? "TWO_PLUS" : "NONE";
-    const locatorMarket = { ...market, entryLocator: { status: locatorState.status, ready: locatorResult.ready, reason: locatorResult.reason, snapshotCount: locatorState.snapshotCount, fingerprint: observation.fingerprint, strongIndicatorCount, indicatorBucket } };
-    const decisionVerdict = locatorResult.ready ? gated.verdict : "SKIPPED" as const;
+    const locatorMarket = { ...market, entryLocator: { status: locatorState.status, ready: locatorReadyForEmission, reason: gated.entryLocatorReason, snapshotCount: locatorState.snapshotCount, fingerprint: observation.fingerprint, strongIndicatorCount, indicatorBucket } };
+    const decisionVerdict = locatorReadyForEmission ? gated.verdict : "SKIPPED" as const;
     await createStrategyDecision({
       userId,
       asset,
@@ -304,17 +324,17 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       ruleEvidence: JSON.stringify(gated.ruleEvidence ?? []),
       ruleFindings: JSON.stringify(gated.ruleFindings ?? []),
       marketSnapshot: JSON.stringify(locatorMarket),
-      generatedDirection: locatorResult.ready ? gated.direction : null,
-      generatedEntry: locatorResult.ready && gated.entry != null ? String(gated.entry) : null,
-      generatedStopLoss: locatorResult.ready && gated.stopLoss != null ? String(gated.stopLoss) : null,
-      generatedTakeProfit: locatorResult.ready && gated.takeProfit != null ? String(gated.takeProfit) : null,
-      decisionReason: `${gated.adjustments} Entry locator: ${locatorResult.reason}`,
+      generatedDirection: locatorReadyForEmission ? gated.direction : null,
+      generatedEntry: locatorReadyForEmission && gated.entry != null ? String(gated.entry) : null,
+      generatedStopLoss: locatorReadyForEmission && gated.stopLoss != null ? String(gated.stopLoss) : null,
+      generatedTakeProfit: locatorReadyForEmission && gated.takeProfit != null ? String(gated.takeProfit) : null,
+      decisionReason: `${gated.adjustments} Entry locator: ${gated.entryLocatorReason}`,
       cooldownKey,
     });
     try {
       const locatorGeometryDenied = /no allowed ratio fits|no allowed adaptive ratio|adaptive target geometry did not qualify/i.test(`${gated.adjustments ?? ""} ${locatorResult.reason}`);
-      const eligibleForgerFallback = canUseEntryForgerFallback({ locatorReady: locatorResult.ready, geometryDenied: locatorGeometryDenied, v4Active: replacementModel.id.endsWith("v4"), strategyApproved: shouldNotifyScannerSignal(gated.verdict), hasCompleteLevels: gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null, activeSignal: Boolean(activeSignal) });
-      if (!locatorResult.ready && !eligibleForgerFallback) {
+      const eligibleForgerFallback = canUseEntryForgerFallback({ locatorReady: locatorReadyForEmission, geometryDenied: locatorGeometryDenied, v4Active: replacementModel.id.endsWith("v4"), strategyApproved: shouldNotifyScannerSignal(gated.verdict), qualityApproved: paperSignalQualityApproved, hasCompleteLevels: gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null, activeSignal: Boolean(activeSignal) });
+      if (!locatorReadyForEmission && !eligibleForgerFallback) {
         console.info(`[Scanner] ${asset} ${timeframe} entry locator waiting: ${locatorResult.reason}`);
         continue;
       }
@@ -331,7 +351,7 @@ export async function scanUser(userId: number): Promise<ScanUserResult> {
       const selectedRiskReward = adaptiveV4 ? (traceRatio == null ? Number.NaN : Number(traceRatio)) : Number(gated.riskReward ?? 2);
       const allowedRatios = adaptiveV4 ? (ALLOWED_RISK_REWARD_RATIOS as readonly number[]) : [2];
       if (!allowedRatios.includes(selectedRiskReward)) {
-        const canForge = adaptiveV4 && locatorGeometryDenied && !activeSignal && Boolean(gated.direction) && gated.entry != null;
+        const canForge = adaptiveV4 && locatorGeometryDenied && paperSignalQualityApproved && !activeSignal && Boolean(gated.direction) && gated.entry != null;
         const forged = canForge ? deriveEntryForgerLevels({ entry: Number(gated.entry), direction: gated.direction as "BUY" | "SELL", targetBoundary: observation.targetBoundary, atr: market.marketContext?.volatility.atr }) : { ready: false as const, reason: "Entry Forger not eligible until Entry Locator geometry denial." };
         if (forged.ready) {
           const forgedLevels = { asset, timeframe, direction: gated.direction, entry: forged.entry, stopLoss: forged.stopLoss, takeProfit: forged.takeProfit, riskReward: forged.riskReward, confidence: gated.confidence };
@@ -526,8 +546,19 @@ export async function scanAllUsers() {
   let adjustments = 0;
   let marketData: ScanMarketDataStatus = allUsers.length ? "available" : "not-run";
   let marketDataError: string | null = null;
+  let sharedMarketData: SharedMarketData | undefined;
+  let sharedMarketDataError: string | null = null;
+  if (allUsers.length) {
+    try {
+      sharedMarketData = await fetchSharedMarketData();
+    } catch (error) {
+      sharedMarketDataError = error instanceof Error ? error.message : String(error);
+      marketData = "unavailable";
+      marketDataError = `Twelve Data market-data window failed for 15min and/or 1h: ${sharedMarketDataError}`;
+    }
+  }
   for (const user of allUsers) {
-    const result = await scanUser(user.id);
+    const result = await scanUser(user.id, sharedMarketData ? { marketData: sharedMarketData } : { marketDataError: sharedMarketDataError });
     created += result.created;
     tracked += result.tracked;
     adjustments += result.adjustments;

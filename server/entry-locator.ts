@@ -1,3 +1,5 @@
+import { hasMinimumPaperSignalQuality, MIN_PAPER_SIGNAL_CONFIDENCE, MIN_PAPER_SIGNAL_CONFLUENCE } from "./paper-signal-quality";
+
 export type LocatorStatus = "WAITING" | "READY" | "EMITTED";
 
 export type EntryLocatorObservation = {
@@ -114,7 +116,7 @@ export function advanceEntryLocator(input: {
   const conflictCount = latest.conflictingComponents.length;
   const strongIndicatorCount = countStrongSetupIndicators(latest.supportingComponents);
   const hasEnoughIndicators = strongIndicatorCount >= 1;
-  const hasQuality = strongIndicatorCount >= 2 ? averageConfidence >= 60 && averageConfluence >= 45 : averageConfidence >= 68 && averageConfluence >= 45;
+  const hasQuality = hasMinimumPaperSignalQuality(averageConfidence, averageConfluence);
   const hasCoherentGeometry = !latest.geometryFallback;
   const hasHighImpactRisk = latest.eventRisk === "HIGH";
   const riskReady = !hasHighImpactRisk || (averageConfidence >= 72 && sameDirection.length >= 2 && strongIndicatorCount >= 2);
@@ -125,7 +127,7 @@ export function advanceEntryLocator(input: {
   else if (!direction && snapshots.some((item) => item.direction === "NEUTRAL")) reason = "No directional setup indicator detected yet; accumulating fresh scanner snapshots until one appears.";
   else if (!direction) reason = "BUY and SELL evidence are currently tied or mixed; waiting for resolution.";
   else if (!hasEnoughIndicators) reason = "Waiting for at least one strong setup indicator from the catalog-derived evidence families.";
-  else if (!hasQuality) reason = `Setup evidence found, but confidence/confluence remain below the ${strongIndicatorCount >= 2 ? "60%/45%" : "68%/45%"} threshold (${Math.round(averageConfidence)}%/${Math.round(averageConfluence)}%).`;
+  else if (!hasQuality) reason = `Setup evidence found, but confidence/confluence remain below the ${MIN_PAPER_SIGNAL_CONFIDENCE}%/${MIN_PAPER_SIGNAL_CONFLUENCE}% threshold (${Math.round(averageConfidence)}%/${Math.round(averageConfluence)}%).`;
   else if (!hasCoherentGeometry) reason = "Setup repeated, but no allowed adaptive ratio has sufficient cleared structural space or breakout confirmation; waiting for coherent geometry.";
   else if (!riskReady) reason = "High-impact event risk is present; waiting for two consistent observations and at least two independent setup families.";
   else if (conflictCount > 0) reason = `Setup is eligible after ranking, with ${conflictCount} conflicting component(s) retained in the audit trace and ${strongIndicatorCount} supporting setup family/families.`;

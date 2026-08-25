@@ -1144,3 +1144,10 @@
 
 - [x] Add TWELVE_DATA_API_KEY_6 through secure configuration and extend the Twelve Data failover rotation to six keys.
 - [x] Validate the sixth Twelve Data key without exposing its value; key six returned HTTP 200 with provider status ok, and regression, typecheck, build, schema, and scanner-safety checks passed before publishing.
+
+- [x] Explain why Entry Forger emitted the reported BTC/USD 15MIN, XAU/USD 1H, EUR/USD 1H, and XAU/USD 15MIN signals below the normal v4 confidence threshold, confirming that the fallback thresholds are intentional.
+- [x] Verify which two reported paper trades are resolved and reconcile their persisted outcomes with the Telegram messages: BTC/USD 15MIN is LOSS and EUR/USD 1H is WIN.
+
+- [x] Enforce the shared minimum of 60% confidence and 45% confluence for both Entry Locator and Entry Forger before any paper signal is emitted; exact-boundary and below-threshold regression coverage passes.
+- [x] Diagnose the reported 4:25 PM v4 freshness timestamp and measure scanner-to-v4 and Telegram delivery latency; the timestamp was the latest market candle for the affected user, while user 1 had provider-unavailable cycles and signal delivery itself completed within about 1–5 seconds.
+- [x] Fix the confirmed stale-data cause by fetching each Twelve Data interval once per scheduled run and reusing the fresh window across users; clarify candle time versus state-save time in the dashboard. No Telegram delay defect was found, and cadence, paper-only, UNVALIDATED, and asset/timeframe safeguards remain unchanged.

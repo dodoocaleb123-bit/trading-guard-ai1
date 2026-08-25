@@ -25,6 +25,21 @@ describe("entry locator", () => {
     expect(result.selectedObservation?.direction).toBe("BUY");
   });
 
+  it("qualifies at the shared 60% confidence and 45% confluence boundary", () => {
+    const result = advanceEntryLocator({ previous: createEmptyEntryLocatorState(), observation: observation({ fingerprint: "exact-quality", confidence: 60, confluence: 45 }), hasOpenSignal: false, now });
+    expect(result.ready).toBe(true);
+    expect(result.state.status).toBe("READY");
+  });
+
+  it("rejects a directional setup below either shared quality minimum", () => {
+    const lowConfidence = advanceEntryLocator({ previous: createEmptyEntryLocatorState(), observation: observation({ fingerprint: "low-confidence", confidence: 59, confluence: 100 }), hasOpenSignal: false, now });
+    const lowConfluence = advanceEntryLocator({ previous: createEmptyEntryLocatorState(), observation: observation({ fingerprint: "low-confluence", confidence: 60, confluence: 44 }), hasOpenSignal: false, now });
+    expect(lowConfidence.ready).toBe(false);
+    expect(lowConfidence.reason).toContain("60%/45%");
+    expect(lowConfluence.ready).toBe(false);
+    expect(lowConfluence.reason).toContain("60%/45%");
+  });
+
   it("qualifies with one strong setup family when the evidence is strong enough", () => {
     const result = advanceEntryLocator({ previous: createEmptyEntryLocatorState(), observation: observation({ fingerprint: "one-strong", confidence: 82, confluence: 60, supportingComponents: ["MACD line/signal line crossover"] }), hasOpenSignal: false, now });
     expect(result.ready).toBe(true);

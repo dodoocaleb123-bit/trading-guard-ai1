@@ -26,6 +26,11 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("Entry Forger");
   });
 
+  it("distinguishes candle time from scanner state-save time", () => {
+    expect(homeSource).toContain("last candle {formatDateTime(row.lastSnapshotAt)}");
+    expect(homeSource).toContain("state saved {formatDateTime(row.updatedAt)}");
+  });
+
   it("exposes provider-quota warning details for unavailable scanner cycles", () => {
     expect(homeSource).toContain("Twelve Data quota or rate-limit warning");
     expect(homeSource).toContain("Latest affected interval");

@@ -22,10 +22,11 @@ export function canUseEntryForgerFallback(input: {
   geometryDenied: boolean;
   v4Active: boolean;
   strategyApproved: boolean;
+  qualityApproved: boolean;
   hasCompleteLevels: boolean;
   activeSignal: boolean;
 }): boolean {
-  return !input.locatorReady && input.geometryDenied && input.v4Active && input.strategyApproved && input.hasCompleteLevels && !input.activeSignal;
+  return !input.locatorReady && input.geometryDenied && input.v4Active && input.strategyApproved && input.qualityApproved && input.hasCompleteLevels && !input.activeSignal;
 }
 
 export function deriveEntryForgerLevels(input: { entry: number; direction: EntryForgerDirection; targetBoundary?: number | null; atr?: number | null }): EntryForgerLevels {

@@ -1171,3 +1171,6 @@
 - [x] Remove the app-side scheduler warning and recent run-history UI because scheduling is operated externally; preserve the external scanner callback and non-scheduler diagnostics.
 - [x] Update Scanner-page regression coverage and verify responsive rendering after the scheduler UI removal.
 - [x] Run full validation and publish the Scanner-page cleanup.
+
+- [x] Remove the remaining Scanner callback card containing scheduler warnings and app-side run history; preserve the external callback endpoint and scanner backend behavior.
+- [x] Add regression coverage and publish the callback-card removal correction.

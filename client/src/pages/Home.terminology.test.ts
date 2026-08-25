@@ -46,6 +46,7 @@ describe("dashboard terminology", () => {
 
   it("keeps scheduler-operated diagnostics out of the Scanner page", () => {
     expect(homeSource).not.toContain("<ScannerCadenceDiagnostics />");
+    expect(homeSource).not.toContain("<CallbackStatusCard />");
     expect(homeSource).not.toContain("Recent app-side run history");
     expect(homeSource).not.toContain("Activate 5-min schedule");
     expect(homeSource).toContain("External scheduler controls the collection cadence");

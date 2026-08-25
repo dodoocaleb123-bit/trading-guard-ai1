@@ -1,5 +1,6 @@
 import type { MarketContext } from "./market-context";
 import type { IntelligenceDecisionTrace, IntelligenceStance, IntelligenceTrigger } from "./intelligence";
+import { detectDocumentPatternIndicators } from "./pattern-detectors";
 
 export type KnowledgeSource = { document: "Forex trading.docx" | "What_moves_the_currency_market.pdf"; section: string; passage: string };
 export type KnowledgeNode = {
@@ -117,6 +118,17 @@ export const FOREX_KNOWLEDGE_NODES: KnowledgeNode[] = [
 ];
 
 export const V4_KNOWLEDGE_NODES: KnowledgeNode[] = [
+  { id: "double-top", concept: "Double top reversal", family: "PATTERN", rule: "A confirmed double top supports SELL after a close below the intervening support", prerequisites: ["pattern.doubleTop", "breakoutState"], conflictsWith: ["double-bottom"], source: source("Chapter III, Reversal Chart Patterns", "Double tops are reversal formations that become meaningful after the intervening support is broken.") },
+  { id: "double-bottom", concept: "Double bottom reversal", family: "PATTERN", rule: "A confirmed double bottom supports BUY after a close above the intervening resistance", prerequisites: ["pattern.doubleBottom", "breakoutState"], conflictsWith: ["double-top"], source: source("Chapter III, Reversal Chart Patterns", "Double bottoms are reversal formations that become meaningful after the intervening resistance is broken.") },
+  { id: "triangle-breakout", concept: "Triangle continuation breakout", family: "PATTERN", rule: "A contracted triangle followed by a confirmed directional breakout supports continuation", prerequisites: ["pattern.triangle", "priceAction.breakoutOrFakeout=BREAKOUT"], conflictsWith: ["fakeout-warning"], source: source("Chapter III, Continuation Chart Patterns", "Once prices penetrate the lines of a triangle, the market tends to continue in that direction.") },
+  { id: "flag-pennant-breakout", concept: "Flag or pennant continuation breakout", family: "PATTERN", rule: "A directional impulse, compact pause, and confirmed breakout support continuation", prerequisites: ["pattern.flagOrPennant", "priceAction.breakoutOrFakeout=BREAKOUT"], conflictsWith: ["fakeout-warning"], source: source("Chapter III, Continuation Chart Patterns", "Flags and pennants are continuation formations that are interpreted with the prior trend and breakout.") },
+  { id: "bullish-engulfing", concept: "Bullish engulfing candle", family: "PATTERN", rule: "A bullish engulfing candle is supporting reversal evidence when location and follow-through agree", prerequisites: ["pattern.bullishEngulfing"], conflictsWith: ["bearish-engulfing"], source: source("Chapter III, Candlestick Chart", "Candlestick formations can provide reversal evidence when interpreted with trend and price location.") },
+  { id: "bearish-engulfing", concept: "Bearish engulfing candle", family: "PATTERN", rule: "A bearish engulfing candle is supporting reversal evidence when location and follow-through agree", prerequisites: ["pattern.bearishEngulfing"], conflictsWith: ["bullish-engulfing"], source: source("Chapter III, Candlestick Chart", "Candlestick formations can provide reversal evidence when interpreted with trend and price location.") },
+  { id: "bullish-harami", concept: "Bullish harami", family: "PATTERN", rule: "A bullish harami indicates possible bearish momentum loss and needs follow-through", prerequisites: ["pattern.bullishHarami"], conflictsWith: ["bearish-harami"], source: source("Chapter III, Candlestick Chart", "A Harami can occur within a candle range and should be interpreted as possible indecision rather than certainty.") },
+  { id: "bearish-harami", concept: "Bearish harami", family: "PATTERN", rule: "A bearish harami indicates possible bullish momentum loss and needs follow-through", prerequisites: ["pattern.bearishHarami"], conflictsWith: ["bullish-harami"], source: source("Chapter III, Candlestick Chart", "A Harami can occur within a candle range and should be interpreted as possible indecision rather than certainty.") },
+  { id: "doji-reversal-context", concept: "Doji decision-level context", family: "PATTERN", rule: "A doji near a major level records indecision and requires confirmation", prerequisites: ["pattern.doji", "supportResistance"], conflictsWith: [], source: source("Chapter III, Candlestick Chart", "Doji candles show indecision and are more meaningful near a structural level or possible reversal area.") },
+  { id: "hammer-rejection", concept: "Hammer lower-wick rejection", family: "PATTERN", rule: "A bullish lower-wick rejection at support supports a BUY hypothesis with follow-through", prerequisites: ["pattern.lowerWickRejection", "supportResistance"], conflictsWith: ["shooting-star-rejection"], source: source("Chapter III, Candlestick Chart", "Reversal candles are interpreted with their surrounding trend and support or resistance context.") },
+  { id: "shooting-star-rejection", concept: "Shooting-star upper-wick rejection", family: "PATTERN", rule: "A bearish upper-wick rejection at resistance supports a SELL hypothesis with follow-through", prerequisites: ["pattern.upperWickRejection", "supportResistance"], conflictsWith: ["hammer-rejection"], source: source("Chapter III, Candlestick Chart", "Reversal candles are interpreted with their surrounding trend and support or resistance context.") },
   { id: "v4-fibonacci-pullback", concept: "Fibonacci retracement is secondary pullback context", family: "LEVELS", rule: "A pullback near a deterministic 38.2%–61.8% swing retracement can qualify an existing structural direction but cannot decide alone", prerequisites: ["supportResistance", "marketStructure"], conflictsWith: ["v4-no-fib-signal"], source: source("Fibonacci Retracement", "Retracement levels are contextual reference points and should be interpreted with the broader trend and other evidence.") },
   { id: "v4-evidence-family-cap", concept: "Correlated indicators are one evidence family", family: "RISK", rule: "Moving averages, oscillators, and band readings must be capped so correlated measurements do not create artificial confluence", prerequisites: ["indicators"], conflictsWith: [], source: source("Chapter IV, Major Technical Indicators", "Indicators help identify and confirm trend and momentum, but a trading plan must avoid conflicting or excessive information.") },
   { id: "v4-intermarket-availability", concept: "Intermarket context is conditional", family: "INTERMARKET", rule: "Related-market evidence is neutral unless timestamp-aligned proxy data is actually available", prerequisites: ["relatedPairs"], conflictsWith: [], source: source("Intermarket Analysis", "Related markets can provide early warnings, but the analysis depends on actual related-market data.") },
@@ -274,7 +286,7 @@ export function deriveStructureAwareLevels(asset: string | undefined, entry: num
   };
 }
 
-export function detectSetupIndicators(input: { market: { asset?: string; close: number; interval?: string }; context: MarketContext; fundamentalContext?: FundamentalContext }, model = buildReplacementKnowledgeModel()): SetupIndicator[] {
+export function detectSetupIndicators(input: { market: { asset?: string; close: number; interval?: string; values?: Array<Record<string, unknown>> }; context: MarketContext; fundamentalContext?: FundamentalContext }, model = buildReplacementKnowledgeModel()): SetupIndicator[] {
   const { market, context, fundamentalContext } = input;
   const indicators: SetupIndicator[] = [];
   const add = (id: string, observation: string, contribution: number, strength: SetupIndicator["strength"] = Math.abs(contribution) >= 2 ? "STRONG" : contribution === 0 ? "CONTEXT" : "MODERATE") => {
@@ -323,13 +335,18 @@ export function detectSetupIndicators(input: { market: { asset?: string; close: 
   if (bearishBreakoutExhaustion) add("fakeout-warning", "Downward liquidity breakout shows exhaustion evidence: rejection wick, weakened momentum, or a bullish latest candle.", -2);
   if (context.volatility.regime === "EXPANDING" && context.priceAction.breakoutOrFakeout === "BREAKOUT") add("volatility-regime", "Volatility is expanding during a confirmed breakout.", context.priceAction.trendDirection === "UP" ? 1 : -1);
   if (context.volatility.regime === "CONTRACTING") add("volatility-regime", "Volatility is contracting; risk geometry is retained but directional conviction is moderated.", 0);
+  if (model.id === "forex-trading-combined-document-v4") {
+    for (const pattern of detectDocumentPatternIndicators(market.values, context)) {
+      add(pattern.id, pattern.observation, pattern.direction === "BUY" ? pattern.contribution : -pattern.contribution);
+    }
+  }
   const alignment = context.multiTimeframeAlignment;
   if (alignment?.structure === "ALIGNED" && alignment.momentum !== "OPPOSED") add("higher-timeframe-alignment", "Higher-timeframe structure and momentum align with the working direction.", context.marketStructure === "RISING" ? 2 : context.marketStructure === "FALLING" ? -2 : 0);
   if (alignment?.structure === "OPPOSED" || alignment?.momentum === "OPPOSED") add("higher-timeframe-alignment", "Higher-timeframe context opposes the local structure or momentum.", context.marketStructure === "RISING" ? -2 : context.marketStructure === "FALLING" ? 2 : 0);
   return indicators;
 }
 
-export function evaluateReplacementIntelligence(market: { asset?: string; close: number; interval?: string; marketContext: MarketContext; fundamentalContext?: FundamentalContext; acceptedLessons?: AcceptedLesson[] }, model = buildReplacementKnowledgeModel()): ReplacementDecision {
+export function evaluateReplacementIntelligence(market: { asset?: string; close: number; interval?: string; values?: Array<Record<string, unknown>>; marketContext: MarketContext; fundamentalContext?: FundamentalContext; acceptedLessons?: AcceptedLesson[] }, model = buildReplacementKnowledgeModel()): ReplacementDecision {
   const context = market.marketContext;
   const fundamentalContext = market.fundamentalContext;
   const setupIndicators = detectSetupIndicators({ market, context, fundamentalContext }, model);

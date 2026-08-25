@@ -1124,3 +1124,6 @@
 - [x] Run another complete top-to-bottom diagnostic across runtime, database, scheduler, market data, v4, Entry Locator, Telegram, chat, UI, tests, build, and endpoints; repair confirmed defects and repeat affected checks.
 
 - [x] Investigate the chat-audit conversation showing a non-readable assistant response and repair the active response/rendering path without altering historical audit truth.
+
+- [x] Add document-informed chart and candlestick detectors that contribute supporting or conflicting evidence to v4 using scanner-fed OHLCV history, without overriding existing detectors, Entry Locator gates, exact 1:2/1:3 geometry, paper-only, or UNVALIDATED safeguards.
+- [x] Add detector decision-trace visibility and regression coverage for confirmed, unconfirmed, conflicting, stale, and insufficient-history patterns.

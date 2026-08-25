@@ -10,14 +10,44 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { BookOpen, CheckCircle2, ChevronRight, CircleDollarSign, ClipboardCheck, Clock3, FileText, Gauge, Loader2, LockKeyhole, MessageSquareText, Paperclip, Radar, RefreshCw, ShieldCheck, Download, Trash2, Sparkles, TrendingDown, TrendingUp, UploadCloud, Zap } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2,
+  ChevronRight,
+  CircleDollarSign,
+  ClipboardCheck,
+  Clock3,
+  FileText,
+  Gauge,
+  Loader2,
+  LockKeyhole,
+  MessageSquareText,
+  Paperclip,
+  Radar,
+  RefreshCw,
+  ShieldCheck,
+  Download,
+  Trash2,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+  UploadCloud,
+  Zap,
+} from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 
-const AIChatBox = lazy(() => import("@/components/AIChatBox").then(({ AIChatBox }) => ({ default: AIChatBox })));
+const AIChatBox = lazy(() =>
+  import("@/components/AIChatBox").then(({ AIChatBox }) => ({
+    default: AIChatBox,
+  }))
+);
 
-const LIVE_QUERY_OPTIONS = { refetchInterval: 60_000, refetchOnWindowFocus: true };
+const LIVE_QUERY_OPTIONS = {
+  refetchInterval: 60_000,
+  refetchOnWindowFocus: true,
+};
 
 const WATCHLIST = [
   { symbol: "EUR/USD", label: "Euro / Dollar" },
@@ -26,139 +56,2657 @@ const WATCHLIST = [
   { symbol: "BTC/USD", label: "Bitcoin" },
 ];
 
-function PageHeading({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
-  return <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary"><span className="h-1.5 w-1.5 rounded-full bg-primary" />{eyebrow}</div><h1 className="font-display text-3xl font-semibold tracking-[-0.04em] text-foreground md:text-4xl">{title}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p></div>{action}</div>;
+function PageHeading({
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div>
+        <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+          {eyebrow}
+        </div>
+        <h1 className="font-display text-3xl font-semibold tracking-[-0.04em] text-foreground md:text-4xl">
+          {title}
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      {action}
+    </div>
+  );
 }
 
-function StatusPill({ status }: { status: string }) { const good = status === "WIN" || status === "APPROVED" || status === "DELIVERED" || status === "AVAILABLE"; const bad = status === "LOSS" || status === "DENIED" || status === "FAILED"; return <Badge className={good ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600" : bad ? "border-rose-500/20 bg-rose-500/10 text-rose-600" : "border-amber-500/20 bg-amber-500/10 text-amber-600"}>{status}</Badge>; }
-function formatDateTime(value: Date | string | null | undefined) { return value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—"; }
-function riskRewardLabel(signal: { direction: string; entry: unknown; stopLoss: unknown; takeProfit: unknown; riskReward?: unknown }) {
+function StatusPill({ status }: { status: string }) {
+  const good =
+    status === "WIN" ||
+    status === "APPROVED" ||
+    status === "DELIVERED" ||
+    status === "AVAILABLE";
+  const bad = status === "LOSS" || status === "DENIED" || status === "FAILED";
+  return (
+    <Badge
+      className={
+        good
+          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+          : bad
+            ? "border-rose-500/20 bg-rose-500/10 text-rose-600"
+            : "border-amber-500/20 bg-amber-500/10 text-amber-600"
+      }
+    >
+      {status}
+    </Badge>
+  );
+}
+function formatDateTime(value: Date | string | null | undefined) {
+  return value
+    ? new Date(value).toLocaleString([], {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : "—";
+}
+function riskRewardLabel(signal: {
+  direction: string;
+  entry: unknown;
+  stopLoss: unknown;
+  takeProfit: unknown;
+  riskReward?: unknown;
+}) {
   const entry = Number(signal.entry);
   const stopLoss = Number(signal.stopLoss);
   const takeProfit = Number(signal.takeProfit);
   const risk = Math.abs(stopLoss - entry);
-  const reward = signal.direction === "BUY" ? takeProfit - entry : entry - takeProfit;
-  if (![risk, reward].every(Number.isFinite) || risk <= 0 || reward <= 0) return "RR unavailable";
+  const reward =
+    signal.direction === "BUY" ? takeProfit - entry : entry - takeProfit;
+  if (![risk, reward].every(Number.isFinite) || risk <= 0 || reward <= 0)
+    return "RR unavailable";
   const actual = Number((reward / risk).toFixed(2));
   const stored = Number(signal.riskReward);
-  if (Math.abs(actual - 2) <= 0.01 && (!Number.isFinite(stored) || Math.abs(stored - actual) <= 0.01)) return "1:2 verified";
+  if (
+    Math.abs(actual - 2) <= 0.01 &&
+    (!Number.isFinite(stored) || Math.abs(stored - actual) <= 0.01)
+  )
+    return "1:2 verified";
   return `1:${actual.toFixed(2)}${Number.isFinite(stored) ? ` · stored 1:${stored.toFixed(2)}` : ""}`;
 }
 
 function RulesUpload({ compact = false }: { compact?: boolean }) {
-  const [title, setTitle] = useState(""); const inputRef = useRef<HTMLInputElement>(null); const ingest = trpc.rules.ingest.useMutation({ onSuccess: () => { toast.success("Strategy rules ingested"); setTitle(""); }, onError: (e) => toast.error(e.message) });
-  const handleFile = async (file: File) => { const ext = file.name.toLowerCase().endsWith(".pdf") ? "pdf" : file.name.toLowerCase().endsWith(".docx") ? "docx" : "text"; const buffer = await file.arrayBuffer(); const bytes = new Uint8Array(buffer); let binary = ""; bytes.forEach((b) => { binary += String.fromCharCode(b); }); ingest.mutate({ fileName: file.name, mimeType: file.type || "text/plain", sourceType: ext, title: title || file.name.replace(/\.[^/.]+$/, ""), contentBase64: btoa(binary) }); };
-  return <Card className={compact ? "border-dashed bg-primary/[0.035]" : "border-dashed border-primary/30 bg-primary/[0.035]"}><CardContent className={compact ? "p-4" : "p-6"}><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><div className="rounded-xl bg-primary/10 p-2.5 text-primary"><UploadCloud className="h-5 w-5" /></div><div><p className="font-medium">{compact ? "Add another rule set" : "Import your trading playbook"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">PDF, Word, or plain text. The guard will use this as its operating memory.</p></div></div><div className="flex flex-wrap gap-2"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Rule set title" className="h-9 w-44 bg-background" /><input ref={inputRef} type="file" accept=".pdf,.docx,.txt,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} /><Button onClick={() => inputRef.current?.click()} disabled={ingest.isPending} className="h-9">{ingest.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Paperclip className="mr-2 h-4 w-4" />}Choose file</Button></div></div></CardContent></Card>;
+  const [title, setTitle] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const ingest = trpc.rules.ingest.useMutation({
+    onSuccess: () => {
+      toast.success("Strategy rules ingested");
+      setTitle("");
+    },
+    onError: e => toast.error(e.message),
+  });
+  const handleFile = async (file: File) => {
+    const ext = file.name.toLowerCase().endsWith(".pdf")
+      ? "pdf"
+      : file.name.toLowerCase().endsWith(".docx")
+        ? "docx"
+        : "text";
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    bytes.forEach(b => {
+      binary += String.fromCharCode(b);
+    });
+    ingest.mutate({
+      fileName: file.name,
+      mimeType: file.type || "text/plain",
+      sourceType: ext,
+      title: title || file.name.replace(/\.[^/.]+$/, ""),
+      contentBase64: btoa(binary),
+    });
+  };
+  return (
+    <Card
+      className={
+        compact
+          ? "border-dashed bg-primary/[0.035]"
+          : "border-dashed border-primary/30 bg-primary/[0.035]"
+      }
+    >
+      <CardContent className={compact ? "p-4" : "p-6"}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+              <UploadCloud className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-medium">
+                {compact
+                  ? "Add another rule set"
+                  : "Import your trading playbook"}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                PDF, Word, or plain text. The guard will use this as its
+                operating memory.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Rule set title"
+              className="h-9 w-44 bg-background"
+            />
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".pdf,.docx,.txt,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={e =>
+                e.target.files?.[0] && handleFile(e.target.files[0])
+              }
+            />
+            <Button
+              onClick={() => inputRef.current?.click()}
+              disabled={ingest.isPending}
+              className="h-9"
+            >
+              {ingest.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Paperclip className="mr-2 h-4 w-4" />
+              )}
+              Choose file
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
-function DataError({ text }: { text: string }) { return <div className="mb-5 flex items-start gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-700"><TrendingDown className="mt-0.5 h-4 w-4 shrink-0" /><span>{text}</span></div>; }
-function ReplacementStatsCard() { const stats = trpc.intelligence.replacementOutcomeStats.useQuery(undefined, LIVE_QUERY_OPTIONS); const validation = stats.data?.validation; return <Card className="mt-6"><CardHeader><CardTitle className="font-display text-xl">Replacement v4 paper validation</CardTitle><p className="text-xs text-muted-foreground">V4 outcome performance, confidence calibration, and source-linked market regimes.</p></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 sm:grid-cols-4"><SummaryStat label="V4 outcomes" value={stats.data?.total ?? 0} tone="neutral" /><SummaryStat label="Resolved" value={validation?.resolved ?? 0} tone="neutral" /><SummaryStat label="Wins" value={validation?.wins ?? 0} tone="good" /><SummaryStat label="Losses" value={validation?.losses ?? 0} tone="bad" /></div><div className="rounded-xl border bg-muted/20 p-3 text-sm"><p className="font-medium">First-50 review: {validation?.reviewStatus === "READY_FOR_REVIEW" ? "Ready for review" : `Collecting evidence (${validation?.resolved ?? 0}/${validation?.reviewThreshold ?? 50} resolved)`}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Observed win rate: {validation?.winRate == null ? "—" : `${validation.winRate}%`}. Lesson promotion remains blocked until the first {validation?.reviewThreshold ?? 50} resolved v3 outcomes are reviewed.</p></div><div className="grid gap-4 md:grid-cols-3"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Top components</p><div className="space-y-2">{(stats.data?.components ?? []).slice(0, 5).map((item) => <div key={item.key} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"><span className="max-w-[70%] truncate">{item.key}</span><span>{item.winRate == null ? "—" : `${item.winRate}%`} · {item.total}</span></div>)}{!stats.data?.components?.length && <p className="text-xs text-muted-foreground">No v4 outcomes recorded yet.</p>}</div></div><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Market regimes</p><div className="space-y-2">{(stats.data?.regimes ?? []).slice(0, 5).map((item) => <div key={item.key} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"><span className="max-w-[68%] truncate">{item.key}</span><span>{item.winRate == null ? "—" : `${item.winRate}%`} · {item.total}</span></div>)}{!stats.data?.regimes?.length && <p className="text-xs text-muted-foreground">No v3 regimes recorded yet.</p>}</div></div><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Confidence bands</p><div className="space-y-2">{(stats.data?.confidenceBands ?? []).map((item) => <div key={item.key} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"><span>{item.key}%</span><span>{item.winRate == null ? "—" : `${item.winRate}%`} · {item.total}</span></div>)}{!stats.data?.confidenceBands?.length && <p className="text-xs text-muted-foreground">Calibration begins with v4 outcomes.</p>}</div></div></div></CardContent></Card>; }
+function DataError({ text }: { text: string }) {
+  return (
+    <div className="mb-5 flex items-start gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-700">
+      <TrendingDown className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>{text}</span>
+    </div>
+  );
+}
+function ReplacementStatsCard() {
+  const stats = trpc.intelligence.replacementOutcomeStats.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
+  const validation = stats.data?.validation;
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle className="font-display text-xl">
+          Replacement v4 paper validation
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          V4 outcome performance, confidence calibration, and source-linked
+          market regimes.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-4">
+          <SummaryStat
+            label="V4 outcomes"
+            value={stats.data?.total ?? 0}
+            tone="neutral"
+          />
+          <SummaryStat
+            label="Resolved"
+            value={validation?.resolved ?? 0}
+            tone="neutral"
+          />
+          <SummaryStat label="Wins" value={validation?.wins ?? 0} tone="good" />
+          <SummaryStat
+            label="Losses"
+            value={validation?.losses ?? 0}
+            tone="bad"
+          />
+        </div>
+        <div className="rounded-xl border bg-muted/20 p-3 text-sm">
+          <p className="font-medium">
+            First-50 review:{" "}
+            {validation?.reviewStatus === "READY_FOR_REVIEW"
+              ? "Ready for review"
+              : `Collecting evidence (${validation?.resolved ?? 0}/${validation?.reviewThreshold ?? 50} resolved)`}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Observed win rate:{" "}
+            {validation?.winRate == null ? "—" : `${validation.winRate}%`}.
+            Lesson promotion remains blocked until the first{" "}
+            {validation?.reviewThreshold ?? 50} resolved v3 outcomes are
+            reviewed.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Top components
+            </p>
+            <div className="space-y-2">
+              {(stats.data?.components ?? []).slice(0, 5).map(item => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"
+                >
+                  <span className="max-w-[70%] truncate">{item.key}</span>
+                  <span>
+                    {item.winRate == null ? "—" : `${item.winRate}%`} ·{" "}
+                    {item.total}
+                  </span>
+                </div>
+              ))}
+              {!stats.data?.components?.length && (
+                <p className="text-xs text-muted-foreground">
+                  No v4 outcomes recorded yet.
+                </p>
+              )}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Market regimes
+            </p>
+            <div className="space-y-2">
+              {(stats.data?.regimes ?? []).slice(0, 5).map(item => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"
+                >
+                  <span className="max-w-[68%] truncate">{item.key}</span>
+                  <span>
+                    {item.winRate == null ? "—" : `${item.winRate}%`} ·{" "}
+                    {item.total}
+                  </span>
+                </div>
+              ))}
+              {!stats.data?.regimes?.length && (
+                <p className="text-xs text-muted-foreground">
+                  No v3 regimes recorded yet.
+                </p>
+              )}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Confidence bands
+            </p>
+            <div className="space-y-2">
+              {(stats.data?.confidenceBands ?? []).map(item => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"
+                >
+                  <span>{item.key}%</span>
+                  <span>
+                    {item.winRate == null ? "—" : `${item.winRate}%`} ·{" "}
+                    {item.total}
+                  </span>
+                </div>
+              ))}
+              {!stats.data?.confidenceBands?.length && (
+                <p className="text-xs text-muted-foreground">
+                  Calibration begins with v4 outcomes.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
-function V4MonitoringCard() { const query = trpc.intelligence.v4Monitoring.useQuery(undefined, LIVE_QUERY_OPTIONS); const dimensions = Object.entries(query.data ?? {}) as Array<[string, Array<{ key: string; generated: number; resolved: number; wins: number; losses: number; winRate: number | null }>] >; return <Card className="mt-6"><CardHeader><CardTitle className="font-display text-xl">Active v4 outcome monitor</CardTitle><p className="text-xs text-muted-foreground">Resolved paper outcomes grouped by the active model’s asset, timeframe, direction, event-risk state, and structural target geometry.</p></CardHeader><CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">{dimensions.map(([dimension, rows]) => <div key={dimension} className="rounded-xl border bg-muted/20 p-3"><p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{dimension === "eventRisk" ? "Event risk" : dimension === "geometry" ? "Geometry" : dimension}</p><div className="space-y-2">{rows.length ? rows.map((row) => <div key={row.key} className="rounded-lg border bg-background px-3 py-2 text-xs"><div className="flex items-center justify-between gap-2"><span className="truncate font-medium">{row.key}</span><span className="shrink-0">{row.winRate == null ? "—" : `${row.winRate}%`}</span></div><p className="mt-1 text-muted-foreground">{row.generated} generated · {row.resolved} resolved · {row.wins}W / {row.losses}L</p></div>) : <p className="text-xs text-muted-foreground">No v4 signals recorded yet.</p>}</div></div>)}</CardContent></Card>; }
+function V4MonitoringCard() {
+  const query = trpc.intelligence.v4Monitoring.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
+  const dimensions = Object.entries(query.data ?? {}) as Array<
+    [
+      string,
+      Array<{
+        key: string;
+        generated: number;
+        resolved: number;
+        wins: number;
+        losses: number;
+        winRate: number | null;
+      }>,
+    ]
+  >;
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle className="font-display text-xl">
+          Active v4 outcome monitor
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Resolved paper outcomes grouped by the active model’s asset,
+          timeframe, direction, event-risk state, and structural target
+          geometry.
+        </p>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {dimensions.map(([dimension, rows]) => (
+          <div key={dimension} className="rounded-xl border bg-muted/20 p-3">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {dimension === "eventRisk"
+                ? "Event risk"
+                : dimension === "geometry"
+                  ? "Geometry"
+                  : dimension}
+            </p>
+            <div className="space-y-2">
+              {rows.length ? (
+                rows.map(row => (
+                  <div
+                    key={row.key}
+                    className="rounded-lg border bg-background px-3 py-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate font-medium">{row.key}</span>
+                      <span className="shrink-0">
+                        {row.winRate == null ? "—" : `${row.winRate}%`}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-muted-foreground">
+                      {row.generated} generated · {row.resolved} resolved ·{" "}
+                      {row.wins}W / {row.losses}L
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No v4 signals recorded yet.
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
-function Onboarding() { const rules = trpc.rules.list.useQuery(); if (rules.isError) return <div className="mx-auto max-w-xl px-6 py-16"><DataError text="Strategy memory could not be loaded. Refresh the page before uploading rules." /></div>; return <div className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6 py-12"><div className="grid w-full gap-8 lg:grid-cols-[.9fr_1.1fr] lg:items-center"><div><div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20"><ShieldCheck className="h-6 w-6" /></div><div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">TradingGuardAI · Setup</div><h1 className="font-display text-4xl font-semibold leading-tight tracking-[-0.05em] md:text-5xl">Start with your rules.<br /><span className="text-primary">Trade with a guard.</span></h1><p className="mt-5 max-w-md text-sm leading-7 text-muted-foreground">Before the assistant audits a single idea or scans a market, give it the strategy playbook it must follow. Your rules remain the source of truth.</p><div className="mt-8 space-y-3"><Protocol icon={BookOpen} title="Ingest your playbook" text="Import PDF, Word, or plain text strategy rules." /><Protocol icon={ShieldCheck} title="Keep decisions grounded" text="Audits and strategy-engine judgments reference your rule memory." /><Protocol icon={LockKeyhole} title="Stay in control" text="The app analyzes and alerts; it never places a trade." /></div></div><div><Card className="border-primary/15 shadow-xl shadow-primary/5"><CardHeader className="border-b bg-muted/20 p-6"><div className="flex items-center justify-between"><div><CardTitle className="font-display text-xl">Load your strategy rules</CardTitle><p className="mt-1 text-xs text-muted-foreground">Required before autonomous features activate</p></div><Badge variant="outline">Step 1 of 1</Badge></div></CardHeader><CardContent className="space-y-5 p-6"><RulesUpload /><div className="rounded-xl border bg-muted/30 p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Accepted content</p><p className="mt-2 text-sm leading-6 text-muted-foreground">Entry conditions, invalidation rules, risk limits, timeframes, session filters, and any mistakes the guard must avoid.</p></div>{rules.data?.length ? <Button className="w-full" onClick={() => window.location.assign("/")}>Continue to control room <ChevronRight className="ml-2 h-4 w-4" /></Button> : <p className="text-center text-xs text-muted-foreground">Upload at least one rule set to continue.</p>}</CardContent></Card></div></div></div>; }
+function Onboarding() {
+  const rules = trpc.rules.list.useQuery();
+  if (rules.isError)
+    return (
+      <div className="mx-auto max-w-xl px-6 py-16">
+        <DataError text="Strategy memory could not be loaded. Refresh the page before uploading rules." />
+      </div>
+    );
+  return (
+    <div className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6 py-12">
+      <div className="grid w-full gap-8 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
+        <div>
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+            <ShieldCheck className="h-6 w-6" />
+          </div>
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-primary">
+            TradingGuardAI · Setup
+          </div>
+          <h1 className="font-display text-4xl font-semibold leading-tight tracking-[-0.05em] md:text-5xl">
+            Start with your rules.
+            <br />
+            <span className="text-primary">Trade with a guard.</span>
+          </h1>
+          <p className="mt-5 max-w-md text-sm leading-7 text-muted-foreground">
+            Before the assistant audits a single idea or scans a market, give it
+            the strategy playbook it must follow. Your rules remain the source
+            of truth.
+          </p>
+          <div className="mt-8 space-y-3">
+            <Protocol
+              icon={BookOpen}
+              title="Ingest your playbook"
+              text="Import PDF, Word, or plain text strategy rules."
+            />
+            <Protocol
+              icon={ShieldCheck}
+              title="Keep decisions grounded"
+              text="Audits and strategy-engine judgments reference your rule memory."
+            />
+            <Protocol
+              icon={LockKeyhole}
+              title="Stay in control"
+              text="The app analyzes and alerts; it never places a trade."
+            />
+          </div>
+        </div>
+        <div>
+          <Card className="border-primary/15 shadow-xl shadow-primary/5">
+            <CardHeader className="border-b bg-muted/20 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="font-display text-xl">
+                    Load your strategy rules
+                  </CardTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Required before autonomous features activate
+                  </p>
+                </div>
+                <Badge variant="outline">Step 1 of 1</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5 p-6">
+              <RulesUpload />
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Accepted content
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Entry conditions, invalidation rules, risk limits, timeframes,
+                  session filters, and any mistakes the guard must avoid.
+                </p>
+              </div>
+              {rules.data?.length ? (
+                <Button
+                  className="w-full"
+                  onClick={() => window.location.assign("/")}
+                >
+                  Continue to control room{" "}
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              ) : (
+                <p className="text-center text-xs text-muted-foreground">
+                  Upload at least one rule set to continue.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-function Overview() { const rules = trpc.rules.list.useQuery(); const marketPulse = trpc.scanner.marketPulse.useQuery(undefined, LIVE_QUERY_OPTIONS); const signals = trpc.signals.list.useQuery(undefined, LIVE_QUERY_OPTIONS); const audits = trpc.signals.audits.useQuery(undefined, LIVE_QUERY_OPTIONS); const judgment = trpc.scanner.summary.useQuery(undefined, LIVE_QUERY_OPTIONS); const delivery = trpc.signals.deliverySummary.useQuery(undefined, LIVE_QUERY_OPTIONS); const intelligence = trpc.intelligence.status.useQuery(undefined, LIVE_QUERY_OPTIONS); const pending = signals.data?.filter((s) => s.status === "PENDING").length ?? 0; const wins = signals.data?.filter((s) => s.status === "WIN").length ?? 0; return <>{(rules.isError || marketPulse.isError || signals.isError || audits.isError || delivery.isError) && <DataError text="Some control-room data is unavailable. Refresh after the connected provider recovers." />}<PageHeading eyebrow="Control room" title="Stay disciplined in every market." description="A calm, rules-first command center for auditing ideas, monitoring live signals, and learning from every outcome." action={<Button onClick={() => window.location.assign("/chat-audit")} className="h-10"><MessageSquareText className="mr-2 h-4 w-4" />Audit a trade</Button>} /><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Rules ingested" value={rules.data?.length ?? 0} icon={BookOpen} detail="Your operating memory" /><Metric label="Open signals" value={pending} icon={Radar} detail="Being tracked live" /><Metric label="Win rate" value={signals.data?.length ? `${Math.round((wins / signals.data.length) * 100)}%` : "—"} icon={TrendingUp} detail="From generated signals" /><Metric label="Audits completed" value={audits.data?.length ?? 0} icon={ShieldCheck} detail="With live conditions" /><Metric label="Strategy judgments" value={judgment.data?.total ?? 0} icon={Gauge} detail="All engine outcomes" /></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_.65fr]"><Card className="overflow-hidden"><CardHeader className="border-b bg-muted/20"><div className="flex items-center justify-between"><div><CardTitle className="font-display text-xl">Market pulse</CardTitle><p className="mt-1 text-xs text-muted-foreground">Snapshot watchlist · refreshed by the market-data collector</p></div><Badge variant="outline" className={`gap-1.5 ${marketPulse.isError || !marketPulse.data?.length ? "border-amber-500/30 text-amber-700" : "border-emerald-500/30 text-emerald-600"}`}><span className={`h-1.5 w-1.5 rounded-full ${marketPulse.isError || !marketPulse.data?.length ? "bg-amber-500" : "bg-emerald-500"}`} />{marketPulse.isLoading ? "Syncing" : marketPulse.isError ? "Unavailable" : "Live feed"}</Badge></div></CardHeader><CardContent className="grid gap-3 p-4 sm:grid-cols-2">{WATCHLIST.map((item) => { const pulse = marketPulse.data?.find((row) => row.asset === item.symbol); const hasPrice = pulse?.price != null; return <div key={item.symbol} className="rounded-2xl border bg-background p-4"><div className="flex items-center justify-between"><div><p className="font-semibold tracking-tight">{item.symbol}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.label}</p></div><span className={pulse?.trend === "UP" ? "text-emerald-600" : pulse?.trend === "DOWN" ? "text-rose-600" : "text-muted-foreground"}>{pulse?.trend === "UP" ? <TrendingUp className="h-4 w-4" /> : pulse?.trend === "DOWN" ? <TrendingDown className="h-4 w-4" /> : <Gauge className="h-4 w-4" />}</span></div><div className="mt-5 flex items-end justify-between gap-3"><span className="font-display text-2xl font-semibold">{hasPrice ? pulse.price!.toLocaleString(undefined, { maximumFractionDigits: 8 }) : "—"}</span><span className="text-right text-[11px] leading-4 text-muted-foreground">{pulse ? `Saved ${formatDateTime(pulse.savedAt)}` : marketPulse.isLoading ? "Awaiting scanner" : "No scanner data"}</span></div>{pulse?.candleTime && <p className="mt-2 text-[11px] text-muted-foreground">Last candle {pulse.candleTime} · {pulse.timeframe}</p>}</div>; })}</CardContent></Card><Card><CardHeader><CardTitle className="font-display text-xl">Guardrail health</CardTitle><p className="text-xs text-muted-foreground">Your discipline system at a glance</p></CardHeader><CardContent className="space-y-5"><HealthRow label="Rules coverage" value={rules.data?.length ? 88 : 0} /><HealthRow label="Signal completeness" value={signals.data?.length ? 94 : 0} /><HealthRow label="Outcome tracking" value={signals.data?.length ? 76 : 0} /><Separator /><div className="flex items-start gap-3 rounded-xl bg-muted/40 p-3"><LockKeyhole className="mt-0.5 h-4 w-4 text-primary" /><p className="text-xs leading-5 text-muted-foreground">TradingGuardAI is an analysis and risk-discipline tool. It does not place trades or guarantee outcomes.</p></div></CardContent></Card></div><div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_.9fr]"><Card><CardHeader><CardTitle className="font-display text-xl">Strategy-judgment outcomes</CardTitle><p className="text-xs text-muted-foreground">The strategy-rules algorithm’s recorded judgment states.</p></CardHeader><CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4"><SummaryStat label="Approved" value={judgment.data?.approved ?? 0} tone="good" /><SummaryStat label="Denied" value={judgment.data?.denied ?? 0} tone="bad" /><SummaryStat label="Skipped" value={judgment.data?.skipped ?? 0} tone="neutral" /><SummaryStat label="Unavailable" value={judgment.data?.unavailable ?? 0} tone="bad" /></CardContent></Card><Card><CardHeader><CardTitle className="font-display text-xl">Judgment boundary</CardTitle></CardHeader><CardContent><p className="text-sm leading-6 text-muted-foreground">The market-data collector does not make trading judgments. The active additive source-linked replacement intelligence v4 makes the BUY/SELL judgment using the complete v3 foundation plus bounded document-derived context when available; the app remains paper-validation only.</p></CardContent></Card></div><div className="mt-6"><Card><CardHeader><CardTitle className="font-display text-xl">Replacement intelligence v4</CardTitle><p className="text-xs text-muted-foreground">The active decision layer combines the full Forex trading.docx foundation with the new macro/fundamental PDF concepts.</p></CardHeader><CardContent className="grid gap-3 sm:grid-cols-3"><SummaryStat label="Active version" value={intelligence.data?.active ? 1 : 0} tone="good" /><SummaryStat label="Compiled components" value={intelligence.data?.components?.length ?? 0} tone="neutral" /><SummaryStat label="Proposed lessons" value={intelligence.data?.lessons?.filter((lesson) => lesson.status === "PROPOSED").length ?? 0} tone="neutral" /></CardContent><CardContent className="border-t pt-4"><p className="text-xs leading-5 text-muted-foreground">Components retain source provenance; WIN/LOSS lessons are proposed for validation and do not silently rewrite the active intelligence.</p></CardContent></Card></div><div className="mt-6"><Card><CardHeader><CardTitle className="font-display text-xl">Judgment-to-alert bridge</CardTitle><p className="text-xs text-muted-foreground">Directional paper judgments can now route without the removed evidence gate.</p></CardHeader><CardContent className="grid gap-3 sm:grid-cols-3"><SummaryStat label="Directional judgments" value={judgment.data?.total ?? 0} tone="neutral" /><SummaryStat label="Approved judgments" value={judgment.data?.approved ?? 0} tone="good" /><SummaryStat label="Telegram delivered" value={delivery.data?.signalDelivered ?? 0} tone="good" /></CardContent><CardContent className="border-t pt-4"><p className="text-xs leading-5 text-muted-foreground">The active additive source-linked replacement intelligence v4 makes the BUY/SELL judgment from the complete v3 foundation plus bounded document-derived context. Telegram routing no longer requires the removed evidence gate; every delivered message remains UNVALIDATED and paper-only.</p></CardContent></Card></div><ReplacementStatsCard /><V4MonitoringCard /><EntryLocatorCard /><EntryForgerCard /><div className="mt-6"><RulesUpload compact /></div></>; }
-function EntryLocatorCard() { const query = trpc.intelligence.entryLocator.useQuery(undefined, LIVE_QUERY_OPTIONS); const states = query.data ?? []; return <Card className="mt-6"><CardHeader><CardTitle className="font-display text-xl">Entry-signal locator</CardTitle><p className="text-xs text-muted-foreground">The scanner accumulates distinct snapshots and waits for repeated, coherent setup evidence instead of emitting routine interval signals.</p></CardHeader><CardContent>{states.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{states.map((state) => <div key={`${state.asset}-${state.timeframe}`} className="rounded-xl border bg-muted/20 p-3"><div className="flex items-center justify-between gap-2"><div><p className="font-medium">{state.asset}</p><p className="text-xs text-muted-foreground">{state.timeframe}</p></div><StatusPill status={state.status} /></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div><p className="text-muted-foreground">Snapshots</p><p className="mt-1 font-semibold">{state.snapshotCount}</p></div><div><p className="text-muted-foreground">Last direction</p><p className="mt-1 font-semibold">{state.lastDirection ?? "—"}</p></div><div><p className="text-muted-foreground">Confidence</p><p className="mt-1 font-semibold">{state.lastConfidence == null ? "—" : `${state.lastConfidence}%`}</p></div><div><p className="text-muted-foreground">Confluence</p><p className="mt-1 font-semibold">{state.lastConfluence == null ? "—" : `${state.lastConfluence}%`}</p></div></div><p className="mt-3 text-xs leading-5 text-muted-foreground">{state.stateJson ? (() => { try { return JSON.parse(state.stateJson).waitReason ?? "State recorded."; } catch { return "State recorded."; } })() : "State recorded."}</p><p className="mt-2 text-[11px] text-muted-foreground">Updated {formatDateTime(state.updatedAt)}</p></div>)}</div> : <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">No locator state has been recorded yet. The next scanner cycle will begin accumulating snapshots.</div>}</CardContent></Card>; }
-function EntryForgerCard() { const query = trpc.intelligence.entryForger.useQuery(undefined, LIVE_QUERY_OPTIONS); const states = query.data ?? []; const formatNumber = (value: unknown) => value == null ? "—" : Number(value).toLocaleString(undefined, { maximumFractionDigits: 8 }); return <Card className="mt-6 border-primary/15"><CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle className="font-display text-xl">Entry Forger</CardTitle><p className="text-xs text-muted-foreground">Target-first fallback observability after Entry Locator geometry denial. Entry Locator keeps precedence.</p></div><Badge variant="outline" className="border-primary/25 text-primary">LIVE · REFRESH 1 MIN</Badge></div></CardHeader><CardContent>{states.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{states.map((state) => <div key={`${state.asset}-${state.timeframe}`} className="rounded-xl border bg-muted/20 p-3"><div className="flex items-center justify-between gap-2"><div><p className="font-medium">{state.asset}</p><p className="text-xs text-muted-foreground">{state.timeframe}</p></div><StatusPill status={state.status} /></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div><p className="text-muted-foreground">Snapshots</p><p className="mt-1 font-semibold">{state.snapshotCount}</p></div><div><p className="text-muted-foreground">Last direction</p><p className="mt-1 font-semibold">{state.lastDirection ?? "—"}</p></div><div><p className="text-muted-foreground">Confidence</p><p className="mt-1 font-semibold">{state.lastConfidence == null ? "—" : `${state.lastConfidence}%`}</p></div><div><p className="text-muted-foreground">Confluence</p><p className="mt-1 font-semibold">{state.lastConfluence == null ? "—" : `${state.lastConfluence}%`}</p></div></div><div className="mt-3 rounded-lg border bg-background/70 p-3"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Forger decision</p><p className="mt-1 text-xs leading-5 text-foreground">{state.reason ?? "No decision reason recorded."}</p></div>{(state.targetBoundary != null || state.targetDistance != null || state.riskReward != null) && <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>Target boundary: <b className="text-foreground">{formatNumber(state.targetBoundary)}</b></span><span>Target distance: <b className="text-foreground">{formatNumber(state.targetDistance)}</b></span><span>Planned R:R: <b className="text-foreground">{state.riskReward == null ? "—" : `1:${formatNumber(state.riskReward)}`}</b></span></div>}<p className="mt-3 text-[11px] text-muted-foreground">Last snapshot {formatDateTime(state.lastSnapshotAt)} · Updated {formatDateTime(state.updatedAt)}</p></div>)}</div> : <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">No Entry Forger state has been recorded yet. The next scanner cycle will evaluate and explain the fallback path.</div>}</CardContent></Card>; }
+function Overview() {
+  const rules = trpc.rules.list.useQuery();
+  const marketPulse = trpc.scanner.marketPulse.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
+  const signals = trpc.signals.list.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const audits = trpc.signals.audits.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const judgment = trpc.scanner.summary.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const pending = signals.data?.filter(s => s.status === "PENDING").length ?? 0;
+  const wins = signals.data?.filter(s => s.status === "WIN").length ?? 0;
+  return (
+    <>
+      {(rules.isError ||
+        marketPulse.isError ||
+        signals.isError ||
+        audits.isError) && (
+        <DataError text="Some control-room data is unavailable. Refresh after the connected provider recovers." />
+      )}
+      <PageHeading
+        eyebrow="Control room"
+        title="Stay disciplined in every market."
+        description="A calm, rules-first command center for auditing ideas, monitoring live signals, and learning from every outcome."
+        action={
+          <Button
+            onClick={() => window.location.assign("/chat-audit")}
+            className="h-10"
+          >
+            <MessageSquareText className="mr-2 h-4 w-4" />
+            Audit a trade
+          </Button>
+        }
+      />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Metric
+          label="Rules ingested"
+          value={rules.data?.length ?? 0}
+          icon={BookOpen}
+          detail="Your operating memory"
+        />
+        <Metric
+          label="Open signals"
+          value={pending}
+          icon={Radar}
+          detail="Being tracked live"
+        />
+        <Metric
+          label="Win rate"
+          value={
+            signals.data?.length
+              ? `${Math.round((wins / signals.data.length) * 100)}%`
+              : "—"
+          }
+          icon={TrendingUp}
+          detail="From generated signals"
+        />
+        <Metric
+          label="Audits completed"
+          value={audits.data?.length ?? 0}
+          icon={ShieldCheck}
+          detail="With live conditions"
+        />
+        <Metric
+          label="Strategy judgments"
+          value={judgment.data?.total ?? 0}
+          icon={Gauge}
+          detail="All engine outcomes"
+        />
+      </div>
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_.65fr]">
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b bg-muted/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="font-display text-xl">
+                  Market pulse
+                </CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Snapshot watchlist · refreshed by the market-data collector
+                </p>
+              </div>
+              <Badge
+                variant="outline"
+                className={`gap-1.5 ${marketPulse.isError || !marketPulse.data?.length ? "border-amber-500/30 text-amber-700" : "border-emerald-500/30 text-emerald-600"}`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${marketPulse.isError || !marketPulse.data?.length ? "bg-amber-500" : "bg-emerald-500"}`}
+                />
+                {marketPulse.isLoading
+                  ? "Syncing"
+                  : marketPulse.isError
+                    ? "Unavailable"
+                    : "Live feed"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-3 p-4 sm:grid-cols-2">
+            {WATCHLIST.map(item => {
+              const pulse = marketPulse.data?.find(
+                row => row.asset === item.symbol
+              );
+              const hasPrice = pulse?.price != null;
+              return (
+                <div
+                  key={item.symbol}
+                  className="rounded-2xl border bg-background p-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold tracking-tight">
+                        {item.symbol}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {item.label}
+                      </p>
+                    </div>
+                    <span
+                      className={
+                        pulse?.trend === "UP"
+                          ? "text-emerald-600"
+                          : pulse?.trend === "DOWN"
+                            ? "text-rose-600"
+                            : "text-muted-foreground"
+                      }
+                    >
+                      {pulse?.trend === "UP" ? (
+                        <TrendingUp className="h-4 w-4" />
+                      ) : pulse?.trend === "DOWN" ? (
+                        <TrendingDown className="h-4 w-4" />
+                      ) : (
+                        <Gauge className="h-4 w-4" />
+                      )}
+                    </span>
+                  </div>
+                  <div className="mt-5 flex items-end justify-between gap-3">
+                    <span className="font-display text-2xl font-semibold">
+                      {hasPrice
+                        ? pulse.price!.toLocaleString(undefined, {
+                            maximumFractionDigits: 8,
+                          })
+                        : "—"}
+                    </span>
+                    <span className="text-right text-[11px] leading-4 text-muted-foreground">
+                      {pulse
+                        ? `Saved ${formatDateTime(pulse.savedAt)}`
+                        : marketPulse.isLoading
+                          ? "Awaiting scanner"
+                          : "No scanner data"}
+                    </span>
+                  </div>
+                  {pulse?.candleTime && (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Last candle {pulse.candleTime} · {pulse.timeframe}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      </div>
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_.9fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display text-xl">
+              Strategy-judgment outcomes
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              The strategy-rules algorithm’s recorded judgment states.
+            </p>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <SummaryStat
+              label="Approved"
+              value={judgment.data?.approved ?? 0}
+              tone="good"
+            />
+            <SummaryStat
+              label="Denied"
+              value={judgment.data?.denied ?? 0}
+              tone="bad"
+            />
+            <SummaryStat
+              label="Skipped"
+              value={judgment.data?.skipped ?? 0}
+              tone="neutral"
+            />
+            <SummaryStat
+              label="Unavailable"
+              value={judgment.data?.unavailable ?? 0}
+              tone="bad"
+            />
+          </CardContent>
+        </Card>
+      </div>
+      <V4MonitoringCard />
+      <EntryLocatorCard />
+      <EntryForgerCard />
+      <div className="mt-6">
+        <RulesUpload compact />
+      </div>
+    </>
+  );
+}
+function EntryLocatorCard() {
+  const query = trpc.intelligence.entryLocator.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
+  const states = query.data ?? [];
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle className="font-display text-xl">
+          Entry-signal locator
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          The scanner accumulates distinct snapshots and waits for repeated,
+          coherent setup evidence instead of emitting routine interval signals.
+        </p>
+      </CardHeader>
+      <CardContent>
+        {states.length ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {states.map(state => (
+              <div
+                key={`${state.asset}-${state.timeframe}`}
+                className="rounded-xl border bg-muted/20 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{state.asset}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {state.timeframe}
+                    </p>
+                  </div>
+                  <StatusPill status={state.status} />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Snapshots</p>
+                    <p className="mt-1 font-semibold">{state.snapshotCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Last direction</p>
+                    <p className="mt-1 font-semibold">
+                      {state.lastDirection ?? "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Confidence</p>
+                    <p className="mt-1 font-semibold">
+                      {state.lastConfidence == null
+                        ? "—"
+                        : `${state.lastConfidence}%`}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Confluence</p>
+                    <p className="mt-1 font-semibold">
+                      {state.lastConfluence == null
+                        ? "—"
+                        : `${state.lastConfluence}%`}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                  {state.stateJson
+                    ? (() => {
+                        try {
+                          return (
+                            JSON.parse(state.stateJson).waitReason ??
+                            "State recorded."
+                          );
+                        } catch {
+                          return "State recorded.";
+                        }
+                      })()
+                    : "State recorded."}
+                </p>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Updated {formatDateTime(state.updatedAt)}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+            No locator state has been recorded yet. The next scanner cycle will
+            begin accumulating snapshots.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+function EntryForgerCard() {
+  const query = trpc.intelligence.entryForger.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
+  const states = query.data ?? [];
+  const formatNumber = (value: unknown) =>
+    value == null
+      ? "—"
+      : Number(value).toLocaleString(undefined, { maximumFractionDigits: 8 });
+  return (
+    <Card className="mt-6 border-primary/15">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle className="font-display text-xl">Entry Forger</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Target-first fallback observability after Entry Locator geometry
+              denial. Entry Locator keeps precedence.
+            </p>
+          </div>
+          <Badge variant="outline" className="border-primary/25 text-primary">
+            LIVE · REFRESH 1 MIN
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {states.length ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {states.map(state => (
+              <div
+                key={`${state.asset}-${state.timeframe}`}
+                className="rounded-xl border bg-muted/20 p-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{state.asset}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {state.timeframe}
+                    </p>
+                  </div>
+                  <StatusPill status={state.status} />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Snapshots</p>
+                    <p className="mt-1 font-semibold">{state.snapshotCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Last direction</p>
+                    <p className="mt-1 font-semibold">
+                      {state.lastDirection ?? "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Confidence</p>
+                    <p className="mt-1 font-semibold">
+                      {state.lastConfidence == null
+                        ? "—"
+                        : `${state.lastConfidence}%`}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Confluence</p>
+                    <p className="mt-1 font-semibold">
+                      {state.lastConfluence == null
+                        ? "—"
+                        : `${state.lastConfluence}%`}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-lg border bg-background/70 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Forger decision
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-foreground">
+                    {state.reason ?? "No decision reason recorded."}
+                  </p>
+                </div>
+                {(state.targetBoundary != null ||
+                  state.targetDistance != null ||
+                  state.riskReward != null) && (
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <span>
+                      Target boundary:{" "}
+                      <b className="text-foreground">
+                        {formatNumber(state.targetBoundary)}
+                      </b>
+                    </span>
+                    <span>
+                      Target distance:{" "}
+                      <b className="text-foreground">
+                        {formatNumber(state.targetDistance)}
+                      </b>
+                    </span>
+                    <span>
+                      Planned R:R:{" "}
+                      <b className="text-foreground">
+                        {state.riskReward == null
+                          ? "—"
+                          : `1:${formatNumber(state.riskReward)}`}
+                      </b>
+                    </span>
+                  </div>
+                )}
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  Last snapshot {formatDateTime(state.lastSnapshotAt)} · Updated{" "}
+                  {formatDateTime(state.updatedAt)}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+            No Entry Forger state has been recorded yet. The next scanner cycle
+            will evaluate and explain the fallback path.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
-function Metric({ label, value, detail, icon: Icon }: { label: string; value: string | number; detail: string; icon: React.ElementType }) { return <Card><CardContent className="p-5"><div className="flex items-center justify-between"><span className="text-xs font-medium text-muted-foreground">{label}</span><Icon className="h-4 w-4 text-primary" /></div><p className="mt-4 font-display text-3xl font-semibold tracking-[-0.04em]">{value}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></CardContent></Card>; }
-function HealthRow({ label, value }: { label: string; value: number }) { return <div><div className="mb-2 flex justify-between text-xs"><span className="text-muted-foreground">{label}</span><span className="font-semibold">{value}%</span></div><Progress value={value} className="h-1.5" /></div>; }
-function SummaryStat({ label, value, tone }: { label: string; value: string | number; tone: "good" | "bad" | "neutral" }) { return <div className={`rounded-xl border p-3 ${tone === "good" ? "border-emerald-500/20 bg-emerald-500/5" : tone === "bad" ? "border-rose-500/20 bg-rose-500/5" : "bg-muted/30"}`}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 font-display text-2xl font-semibold">{value}</p></div>; }
+function Metric({
+  label,
+  value,
+  detail,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | number;
+  detail: string;
+  icon: React.ElementType;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">
+            {label}
+          </span>
+          <Icon className="h-4 w-4 text-primary" />
+        </div>
+        <p className="mt-4 font-display text-3xl font-semibold tracking-[-0.04em]">
+          {value}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+      </CardContent>
+    </Card>
+  );
+}
+function HealthRow({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div className="mb-2 flex justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-semibold">{value}%</span>
+      </div>
+      <Progress value={value} className="h-1.5" />
+    </div>
+  );
+}
+function SummaryStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  tone: "good" | "bad" | "neutral";
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-3 ${tone === "good" ? "border-emerald-500/20 bg-emerald-500/5" : tone === "bad" ? "border-rose-500/20 bg-rose-500/5" : "bg-muted/30"}`}
+    >
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-2 font-display text-2xl font-semibold">{value}</p>
+    </div>
+  );
+}
 
-function RulesPage() { const rules = trpc.rules.list.useQuery(); return <>{rules.isError && <DataError text="Strategy rules could not be loaded. Try refreshing the rule memory." />}<PageHeading eyebrow="Operating memory" title="Strategy rules" description="Keep the guard aligned with your actual playbook. Every imported rule set becomes searchable context for audits and strategy-engine judgments." action={<Button variant="outline" onClick={() => rules.refetch()}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>} /><RulesUpload /><div className="mt-6 space-y-3">{rules.isLoading ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading rule memory…</div> : rules.data?.length ? rules.data.map((rule) => <Card key={rule.id}><CardContent className="flex items-start justify-between gap-4 p-5"><div className="flex min-w-0 gap-3"><div className="rounded-xl bg-muted p-2.5"><FileText className="h-4 w-4 text-primary" /></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{rule.title}</p><Badge variant="outline" className="text-[10px] uppercase">{rule.sourceType}</Badge></div><p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">{rule.content}</p><p className="mt-2 text-[11px] text-muted-foreground">Imported {new Date(rule.createdAt).toLocaleString()}</p></div></div><ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" /></CardContent></Card>) : <Card className="border-dashed"><CardContent className="flex flex-col items-center justify-center p-12 text-center"><BookOpen className="h-8 w-8 text-primary/50" /><p className="mt-4 font-medium">No rules ingested yet</p><p className="mt-1 max-w-sm text-sm text-muted-foreground">Upload your first strategy playbook to activate rules-first audits and scanning.</p></CardContent></Card>}</div></>; }
+function RulesPage() {
+  const rules = trpc.rules.list.useQuery();
+  return (
+    <>
+      {rules.isError && (
+        <DataError text="Strategy rules could not be loaded. Try refreshing the rule memory." />
+      )}
+      <PageHeading
+        eyebrow="Operating memory"
+        title="Strategy rules"
+        description="Keep the guard aligned with your actual playbook. Every imported rule set becomes searchable context for audits and strategy-engine judgments."
+        action={
+          <Button variant="outline" onClick={() => rules.refetch()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+        }
+      />
+      <RulesUpload />
+      <div className="mt-6 space-y-3">
+        {rules.isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading rule memory…
+          </div>
+        ) : rules.data?.length ? (
+          rules.data.map(rule => (
+            <Card key={rule.id}>
+              <CardContent className="flex items-start justify-between gap-4 p-5">
+                <div className="flex min-w-0 gap-3">
+                  <div className="rounded-xl bg-muted p-2.5">
+                    <FileText className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{rule.title}</p>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] uppercase"
+                      >
+                        {rule.sourceType}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                      {rule.content}
+                    </p>
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      Imported {new Date(rule.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center p-12 text-center">
+              <BookOpen className="h-8 w-8 text-primary/50" />
+              <p className="mt-4 font-medium">No rules ingested yet</p>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                Upload your first strategy playbook to activate rules-first
+                audits and scanning.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </>
+  );
+}
 
-function ChatAudit() { const history = trpc.audit.history.useQuery(undefined, LIVE_QUERY_OPTIONS); const [mode, setMode] = useState<"ASK" | "AUDIT">("ASK"); const [messages, setMessages] = useState<Message[]>([{ role: "assistant", content: "I’m your interactive Trading Guard assistant. Ask a trading question, request a live paper-market read, ask about your recent outcomes, or switch to Audit mode for a structured v3 review." }]); const historical = (history.data ?? []).slice().reverse().map((m) => ({ role: m.role, content: m.content } as Message)); const combined = useMemo(() => historical.length ? historical : messages, [historical.length, historical.map((m) => m.content).join("|")]); const audit = trpc.audit.run.useMutation({ onSuccess: (result) => { setMessages((prev) => [...prev, result]); history.refetch(); }, onError: (e) => toast.error(e.message) }); const conversation = trpc.audit.conversation.useMutation({ onSuccess: (result) => { setMessages((prev) => [...prev, result]); history.refetch(); }, onError: (e) => toast.error(e.message) }); const clearConversation = trpc.audit.clearConversation.useMutation({ onSuccess: () => { setMessages([{ role: "assistant", content: "Conversation cleared. Ask a trading question or switch to Audit mode for a structured v3 review." }]); history.refetch(); toast.success("Chat conversation cleared"); }, onError: (e) => toast.error(e.message) }); const isPending = audit.isPending || conversation.isPending || clearConversation.isPending; const handleMessage = (signal: string) => { const nextMessages = [...combined, { role: "user" as const, content: signal }]; setMessages(nextMessages); if (mode === "AUDIT") audit.mutate({ signal: signal.length >= 8 ? signal : `Audit: ${signal}` }); else conversation.mutate({ messages: nextMessages.slice(-24).map((message) => ({ role: message.role === "assistant" ? "assistant" as const : "user" as const, content: message.content })) }); }; const exportConversation = () => { const text = combined.map((message) => `${message.role.toUpperCase()}\n${message.content}`).join("\n\n"); const blob = new Blob([text], { type: "text/plain;charset=utf-8" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `trading-guard-chat-${new Date().toISOString().slice(0, 10)}.txt`; link.click(); URL.revokeObjectURL(url); }; const prompts = mode === "ASK" ? ["Which asset looks most predictable today from my paper history?", "What is the current paper position of XAU/USD?", "How many wins have we made in the last hour?"] : ["Audit EUR/USD BUY on 15MIN with 1:2 risk/reward", "Audit XAU/USD SELL and flag any adjustments", "Audit BTC/USD BUY on 1H"] ; return <>{history.isError && <DataError text="Audit history could not be loaded. New conversations remain available after the connection recovers." />}<PageHeading eyebrow="Interactive trading assistant" title="Chat audit" description="Ask trading questions, inspect live paper-market context, review app performance, or request a structured Replacement Intelligence v3 audit." /><div className="grid min-w-0 gap-6 overflow-hidden xl:grid-cols-[minmax(0,1fr)_300px]"><div className="min-w-0 overflow-hidden"><div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2"><div className="flex min-w-0 flex-wrap gap-2"><Button type="button" size="sm" variant={mode === "ASK" ? "default" : "outline"} onClick={() => setMode("ASK")}><MessageSquareText className="mr-2 h-4 w-4" />Ask</Button><Button type="button" size="sm" variant={mode === "AUDIT" ? "default" : "outline"} onClick={() => setMode("AUDIT")}><ShieldCheck className="mr-2 h-4 w-4" />Audit</Button></div><div className="flex gap-2"><Button type="button" size="sm" variant="outline" onClick={exportConversation} disabled={!combined.length}><Download className="mr-2 h-4 w-4" />Export</Button><Button type="button" size="sm" variant="outline" onClick={() => window.confirm("Clear this Chat Audit conversation? Persisted audit trade records will remain.") && clearConversation.mutate()} disabled={isPending}><Trash2 className="mr-2 h-4 w-4" />Clear</Button></div></div><Suspense fallback={<div className="flex min-h-[240px] items-center justify-center rounded-lg border bg-card p-6 text-sm text-muted-foreground">Loading the trading assistant…</div>}><AIChatBox messages={combined} onSendMessage={handleMessage} isLoading={isPending} height="min(650px, calc(100vh - 220px))" className="w-full min-w-0 max-w-full overflow-hidden" placeholder={mode === "ASK" ? "Ask a trading question…" : "Describe a trade idea to audit…"} suggestedPrompts={prompts} /></Suspense></div><div className="min-w-0 space-y-4"><Card><CardHeader><CardTitle className="font-display text-lg">{mode === "ASK" ? "Ask the assistant" : "Audit a trade"}</CardTitle></CardHeader><CardContent className="space-y-4 text-sm"><Protocol icon={MessageSquareText} title="Ask" text="Discuss market structure, risk, assets, sessions, and stored paper outcomes." /><Protocol icon={Gauge} title="Audit" text="Switch to Audit mode for a structured v3 paper review using current market data." /><Protocol icon={ShieldCheck} title="Guardrails" text="Live observations remain analysis only; every decision is paper-only and UNVALIDATED." /></CardContent></Card><Card className="bg-primary text-primary-foreground"><CardContent className="p-5"><Sparkles className="h-5 w-5" /><p className="mt-4 font-display text-lg font-semibold">Interactive, not impulsive.</p><p className="mt-2 text-sm leading-6 text-primary-foreground/75">The assistant answers from your ingested rules and available app context, and clearly identifies when live data is unavailable.</p></CardContent></Card></div></div></>; }
-function Protocol({ icon: Icon, title, text }: { icon: React.ElementType; title: string; text: string }) { return <div className="flex gap-3"><Icon className="mt-0.5 h-4 w-4 text-primary" /><div><p className="font-medium">{title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p></div></div>; }
+function ChatAudit() {
+  const history = trpc.audit.history.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const [mode, setMode] = useState<"ASK" | "AUDIT">("ASK");
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "assistant",
+      content:
+        "I’m your interactive Trading Guard assistant. Ask a trading question, request a live paper-market read, ask about your recent outcomes, or switch to Audit mode for a structured v3 review.",
+    },
+  ]);
+  const historical = (history.data ?? [])
+    .slice()
+    .reverse()
+    .map(m => ({ role: m.role, content: m.content }) as Message);
+  const combined = useMemo(
+    () => (historical.length ? historical : messages),
+    [historical.length, historical.map(m => m.content).join("|")]
+  );
+  const audit = trpc.audit.run.useMutation({
+    onSuccess: result => {
+      setMessages(prev => [...prev, result]);
+      history.refetch();
+    },
+    onError: e => toast.error(e.message),
+  });
+  const conversation = trpc.audit.conversation.useMutation({
+    onSuccess: result => {
+      setMessages(prev => [...prev, result]);
+      history.refetch();
+    },
+    onError: e => toast.error(e.message),
+  });
+  const clearConversation = trpc.audit.clearConversation.useMutation({
+    onSuccess: () => {
+      setMessages([
+        {
+          role: "assistant",
+          content:
+            "Conversation cleared. Ask a trading question or switch to Audit mode for a structured v3 review.",
+        },
+      ]);
+      history.refetch();
+      toast.success("Chat conversation cleared");
+    },
+    onError: e => toast.error(e.message),
+  });
+  const isPending =
+    audit.isPending || conversation.isPending || clearConversation.isPending;
+  const handleMessage = (signal: string) => {
+    const nextMessages = [
+      ...combined,
+      { role: "user" as const, content: signal },
+    ];
+    setMessages(nextMessages);
+    if (mode === "AUDIT")
+      audit.mutate({
+        signal: signal.length >= 8 ? signal : `Audit: ${signal}`,
+      });
+    else
+      conversation.mutate({
+        messages: nextMessages
+          .slice(-24)
+          .map(message => ({
+            role:
+              message.role === "assistant"
+                ? ("assistant" as const)
+                : ("user" as const),
+            content: message.content,
+          })),
+      });
+  };
+  const exportConversation = () => {
+    const text = combined
+      .map(message => `${message.role.toUpperCase()}\n${message.content}`)
+      .join("\n\n");
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `trading-guard-chat-${new Date().toISOString().slice(0, 10)}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const prompts =
+    mode === "ASK"
+      ? [
+          "Which asset looks most predictable today from my paper history?",
+          "What is the current paper position of XAU/USD?",
+          "How many wins have we made in the last hour?",
+        ]
+      : [
+          "Audit EUR/USD BUY on 15MIN with 1:2 risk/reward",
+          "Audit XAU/USD SELL and flag any adjustments",
+          "Audit BTC/USD BUY on 1H",
+        ];
+  return (
+    <>
+      {history.isError && (
+        <DataError text="Audit history could not be loaded. New conversations remain available after the connection recovers." />
+      )}
+      <PageHeading
+        eyebrow="Interactive trading assistant"
+        title="Chat audit"
+        description="Ask trading questions, inspect live paper-market context, review app performance, or request a structured Replacement Intelligence v3 audit."
+      />
+      <div className="grid min-w-0 gap-6 overflow-hidden xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0 overflow-hidden">
+          <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={mode === "ASK" ? "default" : "outline"}
+                onClick={() => setMode("ASK")}
+              >
+                <MessageSquareText className="mr-2 h-4 w-4" />
+                Ask
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={mode === "AUDIT" ? "default" : "outline"}
+                onClick={() => setMode("AUDIT")}
+              >
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Audit
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={exportConversation}
+                disabled={!combined.length}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  window.confirm(
+                    "Clear this Chat Audit conversation? Persisted audit trade records will remain."
+                  ) && clearConversation.mutate()
+                }
+                disabled={isPending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Clear
+              </Button>
+            </div>
+          </div>
+          <Suspense
+            fallback={
+              <div className="flex min-h-[240px] items-center justify-center rounded-lg border bg-card p-6 text-sm text-muted-foreground">
+                Loading the trading assistant…
+              </div>
+            }
+          >
+            <AIChatBox
+              messages={combined}
+              onSendMessage={handleMessage}
+              isLoading={isPending}
+              height="min(650px, calc(100vh - 220px))"
+              className="w-full min-w-0 max-w-full overflow-hidden"
+              placeholder={
+                mode === "ASK"
+                  ? "Ask a trading question…"
+                  : "Describe a trade idea to audit…"
+              }
+              suggestedPrompts={prompts}
+            />
+          </Suspense>
+        </div>
+        <div className="min-w-0 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-display text-lg">
+                {mode === "ASK" ? "Ask the assistant" : "Audit a trade"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <Protocol
+                icon={MessageSquareText}
+                title="Ask"
+                text="Discuss market structure, risk, assets, sessions, and stored paper outcomes."
+              />
+              <Protocol
+                icon={Gauge}
+                title="Audit"
+                text="Switch to Audit mode for a structured v3 paper review using current market data."
+              />
+              <Protocol
+                icon={ShieldCheck}
+                title="Guardrails"
+                text="Live observations remain analysis only; every decision is paper-only and UNVALIDATED."
+              />
+            </CardContent>
+          </Card>
+          <Card className="bg-primary text-primary-foreground">
+            <CardContent className="p-5">
+              <Sparkles className="h-5 w-5" />
+              <p className="mt-4 font-display text-lg font-semibold">
+                Interactive, not impulsive.
+              </p>
+              <p className="mt-2 text-sm leading-6 text-primary-foreground/75">
+                The assistant answers from your ingested rules and available app
+                context, and clearly identifies when live data is unavailable.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
+function Protocol({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: React.ElementType;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="flex gap-3">
+      <Icon className="mt-0.5 h-4 w-4 text-primary" />
+      <div>
+        <p className="font-medium">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p>
+      </div>
+    </div>
+  );
+}
 
-function adjustmentEvidenceSummary(value: string) { try { const parsed = JSON.parse(value) as { opposingIndicators?: unknown[]; suggestedStopLoss?: number }; const indicators = Array.isArray(parsed.opposingIndicators) ? parsed.opposingIndicators.filter((item): item is string => typeof item === "string").slice(0, 3).join("; ") : ""; return { indicators, suggestedStopLoss: parsed.suggestedStopLoss }; } catch { return { indicators: "", suggestedStopLoss: undefined }; } }
+function adjustmentEvidenceSummary(value: string) {
+  try {
+    const parsed = JSON.parse(value) as {
+      opposingIndicators?: unknown[];
+      suggestedStopLoss?: number;
+    };
+    const indicators = Array.isArray(parsed.opposingIndicators)
+      ? parsed.opposingIndicators
+          .filter((item): item is string => typeof item === "string")
+          .slice(0, 3)
+          .join("; ")
+      : "";
+    return { indicators, suggestedStopLoss: parsed.suggestedStopLoss };
+  } catch {
+    return { indicators: "", suggestedStopLoss: undefined };
+  }
+}
 
 function AdjustmentHistory() {
-  const adjustments = trpc.signals.adjustments.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const adjustments = trpc.signals.adjustments.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
   const [assetFilter, setAssetFilter] = useState("ALL");
   const [actionFilter, setActionFilter] = useState("ALL");
-  const filtered = (adjustments.data ?? []).filter((item) => (assetFilter === "ALL" || item.asset === assetFilter) && (actionFilter === "ALL" || item.action === actionFilter));
-  return <Card className="mt-6 border-amber-500/20 bg-amber-500/[0.025]"><CardHeader><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><CardTitle className="font-display text-xl">Paper-trade adjustments</CardTitle><p className="mt-1 text-xs text-muted-foreground">Automatic contradiction replies linked to unresolved current Entry Locator v4 signals.</p></div><Badge variant="outline" className="w-fit border-amber-500/30 text-amber-700">{filtered.length}{filtered.length !== (adjustments.data?.length ?? 0) ? ` / ${adjustments.data?.length ?? 0}` : ""} recorded</Badge></div><div className="flex flex-col gap-2 sm:flex-row"><label className="flex flex-1 flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"><span>Asset</span><select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:ring-2 focus:ring-primary/30"><option value="ALL">All assets</option>{Array.from(new Set((adjustments.data ?? []).map((item) => item.asset))).map((asset) => <option key={asset} value={asset}>{asset}</option>)}</select></label><label className="flex flex-1 flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground"><span>Action</span><select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:ring-2 focus:ring-primary/30"><option value="ALL">All actions</option><option value="REVIEW_DIRECTION">Review direction</option><option value="TIGHTEN_STOP">Tighten stop</option><option value="EXIT_PAPER_SETUP">Exit paper setup</option></select></label></div></CardHeader><CardContent className="p-0">{adjustments.isLoading ? <div className="p-8 text-center text-sm text-muted-foreground">Loading adjustment history…</div> : adjustments.isError ? <div className="p-6"><DataError text="Adjustment history could not be loaded. Refresh after the database connection recovers." /></div> : adjustments.data?.length ? filtered.length ? <div className="divide-y">{filtered.map((item) => { const evidence = adjustmentEvidenceSummary(item.evidenceJson); return <div key={item.id} className="grid gap-3 px-5 py-4 lg:grid-cols-[1.2fr_1.1fr_.8fr_1fr]"><div><p className="font-medium">{item.originalDirection} → {item.observedDirection} <span className="text-xs text-muted-foreground">{item.asset} · {item.timeframe}</span></p><p className="mt-1 text-xs text-muted-foreground">Signal #{item.signalId} · {formatDateTime(item.createdAt)}</p></div><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Action</p><p className="mt-1 text-sm">{item.action.replaceAll("_", " ")}</p>{evidence.suggestedStopLoss != null && <p className="mt-1 text-xs text-muted-foreground">Suggested paper stop: {evidence.suggestedStopLoss}</p>}</div><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Reply</p><div className="mt-1"><StatusPill status={item.telegramDelivery?.status ?? "NOT RECORDED"} /></div><p className="mt-1 text-[10px] text-muted-foreground">{formatDateTime(item.telegramDelivery?.deliveredAt ?? item.telegramDelivery?.createdAt)}</p></div><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Evidence</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{evidence.indicators || item.reason}</p></div></div>; })}</div> : <div className="p-8 text-center text-sm text-muted-foreground">No adjustments match the selected filters.</div> : <div className="p-8 text-center text-sm text-muted-foreground">No contradiction adjustments have been recorded. The monitor only replies when a strong, opposing v4 direction is detected while a signal is unresolved.</div>}</CardContent></Card>;
+  const filtered = (adjustments.data ?? []).filter(
+    item =>
+      (assetFilter === "ALL" || item.asset === assetFilter) &&
+      (actionFilter === "ALL" || item.action === actionFilter)
+  );
+  return (
+    <Card className="mt-6 border-amber-500/20 bg-amber-500/[0.025]">
+      <CardHeader>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle className="font-display text-xl">
+              Paper-trade adjustments
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Automatic contradiction replies linked to unresolved current Entry
+              Locator v4 signals.
+            </p>
+          </div>
+          <Badge
+            variant="outline"
+            className="w-fit border-amber-500/30 text-amber-700"
+          >
+            {filtered.length}
+            {filtered.length !== (adjustments.data?.length ?? 0)
+              ? ` / ${adjustments.data?.length ?? 0}`
+              : ""}{" "}
+            recorded
+          </Badge>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label className="flex flex-1 flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <span>Asset</span>
+            <select
+              value={assetFilter}
+              onChange={event => setAssetFilter(event.target.value)}
+              className="h-9 rounded-md border bg-background px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="ALL">All assets</option>
+              {Array.from(
+                new Set((adjustments.data ?? []).map(item => item.asset))
+              ).map(asset => (
+                <option key={asset} value={asset}>
+                  {asset}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-1 flex-col gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <span>Action</span>
+            <select
+              value={actionFilter}
+              onChange={event => setActionFilter(event.target.value)}
+              className="h-9 rounded-md border bg-background px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="ALL">All actions</option>
+              <option value="REVIEW_DIRECTION">Review direction</option>
+              <option value="TIGHTEN_STOP">Tighten stop</option>
+              <option value="EXIT_PAPER_SETUP">Exit paper setup</option>
+            </select>
+          </label>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {adjustments.isLoading ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            Loading adjustment history…
+          </div>
+        ) : adjustments.isError ? (
+          <div className="p-6">
+            <DataError text="Adjustment history could not be loaded. Refresh after the database connection recovers." />
+          </div>
+        ) : adjustments.data?.length ? (
+          filtered.length ? (
+            <div className="divide-y">
+              {filtered.map(item => {
+                const evidence = adjustmentEvidenceSummary(item.evidenceJson);
+                return (
+                  <div
+                    key={item.id}
+                    className="grid gap-3 px-5 py-4 lg:grid-cols-[1.2fr_1.1fr_.8fr_1fr]"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {item.originalDirection} → {item.observedDirection}{" "}
+                        <span className="text-xs text-muted-foreground">
+                          {item.asset} · {item.timeframe}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Signal #{item.signalId} ·{" "}
+                        {formatDateTime(item.createdAt)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Action
+                      </p>
+                      <p className="mt-1 text-sm">
+                        {item.action.replaceAll("_", " ")}
+                      </p>
+                      {evidence.suggestedStopLoss != null && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Suggested paper stop: {evidence.suggestedStopLoss}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Reply
+                      </p>
+                      <div className="mt-1">
+                        <StatusPill
+                          status={
+                            item.telegramDelivery?.status ?? "NOT RECORDED"
+                          }
+                        />
+                      </div>
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        {formatDateTime(
+                          item.telegramDelivery?.deliveredAt ??
+                            item.telegramDelivery?.createdAt
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Evidence
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {evidence.indicators || item.reason}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              No adjustments match the selected filters.
+            </div>
+          )
+        ) : (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            No contradiction adjustments have been recorded. The monitor only
+            replies when a strong, opposing v4 direction is detected while a
+            signal is unresolved.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
-function upgradeEvidenceSummary(value: string) { try { const parsed = JSON.parse(value) as { improvements?: unknown[]; previousConfidence?: number; newConfidence?: number; previousConfluence?: number; newConfluence?: number }; const improvements = Array.isArray(parsed.improvements) ? parsed.improvements.filter((item): item is string => typeof item === "string").slice(0, 3).join("; ") : ""; return { improvements, previousConfidence: parsed.previousConfidence, newConfidence: parsed.newConfidence, previousConfluence: parsed.previousConfluence, newConfluence: parsed.newConfluence }; } catch { return { improvements: "", previousConfidence: undefined, newConfidence: undefined, previousConfluence: undefined, newConfluence: undefined }; } }
+function upgradeEvidenceSummary(value: string) {
+  try {
+    const parsed = JSON.parse(value) as {
+      improvements?: unknown[];
+      previousConfidence?: number;
+      newConfidence?: number;
+      previousConfluence?: number;
+      newConfluence?: number;
+    };
+    const improvements = Array.isArray(parsed.improvements)
+      ? parsed.improvements
+          .filter((item): item is string => typeof item === "string")
+          .slice(0, 3)
+          .join("; ")
+      : "";
+    return {
+      improvements,
+      previousConfidence: parsed.previousConfidence,
+      newConfidence: parsed.newConfidence,
+      previousConfluence: parsed.previousConfluence,
+      newConfluence: parsed.newConfluence,
+    };
+  } catch {
+    return {
+      improvements: "",
+      previousConfidence: undefined,
+      newConfidence: undefined,
+      previousConfluence: undefined,
+      newConfluence: undefined,
+    };
+  }
+}
 
 function UpgradeChainHistory() {
-  const chains = trpc.signals.upgradeChains.useQuery(undefined, LIVE_QUERY_OPTIONS);
-  const summary = trpc.signals.upgradeSummary.useQuery(undefined, LIVE_QUERY_OPTIONS);
-  return <Card className="mt-6 border-primary/20 bg-primary/[0.025]"><CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><CardTitle className="font-display text-xl">Stronger setup upgrade chains</CardTitle><p className="mt-1 text-xs leading-5 text-muted-foreground">One active paper thesis per asset/timeframe. A materially stronger replacement remains linked to the original instead of becoming an unrelated duplicate.</p></div><Badge variant="outline" className="w-fit border-primary/30 text-primary">{summary.data?.upgradeCount ?? 0} upgrades</Badge></div></CardHeader><CardContent><div className="mb-5 grid gap-3 sm:grid-cols-3"><SummaryStat label="Source theses" value={summary.data?.sourceTheses ?? 0} tone="neutral" /><SummaryStat label="Replacements" value={summary.data?.replacementTheses ?? 0} tone="good" /><SummaryStat label="Upgrade rate" value={summary.data?.frequencyPercent == null ? "—" : `${summary.data.frequencyPercent}%`} tone="neutral" /></div>{chains.isLoading ? <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">Loading upgrade chains…</div> : chains.isError ? <DataError text="Upgrade-chain history could not be loaded. Refresh after the database connection recovers." /> : chains.data?.length ? <div className="space-y-4">{chains.data.map((chain) => { const evidence = upgradeEvidenceSummary(chain.adjustment.evidenceJson); return <div key={chain.adjustment.id} className="rounded-xl border bg-background p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium">{chain.adjustment.asset} · {chain.adjustment.timeframe}</p><p className="mt-1 text-xs text-muted-foreground">Upgrade #{chain.adjustment.id} · {formatDateTime(chain.adjustment.createdAt)}</p></div><div className="flex flex-wrap gap-2"><StatusPill status={chain.original?.status ?? "ORIGINAL UNAVAILABLE"} /><span className="text-xs text-muted-foreground">→</span><StatusPill status={chain.replacement?.status ?? "REPLACEMENT UNAVAILABLE"} /></div></div><div className="mt-4 grid gap-4 lg:grid-cols-2"><div className="rounded-lg border border-dashed p-3"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Original thesis</p><p className="mt-2 text-sm font-medium">#{chain.original?.id ?? chain.adjustment.signalId} · {chain.original?.direction ?? chain.adjustment.originalDirection} · Entry {chain.original?.entry ?? "—"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Confidence {chain.original?.confidence ?? "—"}% · Confluence {chain.original?.confluenceScore ?? "—"}% · {chain.original?.status ?? "UNAVAILABLE"}</p><p className="mt-1 text-xs text-muted-foreground">Signal delivery: {chain.originalDelivery?.status ?? "NOT RECORDED"}</p></div><div className="rounded-lg border border-primary/20 bg-primary/[0.035] p-3"><p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Stronger replacement</p><p className="mt-2 text-sm font-medium">#{chain.replacement?.id ?? chain.adjustment.replacementSignalId ?? "—"} · {chain.replacement?.direction ?? chain.adjustment.observedDirection} · Entry {chain.replacement?.entry ?? "—"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Confidence {chain.replacement?.confidence ?? evidence.newConfidence ?? "—"}% · Confluence {chain.replacement?.confluenceScore ?? evidence.newConfluence ?? "—"}% · {chain.replacement?.status ?? "UNAVAILABLE"}</p><p className="mt-1 text-xs text-muted-foreground">Replacement delivery: {chain.replacementDelivery?.status ?? "NOT RECORDED"}</p></div></div><div className="mt-3 rounded-lg bg-muted/30 p-3 text-xs leading-5 text-muted-foreground"><span className="font-medium text-foreground">Why upgraded:</span> {evidence.improvements || chain.adjustment.reason}</div><p className="mt-2 text-[11px] text-muted-foreground">Threaded upgrade reply: {chain.upgradeDelivery?.status ?? "NOT RECORDED"} · Original signal remains preserved for audit history.</p></div>; })}</div> : <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">No stronger setup upgrades have been recorded yet. The monitor will show the first linked replacement after a materially better qualified v4 thesis appears.</div>}</CardContent></Card>;
+  const chains = trpc.signals.upgradeChains.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
+  const summary = trpc.signals.upgradeSummary.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
+  return (
+    <Card className="mt-6 border-primary/20 bg-primary/[0.025]">
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="font-display text-xl">
+              Stronger setup upgrade chains
+            </CardTitle>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              One active paper thesis per asset/timeframe. A materially stronger
+              replacement remains linked to the original instead of becoming an
+              unrelated duplicate.
+            </p>
+          </div>
+          <Badge
+            variant="outline"
+            className="w-fit border-primary/30 text-primary"
+          >
+            {summary.data?.upgradeCount ?? 0} upgrades
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-5 grid gap-3 sm:grid-cols-3">
+          <SummaryStat
+            label="Source theses"
+            value={summary.data?.sourceTheses ?? 0}
+            tone="neutral"
+          />
+          <SummaryStat
+            label="Replacements"
+            value={summary.data?.replacementTheses ?? 0}
+            tone="good"
+          />
+          <SummaryStat
+            label="Upgrade rate"
+            value={
+              summary.data?.frequencyPercent == null
+                ? "—"
+                : `${summary.data.frequencyPercent}%`
+            }
+            tone="neutral"
+          />
+        </div>
+        {chains.isLoading ? (
+          <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+            Loading upgrade chains…
+          </div>
+        ) : chains.isError ? (
+          <DataError text="Upgrade-chain history could not be loaded. Refresh after the database connection recovers." />
+        ) : chains.data?.length ? (
+          <div className="space-y-4">
+            {chains.data.map(chain => {
+              const evidence = upgradeEvidenceSummary(
+                chain.adjustment.evidenceJson
+              );
+              return (
+                <div
+                  key={chain.adjustment.id}
+                  className="rounded-xl border bg-background p-4"
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-medium">
+                        {chain.adjustment.asset} · {chain.adjustment.timeframe}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Upgrade #{chain.adjustment.id} ·{" "}
+                        {formatDateTime(chain.adjustment.createdAt)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <StatusPill
+                        status={
+                          chain.original?.status ?? "ORIGINAL UNAVAILABLE"
+                        }
+                      />
+                      <span className="text-xs text-muted-foreground">→</span>
+                      <StatusPill
+                        status={
+                          chain.replacement?.status ?? "REPLACEMENT UNAVAILABLE"
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-lg border border-dashed p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        Original thesis
+                      </p>
+                      <p className="mt-2 text-sm font-medium">
+                        #{chain.original?.id ?? chain.adjustment.signalId} ·{" "}
+                        {chain.original?.direction ??
+                          chain.adjustment.originalDirection}{" "}
+                        · Entry {chain.original?.entry ?? "—"}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        Confidence {chain.original?.confidence ?? "—"}% ·
+                        Confluence {chain.original?.confluenceScore ?? "—"}% ·{" "}
+                        {chain.original?.status ?? "UNAVAILABLE"}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Signal delivery:{" "}
+                        {chain.originalDelivery?.status ?? "NOT RECORDED"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-primary/20 bg-primary/[0.035] p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+                        Stronger replacement
+                      </p>
+                      <p className="mt-2 text-sm font-medium">
+                        #
+                        {chain.replacement?.id ??
+                          chain.adjustment.replacementSignalId ??
+                          "—"}{" "}
+                        ·{" "}
+                        {chain.replacement?.direction ??
+                          chain.adjustment.observedDirection}{" "}
+                        · Entry {chain.replacement?.entry ?? "—"}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        Confidence{" "}
+                        {chain.replacement?.confidence ??
+                          evidence.newConfidence ??
+                          "—"}
+                        % · Confluence{" "}
+                        {chain.replacement?.confluenceScore ??
+                          evidence.newConfluence ??
+                          "—"}
+                        % · {chain.replacement?.status ?? "UNAVAILABLE"}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Replacement delivery:{" "}
+                        {chain.replacementDelivery?.status ?? "NOT RECORDED"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 rounded-lg bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      Why upgraded:
+                    </span>{" "}
+                    {evidence.improvements || chain.adjustment.reason}
+                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Threaded upgrade reply:{" "}
+                    {chain.upgradeDelivery?.status ?? "NOT RECORDED"} · Original
+                    signal remains preserved for audit history.
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+            No stronger setup upgrades have been recorded yet. The monitor will
+            show the first linked replacement after a materially better
+            qualified v4 thesis appears.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function V4SourcePerformanceCard() {
   const [asset, setAsset] = useState("ALL");
   const [timeframe, setTimeframe] = useState<"ALL" | "15MIN" | "1H">("ALL");
-  const [source, setSource] = useState<"ALL" | "ENTRY_LOCATOR" | "ENTRY_FORGER">("ALL");
-  const sourceFilters = useMemo(() => ({ asset: asset === "ALL" ? undefined : asset, timeframe: timeframe === "ALL" ? undefined : timeframe, source: source === "ALL" ? undefined : source }), [asset, source, timeframe]);
-  const query = trpc.intelligence.v4SourceStats.useQuery(sourceFilters, { refetchInterval: 60_000 });
+  const [source, setSource] = useState<
+    "ALL" | "ENTRY_LOCATOR" | "ENTRY_FORGER"
+  >("ALL");
+  const sourceFilters = useMemo(
+    () => ({
+      asset: asset === "ALL" ? undefined : asset,
+      timeframe: timeframe === "ALL" ? undefined : timeframe,
+      source: source === "ALL" ? undefined : source,
+    }),
+    [asset, source, timeframe]
+  );
+  const query = trpc.intelligence.v4SourceStats.useQuery(sourceFilters, {
+    refetchInterval: 60_000,
+  });
   const rows = query.data?.sources ?? [];
-  const visibleRows = source === "ALL" ? rows : rows.filter((row) => row.source === source);
-  return <Card className="mt-6 border-primary/15 bg-primary/[0.025]">
-    <CardHeader>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div><CardTitle className="font-display text-xl">V4 source performance</CardTitle><p className="mt-1 text-xs leading-5 text-muted-foreground">Compare how often the strict Entry Locator and fallback Entry Forger produce paper signals and how their resolved outcomes compare. Refreshes every minute.</p></div>
-        <div className="flex flex-wrap gap-2">
-          <select aria-label="Filter source performance by asset" value={asset} onChange={(event) => setAsset(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-xs"><option value="ALL">All assets</option>{WATCHLIST.map((item) => <option key={item.symbol} value={item.symbol}>{item.symbol}</option>)}</select>
-          <select aria-label="Filter source performance by timeframe" value={timeframe} onChange={(event) => setTimeframe(event.target.value as "ALL" | "15MIN" | "1H")} className="h-9 rounded-md border bg-background px-2 text-xs"><option value="ALL">All timeframes</option><option value="15MIN">15MIN</option><option value="1H">1H</option></select>
-          <select aria-label="Filter source performance by signal source" value={source} onChange={(event) => setSource(event.target.value as "ALL" | "ENTRY_LOCATOR" | "ENTRY_FORGER")} className="h-9 rounded-md border bg-background px-2 text-xs"><option value="ALL">Both sources</option><option value="ENTRY_LOCATOR">Entry Locator</option><option value="ENTRY_FORGER">Entry Forger</option></select>
-          <Badge variant="outline" className="border-primary/30 text-primary">UNVALIDATED</Badge>
+  const visibleRows =
+    source === "ALL" ? rows : rows.filter(row => row.source === source);
+  return (
+    <Card className="mt-6 border-primary/15 bg-primary/[0.025]">
+      <CardHeader>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle className="font-display text-xl">
+              V4 source performance
+            </CardTitle>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Compare how often the strict Entry Locator and fallback Entry
+              Forger produce paper signals and how their resolved outcomes
+              compare. Refreshes every minute.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              aria-label="Filter source performance by asset"
+              value={asset}
+              onChange={event => setAsset(event.target.value)}
+              className="h-9 rounded-md border bg-background px-2 text-xs"
+            >
+              <option value="ALL">All assets</option>
+              {WATCHLIST.map(item => (
+                <option key={item.symbol} value={item.symbol}>
+                  {item.symbol}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Filter source performance by timeframe"
+              value={timeframe}
+              onChange={event =>
+                setTimeframe(event.target.value as "ALL" | "15MIN" | "1H")
+              }
+              className="h-9 rounded-md border bg-background px-2 text-xs"
+            >
+              <option value="ALL">All timeframes</option>
+              <option value="15MIN">15MIN</option>
+              <option value="1H">1H</option>
+            </select>
+            <select
+              aria-label="Filter source performance by signal source"
+              value={source}
+              onChange={event =>
+                setSource(
+                  event.target.value as "ALL" | "ENTRY_LOCATOR" | "ENTRY_FORGER"
+                )
+              }
+              className="h-9 rounded-md border bg-background px-2 text-xs"
+            >
+              <option value="ALL">Both sources</option>
+              <option value="ENTRY_LOCATOR">Entry Locator</option>
+              <option value="ENTRY_FORGER">Entry Forger</option>
+            </select>
+            <Badge variant="outline" className="border-primary/30 text-primary">
+              UNVALIDATED
+            </Badge>
+          </div>
         </div>
-      </div>
-    </CardHeader>
-    <CardContent>
-      {query.isError ? <DataError text="Source performance could not be loaded. Refresh after the database connection recovers." /> : <div className="grid gap-3 md:grid-cols-2">{visibleRows.map((row) => <div key={row.source} className="rounded-xl border bg-background p-4"><div className="flex items-center justify-between gap-3"><div><p className="font-medium">{row.source === "ENTRY_LOCATOR" ? "Entry Locator" : "Entry Forger"}</p><p className="mt-1 text-xs text-muted-foreground">{row.source === "ENTRY_LOCATOR" ? "Strict structural geometry" : "Target-first fallback geometry"}</p></div><Badge variant="outline" className={row.source === "ENTRY_LOCATOR" ? "border-primary/30 text-primary" : "border-amber-500/35 text-amber-700"}>{row.source === "ENTRY_LOCATOR" ? "LOCATOR" : "FORGER"}</Badge></div><div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5"><div><p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Generated</p><p className="mt-1 text-lg font-semibold">{row.generated}</p></div><div><p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Resolved</p><p className="mt-1 text-lg font-semibold">{row.resolved}</p></div><div><p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Wins</p><p className="mt-1 text-lg font-semibold text-emerald-600">{row.wins}</p></div><div><p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Losses</p><p className="mt-1 text-lg font-semibold text-rose-600">{row.losses}</p></div><div><p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Win rate</p><p className="mt-1 text-lg font-semibold">{row.winRate == null ? "—" : `${row.winRate}%`}</p></div></div></div>)}</div>}
-      {!query.isLoading && !query.isError && !visibleRows.some((row) => row.generated > 0) && <p className="mt-4 rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">No v4 signals match the selected source, asset, or timeframe yet. Empty results are shown as zero; no outcome is fabricated.</p>}
-      <p className="mt-3 text-xs leading-5 text-muted-foreground">Win rate is wins ÷ resolved outcomes × 100. This is paper-only UNVALIDATED evidence; source frequency does not imply profitability or guarantee a future result.</p>
-    </CardContent>
-  </Card>;
+      </CardHeader>
+      <CardContent>
+        {query.isError ? (
+          <DataError text="Source performance could not be loaded. Refresh after the database connection recovers." />
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {visibleRows.map(row => (
+              <div
+                key={row.source}
+                className="rounded-xl border bg-background p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">
+                      {row.source === "ENTRY_LOCATOR"
+                        ? "Entry Locator"
+                        : "Entry Forger"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {row.source === "ENTRY_LOCATOR"
+                        ? "Strict structural geometry"
+                        : "Target-first fallback geometry"}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={
+                      row.source === "ENTRY_LOCATOR"
+                        ? "border-primary/30 text-primary"
+                        : "border-amber-500/35 text-amber-700"
+                    }
+                  >
+                    {row.source === "ENTRY_LOCATOR" ? "LOCATOR" : "FORGER"}
+                  </Badge>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                      Generated
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {row.generated}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                      Resolved
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">{row.resolved}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                      Wins
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-emerald-600">
+                      {row.wins}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                      Losses
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-rose-600">
+                      {row.losses}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                      Win rate
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">
+                      {row.winRate == null ? "—" : `${row.winRate}%`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {!query.isLoading &&
+          !query.isError &&
+          !visibleRows.some(row => row.generated > 0) && (
+            <p className="mt-4 rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
+              No v4 signals match the selected source, asset, or timeframe yet.
+              Empty results are shown as zero; no outcome is fabricated.
+            </p>
+          )}
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">
+          Win rate is wins ÷ resolved outcomes × 100. This is paper-only
+          UNVALIDATED evidence; source frequency does not imply profitability or
+          guarantee a future result.
+        </p>
+      </CardContent>
+    </Card>
+  );
 }
 
-function AdaptiveRatioPerformanceCard() { const [asset, setAsset] = useState("ALL"); const [timeframe, setTimeframe] = useState<"ALL" | "15MIN" | "1H">("ALL"); const query = trpc.intelligence.adaptiveRatioStats.useQuery({ asset: asset === "ALL" ? undefined : asset, timeframe: timeframe === "ALL" ? undefined : timeframe }, { refetchInterval: 60_000 }); return <Card className="mt-6 border-primary/15 bg-primary/[0.025]"><CardHeader><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><CardTitle className="font-display text-xl">V4 adaptive ratio performance</CardTitle><p className="mt-1 text-xs text-muted-foreground">Authoritative Entry Locator v4 paper outcomes grouped by selected risk/reward ratio. Active v4 selection is limited to 1:3 and 1:2; historical 1:1 and 1:1.5 records remain visible for audit. Refreshes every minute.</p></div><div className="flex flex-wrap gap-2"><select aria-label="Filter ratio performance by asset" value={asset} onChange={(event) => setAsset(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-xs"><option value="ALL">All assets</option>{WATCHLIST.map((item) => <option key={item.symbol} value={item.symbol}>{item.symbol}</option>)}</select><select aria-label="Filter ratio performance by timeframe" value={timeframe} onChange={(event) => setTimeframe(event.target.value as "ALL" | "15MIN" | "1H")} className="h-9 rounded-md border bg-background px-2 text-xs"><option value="ALL">All timeframes</option><option value="15MIN">15MIN</option><option value="1H">1H</option></select><Badge variant="outline" className="border-primary/30 text-primary">UNVALIDATED</Badge></div></div></CardHeader><CardContent><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b text-left text-[11px] uppercase tracking-[0.14em] text-muted-foreground"><th className="px-3 py-3">Ratio</th><th className="px-3 py-3 text-right">Generated</th><th className="px-3 py-3 text-right">Resolved</th><th className="px-3 py-3 text-right">Wins</th><th className="px-3 py-3 text-right">Losses</th><th className="px-3 py-3 text-right">Win rate</th></tr></thead><tbody>{(query.data?.ratios ?? []).map((row) => <tr key={row.ratio} className="border-b last:border-0"><td className="px-3 py-3 font-medium">1:{row.ratio}</td><td className="px-3 py-3 text-right">{row.generated}</td><td className="px-3 py-3 text-right">{row.resolved}</td><td className="px-3 py-3 text-right text-emerald-600">{row.wins}</td><td className="px-3 py-3 text-right text-rose-600">{row.losses}</td><td className="px-3 py-3 text-right font-semibold">{row.winRate == null ? "—" : `${row.winRate}%`}</td></tr>)}</tbody></table></div><p className="mt-3 text-xs leading-5 text-muted-foreground">Win rate is wins ÷ resolved outcomes × 100. Empty ratios are shown as zero; no outcome is fabricated and no ratio guarantees a profit.</p></CardContent></Card>; }
+function AdaptiveRatioPerformanceCard() {
+  const [asset, setAsset] = useState("ALL");
+  const [timeframe, setTimeframe] = useState<"ALL" | "15MIN" | "1H">("ALL");
+  const query = trpc.intelligence.adaptiveRatioStats.useQuery(
+    {
+      asset: asset === "ALL" ? undefined : asset,
+      timeframe: timeframe === "ALL" ? undefined : timeframe,
+    },
+    { refetchInterval: 60_000 }
+  );
+  return (
+    <Card className="mt-6 border-primary/15 bg-primary/[0.025]">
+      <CardHeader>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle className="font-display text-xl">
+              V4 adaptive ratio performance
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Authoritative Entry Locator v4 paper outcomes grouped by selected
+              risk/reward ratio. Active v4 selection is limited to 1:3 and 1:2;
+              historical 1:1 and 1:1.5 records remain visible for audit.
+              Refreshes every minute.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              aria-label="Filter ratio performance by asset"
+              value={asset}
+              onChange={event => setAsset(event.target.value)}
+              className="h-9 rounded-md border bg-background px-2 text-xs"
+            >
+              <option value="ALL">All assets</option>
+              {WATCHLIST.map(item => (
+                <option key={item.symbol} value={item.symbol}>
+                  {item.symbol}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Filter ratio performance by timeframe"
+              value={timeframe}
+              onChange={event =>
+                setTimeframe(event.target.value as "ALL" | "15MIN" | "1H")
+              }
+              className="h-9 rounded-md border bg-background px-2 text-xs"
+            >
+              <option value="ALL">All timeframes</option>
+              <option value="15MIN">15MIN</option>
+              <option value="1H">1H</option>
+            </select>
+            <Badge variant="outline" className="border-primary/30 text-primary">
+              UNVALIDATED
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] text-sm">
+            <thead>
+              <tr className="border-b text-left text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                <th className="px-3 py-3">Ratio</th>
+                <th className="px-3 py-3 text-right">Generated</th>
+                <th className="px-3 py-3 text-right">Resolved</th>
+                <th className="px-3 py-3 text-right">Wins</th>
+                <th className="px-3 py-3 text-right">Losses</th>
+                <th className="px-3 py-3 text-right">Win rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(query.data?.ratios ?? []).map(row => (
+                <tr key={row.ratio} className="border-b last:border-0">
+                  <td className="px-3 py-3 font-medium">1:{row.ratio}</td>
+                  <td className="px-3 py-3 text-right">{row.generated}</td>
+                  <td className="px-3 py-3 text-right">{row.resolved}</td>
+                  <td className="px-3 py-3 text-right text-emerald-600">
+                    {row.wins}
+                  </td>
+                  <td className="px-3 py-3 text-right text-rose-600">
+                    {row.losses}
+                  </td>
+                  <td className="px-3 py-3 text-right font-semibold">
+                    {row.winRate == null ? "—" : `${row.winRate}%`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">
+          Win rate is wins ÷ resolved outcomes × 100. Empty ratios are shown as
+          zero; no outcome is fabricated and no ratio guarantees a profit.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
 
 function TradeHistory() {
   const signals = trpc.signals.list.useQuery(undefined, LIVE_QUERY_OPTIONS);
   const audits = trpc.signals.audits.useQuery(undefined, LIVE_QUERY_OPTIONS);
-  const summary = trpc.signals.deliverySummary.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const summary = trpc.signals.deliverySummary.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
   const loading = signals.isLoading || audits.isLoading || summary.isLoading;
-  const [showStaleOutcomeFailures, setShowStaleOutcomeFailures] = useState(false);
-  return <>
-    {(signals.isError || audits.isError || summary.isError) && <DataError text="History or delivery data could not be loaded. Refresh after the database connection recovers." />}
-    <PageHeading eyebrow="Evidence log" title="Trade history" description="Review every generated signal and audited idea with its sent date/time, outcome, and Telegram delivery status." />
-    <V4SourcePerformanceCard />
-    <AdaptiveRatioPerformanceCard />
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Metric label="Generated signals" value={summary.data?.generated ?? signals.data?.length ?? 0} detail="Scanner records" icon={Zap} />
-      <Metric label="Telegram delivered" value={summary.data?.signalDelivered ?? 0} detail="Confirmed signal messages" icon={MessageSquareText} />
-      <Metric label="Telegram failed" value={summary.data?.signalFailed ?? 0} detail="Recorded delivery failures" icon={TrendingDown} />
-      <Metric label="Approved audits" value={summary.data?.approvedAudits ?? 0} detail="Approved ideas" icon={ClipboardCheckIcon} />
-    </div>
-    <Card className="mt-6 border-primary/15 bg-primary/[0.025]"><CardHeader><CardTitle className="font-display text-xl">Signal reconciliation</CardTitle><p className="text-xs text-muted-foreground">Counts are now separated so a generated signal is not mistaken for a delivered Telegram message.</p></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><div className="rounded-xl border bg-background p-4"><p className="text-xs text-muted-foreground">Generated</p><p className="mt-1 text-2xl font-semibold">{summary.data?.generated ?? 0}</p></div><div className="rounded-xl border bg-background p-4"><p className="text-xs text-muted-foreground">Delivery attempts</p><p className="mt-1 text-2xl font-semibold">{summary.data?.signalAttempts ?? 0}</p></div><div className="rounded-xl border bg-background p-4"><p className="text-xs text-muted-foreground">Signal delivered</p><p className="mt-1 text-2xl font-semibold text-emerald-600">{summary.data?.signalDelivered ?? 0}</p></div><div className="rounded-xl border bg-background p-4"><p className="text-xs text-muted-foreground">Approved delivered</p><p className="mt-1 text-2xl font-semibold text-emerald-600">{summary.data?.approvedAuditDelivered ?? 0}</p></div><div className="rounded-xl border bg-background p-4"><p className="text-xs text-muted-foreground">Approved failed</p><p className="mt-1 text-2xl font-semibold text-rose-600">{summary.data?.approvedAuditFailed ?? 0}</p></div></CardContent></Card>
-    <Card className="mt-6 border-primary/15 bg-primary/[0.025]"><CardHeader><CardTitle className="font-display text-xl">Telegram delivery health</CardTitle><p className="text-xs text-muted-foreground">Current health uses the last {summary.data?.deliveryHealth?.windowHours ?? 24} hours; historical rate-limit failures are shown separately and do not represent current delivery availability.</p></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-xl border bg-background p-4"><p className="text-xs text-muted-foreground">Recent attempts</p><p className="mt-1 text-2xl font-semibold">{summary.data?.deliveryHealth?.recentAttempts ?? 0}</p><p className="mt-1 text-xs text-muted-foreground">Delivered {summary.data?.deliveryHealth?.recentDelivered ?? 0} · Failed {summary.data?.deliveryHealth?.recentFailed ?? 0}</p></div><div className="rounded-xl border bg-background p-4"><p className="text-xs text-muted-foreground">Current failure rate</p><p className={`mt-1 text-2xl font-semibold ${(summary.data?.deliveryHealth?.recentFailed ?? 0) > 0 ? "text-rose-600" : "text-emerald-600"}`}>{summary.data?.deliveryHealth?.recentFailureRate == null ? "—" : `${summary.data.deliveryHealth.recentFailureRate}%`}</p><p className="mt-1 text-xs text-muted-foreground">Within the current window</p></div><div className="rounded-xl border bg-background p-4"><p className="text-xs text-muted-foreground">Historical rate-limit failures</p><p className="mt-1 text-2xl font-semibold text-amber-700">{summary.data?.deliveryHealth?.historicalRateLimitFailures ?? 0}</p><p className="mt-1 text-xs text-muted-foreground">HTTP 429 or rate-limit errors</p></div><div className="rounded-xl border bg-background p-4"><p className="text-xs text-muted-foreground">Historical other failures</p><p className="mt-1 text-2xl font-semibold">{summary.data?.deliveryHealth?.historicalOtherFailures ?? 0}</p><p className="mt-1 text-xs text-muted-foreground">Latest failure {formatDateTime(summary.data?.deliveryHealth?.latestFailureAt)}</p></div></CardContent></Card>
-    <Card className="mt-6 border-amber-500/20 bg-amber-500/[0.025]"><CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><CardTitle className="font-display text-xl">Stale failed outcomes</CardTitle><p className="mt-1 text-xs text-muted-foreground">Historical failed Telegram outcomes remain available for audit but are outside the 20-minute retry window.</p></div><Button type="button" variant="outline" size="sm" onClick={() => setShowStaleOutcomeFailures((visible) => !visible)}>{showStaleOutcomeFailures ? "Hide review" : "Review records"} ({summary.data?.staleOutcomeFailures?.length ?? 0})</Button></div></CardHeader>{showStaleOutcomeFailures && <CardContent className="pt-0"><div className="divide-y rounded-xl border bg-background">{summary.data?.staleOutcomeFailures?.length ? summary.data.staleOutcomeFailures.map((failure) => <div key={failure.deliveryId} className="flex flex-col gap-2 px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium">{failure.asset} · {failure.timeframe} · Signal #{failure.signalId ?? "—"}</p><p className="mt-1 text-muted-foreground">{failure.status} · {failure.error}</p></div><div className="text-left text-muted-foreground sm:text-right"><p>Retry attempts: <b className="text-foreground">{failure.retryCount}</b></p><p>{formatDateTime(failure.createdAt)}</p></div></div>) : <p className="p-4 text-sm text-muted-foreground">No stale failed outcome records.</p>}</div></CardContent>}</Card>
-    <Card className="mt-6"><CardHeader><CardTitle className="font-display text-xl">Generated signals</CardTitle></CardHeader><CardContent className="p-0"><div className="divide-y">{loading ? <div className="p-10 text-center text-sm text-muted-foreground">Loading signal history…</div> : signals.data?.length ? signals.data.map((s) => <div key={s.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1.15fr_1fr_.7fr_.9fr_auto] md:items-center"><div><p className="font-medium">{s.asset} <span className="text-xs text-muted-foreground">· {s.timeframe}</span></p><p className="mt-1 text-xs text-muted-foreground">{s.direction} · Entry {s.entry}</p><div className="mt-2"><Badge variant="outline" className={s.generationMode === "ENTRY_LOCATOR_V4" ? "border-primary/30 text-primary" : s.generationMode === "ENTRY_FORGER_V4" ? "border-amber-500/35 text-amber-700" : "border-slate-400/40 text-slate-600"}>{s.generationMode === "ENTRY_LOCATOR_V4" ? "V4 · Entry Locator" : s.generationMode === "ENTRY_FORGER_V4" ? "V4 · Entry Forger" : s.intelligenceVersion?.includes("v4") ? "V4 · Legacy snapshot" : intelligenceVersionLabel(s.intelligenceVersion ?? "")}</Badge></div><p className="mt-1 text-[11px] text-muted-foreground">Sent {formatDateTime(s.openedAt)}</p>{(s.status === "WIN" || s.status === "LOSS") && <div className="mt-1 text-[11px] leading-4 text-muted-foreground"><p>Evidence candle {formatDateTime(s.resolutionCandleAt)} · {s.resolutionUsedIntrabar ? "intrabar range" : "close price"}</p><p>Observed {s.resolutionPrice ?? "—"} · High {s.resolutionHigh ?? "—"} · Low {s.resolutionLow ?? "—"}</p>{s.outcomeNote && <p className="mt-1 max-w-xl text-[10px] text-muted-foreground/80">{s.outcomeNote}</p>}</div>}</div><div className="text-xs text-muted-foreground"><p>SL {s.stopLoss} · TP {s.takeProfit}</p><Badge variant="outline" className={`mt-2 ${riskRewardLabel(s) === "1:2 verified" ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-600" : "border-amber-500/25 bg-amber-500/5 text-amber-700"}`}>{riskRewardLabel(s)}</Badge></div><div className="text-sm font-medium">{s.confidence}% <span className="text-xs font-normal text-muted-foreground">confidence</span></div><div><p className="text-xs text-muted-foreground">Outcome</p><StatusPill status={s.status} /></div><div><p className="text-xs text-muted-foreground">Telegram</p><StatusPill status={s.telegramDelivery?.status ?? "NOT RECORDED"} /><p className="mt-1 text-[10px] text-muted-foreground">{formatDateTime(s.telegramDelivery?.deliveredAt ?? s.telegramDelivery?.createdAt)}</p></div></div>) : <div className="p-10 text-center text-sm text-muted-foreground">No generated signals yet. The strategy-rules algorithm will place supported outcomes here after the scanner supplies raw market data.</div>}</div></CardContent></Card>
-    <AdjustmentHistory />
-    <UpgradeChainHistory />
-    <Card className="mt-6"><CardHeader><CardTitle className="font-display text-xl">Audited ideas</CardTitle></CardHeader><CardContent className="divide-y p-0">{audits.data?.length ? audits.data.map((audit) => <div key={audit.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium">{audit.asset} <span className="text-xs text-muted-foreground">· {audit.timeframe ?? "15MIN"}</span></p><p className="mt-1 text-xs text-muted-foreground">Audited {formatDateTime(audit.createdAt)} · {audit.confidence ?? "—"}% confidence</p></div><div className="flex items-center gap-3"><StatusPill status={audit.verdict} />{audit.verdict === "APPROVED" && <div><StatusPill status={audit.telegramDelivery?.status ?? "NOT RECORDED"} /><p className="mt-1 text-[10px] text-muted-foreground">{formatDateTime(audit.telegramDelivery?.deliveredAt ?? audit.telegramDelivery?.createdAt)}</p></div>}</div></div>) : <div className="p-10 text-center text-sm text-muted-foreground">No audited ideas yet.</div>}</CardContent></Card>
-  </>;
+  const [showStaleOutcomeFailures, setShowStaleOutcomeFailures] =
+    useState(false);
+  return (
+    <>
+      {(signals.isError || audits.isError || summary.isError) && (
+        <DataError text="History or delivery data could not be loaded. Refresh after the database connection recovers." />
+      )}
+      <PageHeading
+        eyebrow="Evidence log"
+        title="Trade history"
+        description="Review every generated signal and audited idea with its sent date/time, outcome, and Telegram delivery status."
+      />
+      <V4SourcePerformanceCard />
+      <AdaptiveRatioPerformanceCard />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric
+          label="Generated signals"
+          value={summary.data?.generated ?? signals.data?.length ?? 0}
+          detail="Scanner records"
+          icon={Zap}
+        />
+        <Metric
+          label="Telegram delivered"
+          value={summary.data?.signalDelivered ?? 0}
+          detail="Confirmed signal messages"
+          icon={MessageSquareText}
+        />
+        <Metric
+          label="Telegram failed"
+          value={summary.data?.signalFailed ?? 0}
+          detail="Recorded delivery failures"
+          icon={TrendingDown}
+        />
+        <Metric
+          label="Approved audits"
+          value={summary.data?.approvedAudits ?? 0}
+          detail="Approved ideas"
+          icon={ClipboardCheckIcon}
+        />
+      </div>
+      <Card className="mt-6 border-primary/15 bg-primary/[0.025]">
+        <CardHeader>
+          <CardTitle className="font-display text-xl">
+            Signal reconciliation
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Counts are now separated so a generated signal is not mistaken for a
+            delivered Telegram message.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-xl border bg-background p-4">
+            <p className="text-xs text-muted-foreground">Generated</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {summary.data?.generated ?? 0}
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background p-4">
+            <p className="text-xs text-muted-foreground">Delivery attempts</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {summary.data?.signalAttempts ?? 0}
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background p-4">
+            <p className="text-xs text-muted-foreground">Signal delivered</p>
+            <p className="mt-1 text-2xl font-semibold text-emerald-600">
+              {summary.data?.signalDelivered ?? 0}
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background p-4">
+            <p className="text-xs text-muted-foreground">Approved delivered</p>
+            <p className="mt-1 text-2xl font-semibold text-emerald-600">
+              {summary.data?.approvedAuditDelivered ?? 0}
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background p-4">
+            <p className="text-xs text-muted-foreground">Approved failed</p>
+            <p className="mt-1 text-2xl font-semibold text-rose-600">
+              {summary.data?.approvedAuditFailed ?? 0}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="mt-6 border-primary/15 bg-primary/[0.025]">
+        <CardHeader>
+          <CardTitle className="font-display text-xl">
+            Telegram delivery health
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Current health uses the last{" "}
+            {summary.data?.deliveryHealth?.windowHours ?? 24} hours; historical
+            rate-limit failures are shown separately and do not represent
+            current delivery availability.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border bg-background p-4">
+            <p className="text-xs text-muted-foreground">Recent attempts</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {summary.data?.deliveryHealth?.recentAttempts ?? 0}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Delivered {summary.data?.deliveryHealth?.recentDelivered ?? 0} ·
+              Failed {summary.data?.deliveryHealth?.recentFailed ?? 0}
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background p-4">
+            <p className="text-xs text-muted-foreground">
+              Current failure rate
+            </p>
+            <p
+              className={`mt-1 text-2xl font-semibold ${(summary.data?.deliveryHealth?.recentFailed ?? 0) > 0 ? "text-rose-600" : "text-emerald-600"}`}
+            >
+              {summary.data?.deliveryHealth?.recentFailureRate == null
+                ? "—"
+                : `${summary.data.deliveryHealth.recentFailureRate}%`}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Within the current window
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background p-4">
+            <p className="text-xs text-muted-foreground">
+              Historical rate-limit failures
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-amber-700">
+              {summary.data?.deliveryHealth?.historicalRateLimitFailures ?? 0}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              HTTP 429 or rate-limit errors
+            </p>
+          </div>
+          <div className="rounded-xl border bg-background p-4">
+            <p className="text-xs text-muted-foreground">
+              Historical other failures
+            </p>
+            <p className="mt-1 text-2xl font-semibold">
+              {summary.data?.deliveryHealth?.historicalOtherFailures ?? 0}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Latest failure{" "}
+              {formatDateTime(summary.data?.deliveryHealth?.latestFailureAt)}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="mt-6 border-amber-500/20 bg-amber-500/[0.025]">
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="font-display text-xl">
+                Stale failed outcomes
+              </CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Historical failed Telegram outcomes remain available for audit
+                but are outside the 20-minute retry window.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowStaleOutcomeFailures(visible => !visible)}
+            >
+              {showStaleOutcomeFailures ? "Hide review" : "Review records"} (
+              {summary.data?.staleOutcomeFailures?.length ?? 0})
+            </Button>
+          </div>
+        </CardHeader>
+        {showStaleOutcomeFailures && (
+          <CardContent className="pt-0">
+            <div className="divide-y rounded-xl border bg-background">
+              {summary.data?.staleOutcomeFailures?.length ? (
+                summary.data.staleOutcomeFailures.map(failure => (
+                  <div
+                    key={failure.deliveryId}
+                    className="flex flex-col gap-2 px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {failure.asset} · {failure.timeframe} · Signal #
+                        {failure.signalId ?? "—"}
+                      </p>
+                      <p className="mt-1 text-muted-foreground">
+                        {failure.status} · {failure.error}
+                      </p>
+                    </div>
+                    <div className="text-left text-muted-foreground sm:text-right">
+                      <p>
+                        Retry attempts:{" "}
+                        <b className="text-foreground">{failure.retryCount}</b>
+                      </p>
+                      <p>{formatDateTime(failure.createdAt)}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="p-4 text-sm text-muted-foreground">
+                  No stale failed outcome records.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="font-display text-xl">
+            Generated signals
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y">
+            {loading ? (
+              <div className="p-10 text-center text-sm text-muted-foreground">
+                Loading signal history…
+              </div>
+            ) : signals.data?.length ? (
+              signals.data.map(s => (
+                <div
+                  key={s.id}
+                  className="grid gap-3 px-5 py-4 md:grid-cols-[1.15fr_1fr_.7fr_.9fr_auto] md:items-center"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {s.asset}{" "}
+                      <span className="text-xs text-muted-foreground">
+                        · {s.timeframe}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {s.direction} · Entry {s.entry}
+                    </p>
+                    <div className="mt-2">
+                      <Badge
+                        variant="outline"
+                        className={
+                          s.generationMode === "ENTRY_LOCATOR_V4"
+                            ? "border-primary/30 text-primary"
+                            : s.generationMode === "ENTRY_FORGER_V4"
+                              ? "border-amber-500/35 text-amber-700"
+                              : "border-slate-400/40 text-slate-600"
+                        }
+                      >
+                        {s.generationMode === "ENTRY_LOCATOR_V4"
+                          ? "V4 · Entry Locator"
+                          : s.generationMode === "ENTRY_FORGER_V4"
+                            ? "V4 · Entry Forger"
+                            : s.intelligenceVersion?.includes("v4")
+                              ? "V4 · Legacy snapshot"
+                              : intelligenceVersionLabel(
+                                  s.intelligenceVersion ?? ""
+                                )}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Sent {formatDateTime(s.openedAt)}
+                    </p>
+                    {(s.status === "WIN" || s.status === "LOSS") && (
+                      <div className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                        <p>
+                          Evidence candle {formatDateTime(s.resolutionCandleAt)}{" "}
+                          ·{" "}
+                          {s.resolutionUsedIntrabar
+                            ? "intrabar range"
+                            : "close price"}
+                        </p>
+                        <p>
+                          Observed {s.resolutionPrice ?? "—"} · High{" "}
+                          {s.resolutionHigh ?? "—"} · Low{" "}
+                          {s.resolutionLow ?? "—"}
+                        </p>
+                        {s.outcomeNote && (
+                          <p className="mt-1 max-w-xl text-[10px] text-muted-foreground/80">
+                            {s.outcomeNote}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    <p>
+                      SL {s.stopLoss} · TP {s.takeProfit}
+                    </p>
+                    <Badge
+                      variant="outline"
+                      className={`mt-2 ${riskRewardLabel(s) === "1:2 verified" ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-600" : "border-amber-500/25 bg-amber-500/5 text-amber-700"}`}
+                    >
+                      {riskRewardLabel(s)}
+                    </Badge>
+                  </div>
+                  <div className="text-sm font-medium">
+                    {s.confidence}%{" "}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      confidence
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Outcome</p>
+                    <StatusPill status={s.status} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Telegram</p>
+                    <StatusPill
+                      status={s.telegramDelivery?.status ?? "NOT RECORDED"}
+                    />
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      {formatDateTime(
+                        s.telegramDelivery?.deliveredAt ??
+                          s.telegramDelivery?.createdAt
+                      )}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-10 text-center text-sm text-muted-foreground">
+                No generated signals yet. The strategy-rules algorithm will
+                place supported outcomes here after the scanner supplies raw
+                market data.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+      <AdjustmentHistory />
+      <UpgradeChainHistory />
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="font-display text-xl">Audited ideas</CardTitle>
+        </CardHeader>
+        <CardContent className="divide-y p-0">
+          {audits.data?.length ? (
+            audits.data.map(audit => (
+              <div
+                key={audit.id}
+                className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="font-medium">
+                    {audit.asset}{" "}
+                    <span className="text-xs text-muted-foreground">
+                      · {audit.timeframe ?? "15MIN"}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Audited {formatDateTime(audit.createdAt)} ·{" "}
+                    {audit.confidence ?? "—"}% confidence
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <StatusPill status={audit.verdict} />
+                  {audit.verdict === "APPROVED" && (
+                    <div>
+                      <StatusPill
+                        status={
+                          audit.telegramDelivery?.status ?? "NOT RECORDED"
+                        }
+                      />
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        {formatDateTime(
+                          audit.telegramDelivery?.deliveredAt ??
+                            audit.telegramDelivery?.createdAt
+                        )}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="p-10 text-center text-sm text-muted-foreground">
+              No audited ideas yet.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
 }
-function ClipboardCheckIcon(props: React.ComponentProps<typeof ClipboardCheck>) { return <ClipboardCheck {...props} />; }
+function ClipboardCheckIcon(
+  props: React.ComponentProps<typeof ClipboardCheck>
+) {
+  return <ClipboardCheck {...props} />;
+}
 
 function parseStoredJson(value: unknown): any {
   if (typeof value !== "string") return value ?? null;
-  try { return JSON.parse(value); } catch { return value; }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
 }
 
-function isPlaceholderDecision(decision: { decisionReason?: string | null; confidence?: string | number | null }) {
-  return String(decision.decisionReason ?? "").toLowerCase().includes("no structured judgment") || Number(decision.confidence ?? 0) === 0;
+function isPlaceholderDecision(decision: {
+  decisionReason?: string | null;
+  confidence?: string | number | null;
+}) {
+  return (
+    String(decision.decisionReason ?? "")
+      .toLowerCase()
+      .includes("no structured judgment") ||
+    Number(decision.confidence ?? 0) === 0
+  );
 }
 
-function AdaptiveGeometryDiagnostics() { const query = trpc.intelligence.entryLocator.useQuery(undefined, LIVE_QUERY_OPTIONS); const parse = (value: string | null | undefined) => { try { return JSON.parse(value ?? "{}"); } catch { return {}; } }; return <Card className="mt-6 border-amber-500/20 bg-amber-500/[0.025]"><CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle className="font-display text-xl">Adaptive geometry diagnostics</CardTitle><p className="mt-1 text-xs text-muted-foreground">Breakout confirmation and next opposing-zone evidence used by the v4 locator.</p></div><Badge variant="outline" className="border-amber-500/30 text-amber-700">PAPER ONLY</Badge></div></CardHeader><CardContent className="grid gap-3 md:grid-cols-2">{(query.data ?? []).map((row) => { const state = parse(row.stateJson); const latest = state.snapshots?.at?.(-1) ?? {}; const direction = latest.direction ?? row.lastDirection ?? "—"; const nextZone = direction === "BUY" ? latest.nextResistance : direction === "SELL" ? latest.nextSupport : null; return <div key={`${row.asset}-${row.timeframe}`} className="rounded-xl border bg-background p-4"><div className="flex items-center justify-between gap-2"><p className="font-medium">{row.asset} · {row.timeframe}</p><StatusPill status={row.status} /></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><span className="text-muted-foreground">Direction: <b className="text-foreground">{direction}</b></span><span className="text-muted-foreground">Mode: <b className="text-foreground">{latest.geometryMode ?? "—"}</b></span><span className="text-muted-foreground">Breakout: <b className="text-foreground">{latest.breakoutState ?? "—"}</b></span><span className="text-muted-foreground">Confirmed: <b className="text-foreground">{latest.breakoutConfirmed ? "YES" : "NO"}</b></span></div><p className="mt-3 text-xs leading-5 text-muted-foreground">Next opposing zone: <b className="text-foreground">{nextZone == null ? "not recorded" : nextZone}</b></p><p className="mt-1 text-[11px] text-muted-foreground">{row.snapshotCount} snapshots · last candle {formatDateTime(row.lastSnapshotAt)} · state saved {formatDateTime(row.updatedAt)}</p></div>; })}</CardContent></Card>; }
+function AdaptiveGeometryDiagnostics() {
+  const query = trpc.intelligence.entryLocator.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
+  const parse = (value: string | null | undefined) => {
+    try {
+      return JSON.parse(value ?? "{}");
+    } catch {
+      return {};
+    }
+  };
+  return (
+    <Card className="mt-6 border-amber-500/20 bg-amber-500/[0.025]">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle className="font-display text-xl">
+              Adaptive geometry diagnostics
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Breakout confirmation and next opposing-zone evidence used by the
+              v4 locator.
+            </p>
+          </div>
+          <Badge
+            variant="outline"
+            className="border-amber-500/30 text-amber-700"
+          >
+            PAPER ONLY
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-3 md:grid-cols-2">
+        {(query.data ?? []).map(row => {
+          const state = parse(row.stateJson);
+          const latest = state.snapshots?.at?.(-1) ?? {};
+          const direction = latest.direction ?? row.lastDirection ?? "—";
+          const nextZone =
+            direction === "BUY"
+              ? latest.nextResistance
+              : direction === "SELL"
+                ? latest.nextSupport
+                : null;
+          return (
+            <div
+              key={`${row.asset}-${row.timeframe}`}
+              className="rounded-xl border bg-background p-4"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-medium">
+                  {row.asset} · {row.timeframe}
+                </p>
+                <StatusPill status={row.status} />
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <span className="text-muted-foreground">
+                  Direction: <b className="text-foreground">{direction}</b>
+                </span>
+                <span className="text-muted-foreground">
+                  Mode:{" "}
+                  <b className="text-foreground">
+                    {latest.geometryMode ?? "—"}
+                  </b>
+                </span>
+                <span className="text-muted-foreground">
+                  Breakout:{" "}
+                  <b className="text-foreground">
+                    {latest.breakoutState ?? "—"}
+                  </b>
+                </span>
+                <span className="text-muted-foreground">
+                  Confirmed:{" "}
+                  <b className="text-foreground">
+                    {latest.breakoutConfirmed ? "YES" : "NO"}
+                  </b>
+                </span>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                Next opposing zone:{" "}
+                <b className="text-foreground">
+                  {nextZone == null ? "not recorded" : nextZone}
+                </b>
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {row.snapshotCount} snapshots · last candle{" "}
+                {formatDateTime(row.lastSnapshotAt)} · state saved{" "}
+                {formatDateTime(row.updatedAt)}
+              </p>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
 
-function ScannerCadenceDiagnostics() { const query = trpc.scanner.cadence.useQuery(undefined, { refetchInterval: 60_000 }); const data = query.data; const metric = (label: string, value: number | string, tone = "text-foreground") => <div className="rounded-xl border bg-background p-3"><p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{label}</p><p className={`mt-2 font-display text-2xl font-semibold ${tone}`}>{value}</p></div>; const latestAgeMinutes = data?.lastRunAt ? Math.max(0, Math.round((Date.now() - new Date(data.lastRunAt).getTime()) / 60_000)) : null; const cadenceLoading = query.isLoading || (!data && query.isFetching); const latestRunHasProviderIssue = Boolean(data?.lastRunAt && data.latestProviderIssue && new Date(data.latestProviderIssue.at).getTime() >= new Date(data.lastRunAt).getTime() - 60_000); const currentHealthy = !cadenceLoading && Boolean(data?.lastRunAt && latestAgeMinutes !== null && latestAgeMinutes <= 10 && (data?.failedCycles ?? 0) === 0 && !latestRunHasProviderIssue); return <Card className="mt-6 border-primary/15 bg-primary/[0.025]"><CardHeader><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><CardTitle className="font-display text-xl">Five-minute cadence diagnostics</CardTitle><p className="mt-1 text-xs text-muted-foreground">External trigger and Heartbeat runs from the last 24 hours. A skipped window means no app-side run was recorded for that shared five-minute bucket.</p></div><Badge variant="outline" className="w-fit border-primary/25 text-primary">LIVE · REFRESH 1 MIN</Badge></div></CardHeader><CardContent className="space-y-4 p-4"><div className={`rounded-xl border p-3 text-sm ${cadenceLoading ? "border-slate-300 bg-slate-50 text-slate-700" : currentHealthy ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-800" : "border-amber-500/25 bg-amber-500/5 text-amber-800"}`}><p className="font-medium">{cadenceLoading ? "Current scanner health: checking" : currentHealthy ? "Current scanner health: healthy" : "Current scanner health: needs observation"}</p><p className="mt-1 text-xs leading-5">{cadenceLoading ? "Loading the latest scanner ledger; no health conclusion is made until the diagnostics arrive." : data?.lastRunAt ? `The latest recorded cycle was ${latestAgeMinutes} minute${latestAgeMinutes === 1 ? "" : "s"} ago. Historical skipped-window counts below do not by themselves indicate a current failure.` : "No recent cycle is recorded yet. Watch for a successful external-trigger or Heartbeat run before treating the session as healthy."} Next session check: confirm a new SUCCEEDED cycle, marketData available, and no run error.</p></div>{data?.latestProviderIssue && <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900"><div className="flex items-start gap-3"><TrendingDown className="mt-0.5 h-4 w-4 shrink-0" /><div><p className="font-medium">Twelve Data quota or rate-limit warning</p><p className="mt-1 text-xs leading-5">Latest affected interval{data.latestProviderIssue.intervals.length === 1 ? "" : "s"}: {data.latestProviderIssue.intervals.join(" · ")} · detected {formatDateTime(data.latestProviderIssue.at)} via {data.latestProviderIssue.source === "EXTERNAL_TRIGGER" ? "external trigger" : "Heartbeat"}.</p><p className="mt-1 text-xs leading-5">This cycle could not supply market data, so v4 did not evaluate setups and no Entry Locator or Entry Forger signal was created. Unavailable provider cycles in the last 24 hours: {data.providerUnavailableCycles ?? 0}.</p><p className="mt-1 text-[11px] leading-4 text-amber-800/80">Provider detail: {data.latestProviderIssue.message}</p></div></div></div>}{query.isError ? <p className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm text-rose-700">Cadence diagnostics are unavailable. Refresh after the scanner ledger reconnects.</p> : <><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{metric("Received cycles", data?.receivedCycles ?? 0)}{metric("Skipped windows", data?.skippedWindows ?? 0, data?.skippedWindows ? "text-amber-700" : "text-emerald-700")}{metric("Completed", data?.completedCycles ?? 0, "text-emerald-700")}{metric("Failed", data?.failedCycles ?? 0, data?.failedCycles ? "text-rose-700" : "text-emerald-700")}{metric("Duplicates suppressed", data?.duplicateSuppressed ?? 0)}</div><div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground"><span>Average interval: <b className="text-foreground">{data?.averageIntervalMinutes == null ? "—" : `${data.averageIntervalMinutes} min`}</b></span><span>External: <b className="text-foreground">{data?.externalCycles ?? 0}</b> · Heartbeat: <b className="text-foreground">{data?.heartbeatCycles ?? 0}</b></span><span>Last source: <b className="text-foreground">{data?.lastSource ?? "—"}</b> · {formatDateTime(data?.lastRunAt)}</span></div>{data?.runs?.length ? <div className="divide-y rounded-xl border bg-background">{data.runs.slice(0, 6).map((run) => <div key={run.id} className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-medium">{run.taskUid === "external-cron-job" ? "EXTERNAL TRIGGER" : "HEARTBEAT"} · {formatDateTime(run.startedAt)}</p><p className="text-[11px] text-muted-foreground">{run.finishedAt ? `Finished ${formatDateTime(run.finishedAt)}` : "Still running"}{Number(run.duplicateCallbacks ?? 0) ? ` · ${run.duplicateCallbacks} duplicate callback${Number(run.duplicateCallbacks) === 1 ? "" : "s"} suppressed` : ""}</p></div><Badge variant="outline" className={run.status === "SUCCEEDED" ? "border-emerald-500/25 text-emerald-700" : run.status === "FAILED" ? "border-rose-500/25 text-rose-700" : "border-amber-500/25 text-amber-700"}>{run.status}</Badge></div>)}</div> : <p className="text-sm text-muted-foreground">No scanner cycles recorded in the last 24 hours.</p>}</>}</CardContent></Card>; }
+function ScannerCadenceDiagnostics() {
+  const query = trpc.scanner.cadence.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const data = query.data;
+  const metric = (
+    label: string,
+    value: number | string,
+    tone = "text-foreground"
+  ) => (
+    <div className="rounded-xl border bg-background p-3">
+      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+        {label}
+      </p>
+      <p className={`mt-2 font-display text-2xl font-semibold ${tone}`}>
+        {value}
+      </p>
+    </div>
+  );
+  const latestAgeMinutes = data?.lastRunAt
+    ? Math.max(
+        0,
+        Math.round((Date.now() - new Date(data.lastRunAt).getTime()) / 60_000)
+      )
+    : null;
+  const cadenceLoading = query.isLoading || (!data && query.isFetching);
+  const latestRunHasProviderIssue = Boolean(
+    data?.lastRunAt &&
+      data.latestProviderIssue &&
+      new Date(data.latestProviderIssue.at).getTime() >=
+        new Date(data.lastRunAt).getTime() - 60_000
+  );
+  const currentHealthy =
+    !cadenceLoading &&
+    Boolean(
+      data?.lastRunAt &&
+        latestAgeMinutes !== null &&
+        latestAgeMinutes <= 10 &&
+        (data?.failedCycles ?? 0) === 0 &&
+        !latestRunHasProviderIssue
+    );
+  return (
+    <Card className="mt-6 border-primary/15 bg-primary/[0.025]">
+      <CardHeader>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="font-display text-xl">
+              Five-minute cadence diagnostics
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              External trigger and Heartbeat runs from the last 24 hours. A
+              skipped window means no app-side run was recorded for that shared
+              five-minute bucket.
+            </p>
+          </div>
+          <Badge
+            variant="outline"
+            className="w-fit border-primary/25 text-primary"
+          >
+            LIVE · REFRESH 1 MIN
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 p-4">
+        <div
+          className={`rounded-xl border p-3 text-sm ${cadenceLoading ? "border-slate-300 bg-slate-50 text-slate-700" : currentHealthy ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-800" : "border-amber-500/25 bg-amber-500/5 text-amber-800"}`}
+        >
+          <p className="font-medium">
+            {cadenceLoading
+              ? "Current scanner health: checking"
+              : currentHealthy
+                ? "Current scanner health: healthy"
+                : "Current scanner health: needs observation"}
+          </p>
+          <p className="mt-1 text-xs leading-5">
+            {cadenceLoading
+              ? "Loading the latest scanner ledger; no health conclusion is made until the diagnostics arrive."
+              : data?.lastRunAt
+                ? `The latest recorded cycle was ${latestAgeMinutes} minute${latestAgeMinutes === 1 ? "" : "s"} ago. Historical skipped-window counts below do not by themselves indicate a current failure.`
+                : "No recent cycle is recorded yet. Watch for a successful external-trigger or Heartbeat run before treating the session as healthy."}{" "}
+            Next session check: confirm a new SUCCEEDED cycle, marketData
+            available, and no run error.
+          </p>
+        </div>
+        {data?.latestProviderIssue && (
+          <div
+            role="alert"
+            className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900"
+          >
+            <div className="flex items-start gap-3">
+              <TrendingDown className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">
+                  Twelve Data quota or rate-limit warning
+                </p>
+                <p className="mt-1 text-xs leading-5">
+                  Latest affected interval
+                  {data.latestProviderIssue.intervals.length === 1 ? "" : "s"}:{" "}
+                  {data.latestProviderIssue.intervals.join(" · ")} · detected{" "}
+                  {formatDateTime(data.latestProviderIssue.at)} via{" "}
+                  {data.latestProviderIssue.source === "EXTERNAL_TRIGGER"
+                    ? "external trigger"
+                    : "Heartbeat"}
+                  .
+                </p>
+                <p className="mt-1 text-xs leading-5">
+                  This cycle could not supply market data, so v4 did not
+                  evaluate setups and no Entry Locator or Entry Forger signal
+                  was created. Unavailable provider cycles in the last 24 hours:{" "}
+                  {data.providerUnavailableCycles ?? 0}.
+                </p>
+                <p className="mt-1 text-[11px] leading-4 text-amber-800/80">
+                  Provider detail: {data.latestProviderIssue.message}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        {query.isError ? (
+          <p className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm text-rose-700">
+            Cadence diagnostics are unavailable. Refresh after the scanner
+            ledger reconnects.
+          </p>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {metric("Received cycles", data?.receivedCycles ?? 0)}
+              {metric(
+                "Skipped windows",
+                data?.skippedWindows ?? 0,
+                data?.skippedWindows ? "text-amber-700" : "text-emerald-700"
+              )}
+              {metric(
+                "Completed",
+                data?.completedCycles ?? 0,
+                "text-emerald-700"
+              )}
+              {metric(
+                "Failed",
+                data?.failedCycles ?? 0,
+                data?.failedCycles ? "text-rose-700" : "text-emerald-700"
+              )}
+              {metric("Duplicates suppressed", data?.duplicateSuppressed ?? 0)}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
+              <span>
+                Average interval:{" "}
+                <b className="text-foreground">
+                  {data?.averageIntervalMinutes == null
+                    ? "—"
+                    : `${data.averageIntervalMinutes} min`}
+                </b>
+              </span>
+              <span>
+                External:{" "}
+                <b className="text-foreground">{data?.externalCycles ?? 0}</b> ·
+                Heartbeat:{" "}
+                <b className="text-foreground">{data?.heartbeatCycles ?? 0}</b>
+              </span>
+              <span>
+                Last source:{" "}
+                <b className="text-foreground">{data?.lastSource ?? "—"}</b> ·{" "}
+                {formatDateTime(data?.lastRunAt)}
+              </span>
+            </div>
+            {data?.runs?.length ? (
+              <div className="divide-y rounded-xl border bg-background">
+                {data.runs.slice(0, 6).map(run => (
+                  <div
+                    key={run.id}
+                    className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="text-xs font-medium">
+                        {run.taskUid === "external-cron-job"
+                          ? "EXTERNAL TRIGGER"
+                          : "HEARTBEAT"}{" "}
+                        · {formatDateTime(run.startedAt)}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {run.finishedAt
+                          ? `Finished ${formatDateTime(run.finishedAt)}`
+                          : "Still running"}
+                        {Number(run.duplicateCallbacks ?? 0)
+                          ? ` · ${run.duplicateCallbacks} duplicate callback${Number(run.duplicateCallbacks) === 1 ? "" : "s"} suppressed`
+                          : ""}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={
+                        run.status === "SUCCEEDED"
+                          ? "border-emerald-500/25 text-emerald-700"
+                          : run.status === "FAILED"
+                            ? "border-rose-500/25 text-rose-700"
+                            : "border-amber-500/25 text-amber-700"
+                      }
+                    >
+                      {run.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No scanner cycles recorded in the last 24 hours.
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function ScannerPage() {
   const settings = trpc.scanner.status.useQuery(undefined, LIVE_QUERY_OPTIONS);
@@ -168,81 +2716,1210 @@ function ScannerPage() {
   const [verdictFilter, setVerdictFilter] = useState("all");
   const [expandedDecision, setExpandedDecision] = useState<number | null>(null);
   const [exportFormat, setExportFormat] = useState<"csv" | "json" | null>(null);
-  const decisionFilters = useMemo(() => ({ asset: assetFilter === "all" ? undefined : assetFilter, timeframe: timeframeFilter === "all" ? undefined : timeframeFilter as "15MIN" | "1H", verdict: verdictFilter === "all" ? undefined : verdictFilter as "APPROVED" | "DENIED" | "SKIPPED" | "UNAVAILABLE" }), [assetFilter, timeframeFilter, verdictFilter]);
-  const decisions = trpc.scanner.decisions.useQuery(decisionFilters, LIVE_QUERY_OPTIONS);
-  const confluenceRows = useMemo(() => WATCHLIST.map((item) => {
-    const rows = (decisions.data ?? []).filter((decision) => decision.asset === item.symbol);
-    const fast = rows.find((decision) => decision.timeframe === "15MIN");
-    const slow = rows.find((decision) => decision.timeframe === "1H");
-    const fastDirection = fast?.generatedDirection;
-    const slowDirection = slow?.generatedDirection;
-    return { asset: item.symbol, fast, slow, aligned: Boolean(fastDirection && slowDirection && fastDirection === slowDirection), direction: fastDirection && fastDirection === slowDirection ? fastDirection : fastDirection ?? slowDirection ?? "—" };
-  }).filter((row) => row.fast || row.slow), [decisions.data]);
-  const placeholderCount = (decisions.data ?? []).filter(isPlaceholderDecision).length;
-  const cooldownHistory = trpc.scanner.cooldownHistory.useQuery(undefined, LIVE_QUERY_OPTIONS);
-  const exportQuery = trpc.scanner.export.useQuery({ format: exportFormat ?? "csv", ...decisionFilters }, { enabled: Boolean(exportFormat) });
-  useEffect(() => { if (!exportQuery.data || !exportFormat) return; const blob = new Blob([exportQuery.data.content], { type: exportFormat === "csv" ? "text/csv;charset=utf-8" : "application/json;charset=utf-8" }); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = exportQuery.data.filename; anchor.click(); URL.revokeObjectURL(url); setExportFormat(null); }, [exportQuery.data, exportFormat]);
-  const toggle = trpc.scanner.toggle.useMutation({ onSuccess: () => settings.refetch(), onError: (e) => toast.error(e.message) });
-  const updateCooldown = trpc.scanner.updateCooldown.useMutation({ onSuccess: () => { settings.refetch(); cooldownHistory.refetch(); toast.success("Setup cooldown updated"); }, onError: (e) => toast.error(e.message) });
+  const decisionFilters = useMemo(
+    () => ({
+      asset: assetFilter === "all" ? undefined : assetFilter,
+      timeframe:
+        timeframeFilter === "all"
+          ? undefined
+          : (timeframeFilter as "15MIN" | "1H"),
+      verdict:
+        verdictFilter === "all"
+          ? undefined
+          : (verdictFilter as
+              | "APPROVED"
+              | "DENIED"
+              | "SKIPPED"
+              | "UNAVAILABLE"),
+    }),
+    [assetFilter, timeframeFilter, verdictFilter]
+  );
+  const decisions = trpc.scanner.decisions.useQuery(
+    decisionFilters,
+    LIVE_QUERY_OPTIONS
+  );
+  const confluenceRows = useMemo(
+    () =>
+      WATCHLIST.map(item => {
+        const rows = (decisions.data ?? []).filter(
+          decision => decision.asset === item.symbol
+        );
+        const fast = rows.find(decision => decision.timeframe === "15MIN");
+        const slow = rows.find(decision => decision.timeframe === "1H");
+        const fastDirection = fast?.generatedDirection;
+        const slowDirection = slow?.generatedDirection;
+        return {
+          asset: item.symbol,
+          fast,
+          slow,
+          aligned: Boolean(
+            fastDirection && slowDirection && fastDirection === slowDirection
+          ),
+          direction:
+            fastDirection && fastDirection === slowDirection
+              ? fastDirection
+              : (fastDirection ?? slowDirection ?? "—"),
+        };
+      }).filter(row => row.fast || row.slow),
+    [decisions.data]
+  );
+  const placeholderCount = (decisions.data ?? []).filter(
+    isPlaceholderDecision
+  ).length;
+  const exportQuery = trpc.scanner.export.useQuery(
+    { format: exportFormat ?? "csv", ...decisionFilters },
+    { enabled: Boolean(exportFormat) }
+  );
+  useEffect(() => {
+    if (!exportQuery.data || !exportFormat) return;
+    const blob = new Blob([exportQuery.data.content], {
+      type:
+        exportFormat === "csv"
+          ? "text/csv;charset=utf-8"
+          : "application/json;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = exportQuery.data.filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setExportFormat(null);
+  }, [exportQuery.data, exportFormat]);
+  const toggle = trpc.scanner.toggle.useMutation({
+    onSuccess: () => settings.refetch(),
+    onError: e => toast.error(e.message),
+  });
+  const updateCooldown = trpc.scanner.updateCooldown.useMutation({
+    onSuccess: () => {
+      settings.refetch();
+      toast.success("Setup cooldown updated");
+    },
+    onError: e => toast.error(e.message),
+  });
   const enabled = settings.data?.scannerEnabled ?? true;
   const modelAvailable = settings.data?.strategyEngineStatus === "AVAILABLE";
-  const modelUnavailable = settings.data?.strategyEngineStatus === "UNAVAILABLE";
+  const modelUnavailable =
+    settings.data?.strategyEngineStatus === "UNAVAILABLE";
 
-  return <>
-    {settings.isError && <DataError text="Scanner settings could not be loaded. Refresh before changing autonomous controls." />}
-    <PageHeading eyebrow="Market-data collection" title="Market data collector" description="The external scheduler triggers collection of raw EUR/USD, XAU/USD, GBP/USD, and BTC/USD data across 15-minute and 1-hour contexts. The strategy-rules algorithm analyzes that data and generates supported outcomes for tracking." action={<div className="flex flex-wrap gap-2"><Button variant={enabled ? "outline" : "default"} onClick={() => toggle.mutate({ enabled: !enabled })}>{enabled ? "Pause data collection" : "Resume data collection"}</Button></div>} />
-    <AdaptiveGeometryDiagnostics />
-    <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
-      <Card><CardHeader><div className="flex items-center justify-between"><div><CardTitle className="font-display text-xl">Collection status</CardTitle><p className="mt-1 text-xs text-muted-foreground">External scheduler controls the collection cadence</p></div><Badge className={enabled ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600" : "border-amber-500/20 bg-amber-500/10 text-amber-600"}>{enabled ? "ACTIVE" : "PAUSED"}</Badge></div></CardHeader><CardContent className="space-y-5"><div className="flex items-center gap-4 rounded-2xl bg-muted/40 p-4"><div className="rounded-xl bg-primary/10 p-3 text-primary"><Radar className="h-6 w-6" /></div><div><p className="font-medium">Next collection cycle runs automatically</p><p className="mt-1 text-xs leading-5 text-muted-foreground">The strategy-rules algorithm generates signals only when the ingested rules and raw market context support a possible outcome.</p></div></div><div className="grid gap-3 sm:grid-cols-2">{WATCHLIST.map((x) => <div key={x.symbol} className="flex items-center justify-between rounded-xl border p-3"><div><p className="text-sm font-medium">{x.symbol}</p><p className="text-[11px] text-muted-foreground">15MIN · 1H</p></div><CheckCircle2 className="h-4 w-4 text-emerald-500" /></div>)}</div></CardContent></Card>
-      <Card><CardHeader><CardTitle className="font-display text-xl">Collection and judgment health</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex items-start gap-3"><Radar className="h-5 w-5 text-primary" /><div><p className="font-medium">Market data collection</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{enabled ? "Active" : "Paused"} · Twelve Data snapshots feed the strategy engine.</p></div></div><div className="flex items-start gap-3"><ShieldCheck className="h-5 w-5 text-primary" /><div><p className="font-medium">Strategy-engine availability</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{modelAvailable ? "Available for judgments" : modelUnavailable ? "Unavailable" : "Not run yet"}</p></div></div><div className="flex items-start gap-3"><Clock3 className="h-5 w-5 text-primary" /><div><p className="font-medium">Setup cooldown</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Repeated market setups are not re-analyzed during the selected window.</p><div className="mt-2 flex items-center gap-2"><Input type="number" min={0} max={1440} defaultValue={settings.data?.setupCooldownMinutes ?? 30} className="h-8 w-24" onBlur={(event) => updateCooldown.mutate({ minutes: Number(event.currentTarget.value) || 0 })} /><span className="text-xs text-muted-foreground">minutes</span></div></div></div></CardContent></Card>
-      <Card className="lg:col-span-2"><CardHeader><div className="flex items-center justify-between"><div><CardTitle className="font-display text-xl">Strategy-engine response health</CardTitle><p className="mt-1 text-xs text-muted-foreground">Operational counters from the live raw-snapshot evaluation path.</p></div><StatusPill status={health.data?.status ?? "NOT_RUN"} /></div></CardHeader><CardContent className="grid gap-3 sm:grid-cols-4"><SummaryStat label="Response completeness" value={health.data?.completenessPercent ?? 0} tone={health.data?.completenessPercent === 100 ? "good" : "bad"} /><SummaryStat label="Snapshots evaluated" value={health.data?.totalSnapshots ?? 0} tone="neutral" /><SummaryStat label="Retries used" value={health.data?.retryCount ?? 0} tone="neutral" /><SummaryStat label="Unavailable cycles" value={health.data?.unavailableCycles ?? 0} tone={health.data?.unavailableCycles ? "bad" : "good"} /><div className="sm:col-span-4 rounded-xl bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">Last run: {formatDateTime(health.data?.lastRunAt)}{health.data?.lastError ? ` · ${health.data.lastError}` : " · No recorded model error"}</div></CardContent></Card>
-      <Card className="lg:col-span-2"><CardHeader><CardTitle className="font-display text-xl">Signal discipline</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-3"><div className="flex gap-3"><ShieldCheck className="h-5 w-5 shrink-0 text-primary" /><p className="text-sm leading-6 text-muted-foreground">Every strategy-engine outcome carries an entry, stop loss, take profit, risk/reward ratio, and confidence score.</p></div><div className="flex gap-3"><RefreshCw className="h-5 w-5 shrink-0 text-primary" /><p className="text-sm leading-6 text-muted-foreground">The outcome tracker revisits generated signals against live quotes and marks them WIN, LOSS, or PENDING.</p></div><div className="flex gap-3"><MessageSquareText className="h-5 w-5 shrink-0 text-primary" /><p className="text-sm leading-6 text-muted-foreground">Telegram delivery is server-side and never exposes your bot token to the browser.</p></div></CardContent></Card>
-      <Card className="lg:col-span-2"><CardHeader><CardTitle className="font-display text-xl">Multi-timeframe confluence</CardTitle><p className="text-xs text-muted-foreground">Comparison of the strategy-rules algorithm’s 15-minute and 1-hour judgments. The market-data collector does not decide alignment.</p></CardHeader><CardContent className="space-y-2">{confluenceRows.length ? confluenceRows.map((row) => <div key={row.asset} className="flex flex-col gap-2 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium">{row.asset}</p><p className="text-xs text-muted-foreground">15MIN: {row.fast?.generatedDirection ?? "—"} · 1H: {row.slow?.generatedDirection ?? "—"}</p></div><div className="flex items-center gap-2"><Badge className={row.aligned ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600" : "border-amber-500/20 bg-amber-500/10 text-amber-600"}>{row.aligned ? `Aligned ${row.direction}` : "Mixed / incomplete"}</Badge></div></div>) : <p className="text-sm text-muted-foreground">No paired timeframe judgments are available yet.</p>}</CardContent></Card><Card className="lg:col-span-2"><CardHeader><div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"><div><CardTitle className="font-display text-xl">Strategy-engine decision ledger</CardTitle><p className="text-xs text-muted-foreground">Every judgment is retained with its market snapshot, rule evidence, confluence, and generated outcome. Select a row to expand the evidence.</p></div><div className="flex flex-wrap gap-2"><select aria-label="Filter ledger by asset" value={assetFilter} onChange={(event) => setAssetFilter(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-xs"><option value="all">All assets</option>{WATCHLIST.map((item) => <option key={item.symbol} value={item.symbol}>{item.symbol}</option>)}</select><select aria-label="Filter ledger by timeframe" value={timeframeFilter} onChange={(event) => setTimeframeFilter(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-xs"><option value="all">All timeframes</option><option value="15MIN">15MIN</option><option value="1H">1H</option></select><select aria-label="Filter ledger by verdict" value={verdictFilter} onChange={(event) => setVerdictFilter(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-xs"><option value="all">All statuses</option><option value="APPROVED">Approved</option><option value="DENIED">Denied</option><option value="SKIPPED">Skipped</option><option value="UNAVAILABLE">Unavailable</option></select><Button variant="outline" size="sm" onClick={() => setExportFormat("csv")} disabled={Boolean(exportFormat)}>CSV</Button><Button variant="outline" size="sm" onClick={() => setExportFormat("json")} disabled={Boolean(exportFormat)}>JSON</Button></div></div></CardHeader><CardContent className="space-y-3">{decisions.isLoading ? <p className="text-sm text-muted-foreground">Loading decision ledger…</p> : decisions.data?.length ? decisions.data.slice(0, 8).map((decision) => { const expanded = expandedDecision === decision.id; const evidence = parseStoredJson(decision.ruleEvidence); const snapshot = parseStoredJson(decision.marketSnapshot); const context = snapshot && typeof snapshot === "object" ? (snapshot as { marketContext?: any }).marketContext : null; const placeholder = isPlaceholderDecision(decision); return <div key={decision.id} className="rounded-xl border"><button type="button" className="flex w-full items-center justify-between gap-3 p-4 text-left" onClick={() => setExpandedDecision(expanded ? null : decision.id)}><div><p className="font-medium">{decision.asset} · {decision.timeframe}</p><p className="mt-1 text-xs text-muted-foreground">Judged {formatDateTime(decision.createdAt)} · {decision.confidence}% confidence · {decision.confluenceScore}% confluence</p></div><div className="flex items-center gap-2"><StatusPill status={decision.verdict} /><ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`} /></div></button>{expanded && <div className="grid gap-4 border-t bg-muted/20 p-4 md:grid-cols-2"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Rule citations</p><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-background p-3 text-xs leading-5">{typeof evidence === "string" ? evidence : JSON.stringify(evidence ?? [], null, 2)}</pre></div><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Market snapshot</p><pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-background p-3 text-xs leading-5">{typeof snapshot === "string" ? snapshot : JSON.stringify(snapshot ?? {}, null, 2)}</pre></div><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Calculated market context</p><p className="mt-2 text-sm leading-6 text-muted-foreground">{context?.summary ?? "No calculated context was persisted for this judgment."}</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>Structure: <b className="text-foreground">{context?.marketStructure ?? "—"}</b></span><span>Volatility: <b className="text-foreground">{context?.volatility?.regime ?? "—"}</b></span><span>Momentum: <b className="text-foreground">{context?.momentum?.direction ?? "—"}</b></span><span>Breakout: <b className="text-foreground">{context?.breakoutState ?? "—"}</b></span></div></div><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Placeholder diagnostics</p>{placeholder ? <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm leading-6 text-amber-800">No structured strategy-engine judgment was returned. A BUY/SELL placeholder is shown for audit visibility only and is not Telegram-eligible.</div> : <p className="mt-2 text-sm text-muted-foreground">This row contains a structured strategy-engine response.</p>}</div><div className="md:col-span-2"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Generated outcome</p><p className="mt-2 text-sm leading-6 text-muted-foreground">{decision.verdict === "APPROVED" ? `${decision.generatedDirection ?? "—"} · Entry ${decision.generatedEntry ?? "—"} · SL ${decision.generatedStopLoss ?? "—"} · TP ${decision.generatedTakeProfit ?? "—"}` : decision.decisionReason ?? "No supported outcome generated."}</p></div></div>}</div>; }) : <p className="text-sm text-muted-foreground">No strategy-engine judgments have been recorded yet.</p>}</CardContent></Card><Card className="lg:col-span-2"><CardHeader><CardTitle className="font-display text-xl">Cooldown change history</CardTitle><p className="text-xs text-muted-foreground">Configuration changes are retained for operational review.</p></CardHeader><CardContent>{cooldownHistory.data?.length ? <div className="space-y-2">{cooldownHistory.data.slice(0, 8).map((change) => <div key={change.id} className="flex items-center justify-between rounded-lg border p-3 text-sm"><span>{change.previousMinutes} → {change.newMinutes} minutes</span><span className="text-xs text-muted-foreground">{formatDateTime(change.changedAt)}</span></div>)}</div> : <p className="text-sm text-muted-foreground">No cooldown changes recorded yet.</p>}</CardContent></Card>
-    </div>
-  </>;
+  return (
+    <>
+      {settings.isError && (
+        <DataError text="Scanner settings could not be loaded. Refresh before changing autonomous controls." />
+      )}
+      <PageHeading
+        eyebrow="Market-data collection"
+        title="Market data collector"
+        description="The external scheduler triggers collection of raw EUR/USD, XAU/USD, GBP/USD, and BTC/USD data across 15-minute and 1-hour contexts. The strategy-rules algorithm analyzes that data and generates supported outcomes for tracking."
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={enabled ? "outline" : "default"}
+              onClick={() => toggle.mutate({ enabled: !enabled })}
+            >
+              {enabled ? "Pause data collection" : "Resume data collection"}
+            </Button>
+          </div>
+        }
+      />
+      <AdaptiveGeometryDiagnostics />
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="font-display text-xl">
+                  Collection status
+                </CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  External scheduler controls the collection cadence
+                </p>
+              </div>
+              <Badge
+                className={
+                  enabled
+                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+                    : "border-amber-500/20 bg-amber-500/10 text-amber-600"
+                }
+              >
+                {enabled ? "ACTIVE" : "PAUSED"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="flex items-center gap-4 rounded-2xl bg-muted/40 p-4">
+              <div className="rounded-xl bg-primary/10 p-3 text-primary">
+                <Radar className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-medium">
+                  Next collection cycle runs automatically
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  The strategy-rules algorithm generates signals only when the
+                  ingested rules and raw market context support a possible
+                  outcome.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {WATCHLIST.map(x => (
+                <div
+                  key={x.symbol}
+                  className="flex items-center justify-between rounded-xl border p-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{x.symbol}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      15MIN · 1H
+                    </p>
+                  </div>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display text-xl">
+              Collection and judgment health
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-3">
+              <Radar className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-medium">Market data collection</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {enabled ? "Active" : "Paused"} · Twelve Data snapshots feed
+                  the strategy engine.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-medium">Strategy-engine availability</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {modelAvailable
+                    ? "Available for judgments"
+                    : modelUnavailable
+                      ? "Unavailable"
+                      : "Not run yet"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Clock3 className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-medium">Setup cooldown</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Repeated market setups are not re-analyzed during the selected
+                  window.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={1440}
+                    defaultValue={settings.data?.setupCooldownMinutes ?? 30}
+                    className="h-8 w-24"
+                    onBlur={event =>
+                      updateCooldown.mutate({
+                        minutes: Number(event.currentTarget.value) || 0,
+                      })
+                    }
+                  />
+                  <span className="text-xs text-muted-foreground">minutes</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="font-display text-xl">
+                  Strategy-engine response health
+                </CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Operational counters from the live raw-snapshot evaluation
+                  path.
+                </p>
+              </div>
+              <StatusPill status={health.data?.status ?? "NOT_RUN"} />
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-4">
+            <SummaryStat
+              label="Response completeness"
+              value={health.data?.completenessPercent ?? 0}
+              tone={health.data?.completenessPercent === 100 ? "good" : "bad"}
+            />
+            <SummaryStat
+              label="Snapshots evaluated"
+              value={health.data?.totalSnapshots ?? 0}
+              tone="neutral"
+            />
+            <SummaryStat
+              label="Retries used"
+              value={health.data?.retryCount ?? 0}
+              tone="neutral"
+            />
+            <SummaryStat
+              label="Unavailable cycles"
+              value={health.data?.unavailableCycles ?? 0}
+              tone={health.data?.unavailableCycles ? "bad" : "good"}
+            />
+            <div className="sm:col-span-4 rounded-xl bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
+              Last run: {formatDateTime(health.data?.lastRunAt)}
+              {health.data?.lastError
+                ? ` · ${health.data.lastError}`
+                : " · No recorded model error"}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="font-display text-xl">
+              Multi-timeframe confluence
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Comparison of the strategy-rules algorithm’s 15-minute and 1-hour
+              judgments. The market-data collector does not decide alignment.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {confluenceRows.length ? (
+              confluenceRows.map(row => (
+                <div
+                  key={row.asset}
+                  className="flex flex-col gap-2 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-medium">{row.asset}</p>
+                    <p className="text-xs text-muted-foreground">
+                      15MIN: {row.fast?.generatedDirection ?? "—"} · 1H:{" "}
+                      {row.slow?.generatedDirection ?? "—"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      className={
+                        row.aligned
+                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+                          : "border-amber-500/20 bg-amber-500/10 text-amber-600"
+                      }
+                    >
+                      {row.aligned
+                        ? `Aligned ${row.direction}`
+                        : "Mixed / incomplete"}
+                    </Badge>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No paired timeframe judgments are available yet.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <CardTitle className="font-display text-xl">
+                  Strategy-engine decision ledger
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Every judgment is retained with its market snapshot, rule
+                  evidence, confluence, and generated outcome. Select a row to
+                  expand the evidence.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <select
+                  aria-label="Filter ledger by asset"
+                  value={assetFilter}
+                  onChange={event => setAssetFilter(event.target.value)}
+                  className="h-9 rounded-md border bg-background px-2 text-xs"
+                >
+                  <option value="all">All assets</option>
+                  {WATCHLIST.map(item => (
+                    <option key={item.symbol} value={item.symbol}>
+                      {item.symbol}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Filter ledger by timeframe"
+                  value={timeframeFilter}
+                  onChange={event => setTimeframeFilter(event.target.value)}
+                  className="h-9 rounded-md border bg-background px-2 text-xs"
+                >
+                  <option value="all">All timeframes</option>
+                  <option value="15MIN">15MIN</option>
+                  <option value="1H">1H</option>
+                </select>
+                <select
+                  aria-label="Filter ledger by verdict"
+                  value={verdictFilter}
+                  onChange={event => setVerdictFilter(event.target.value)}
+                  className="h-9 rounded-md border bg-background px-2 text-xs"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="DENIED">Denied</option>
+                  <option value="SKIPPED">Skipped</option>
+                  <option value="UNAVAILABLE">Unavailable</option>
+                </select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setExportFormat("csv")}
+                  disabled={Boolean(exportFormat)}
+                >
+                  CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setExportFormat("json")}
+                  disabled={Boolean(exportFormat)}
+                >
+                  JSON
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {decisions.isLoading ? (
+              <p className="text-sm text-muted-foreground">
+                Loading decision ledger…
+              </p>
+            ) : decisions.data?.length ? (
+              decisions.data.slice(0, 8).map(decision => {
+                const expanded = expandedDecision === decision.id;
+                const evidence = parseStoredJson(decision.ruleEvidence);
+                const snapshot = parseStoredJson(decision.marketSnapshot);
+                const context =
+                  snapshot && typeof snapshot === "object"
+                    ? (snapshot as { marketContext?: any }).marketContext
+                    : null;
+                const placeholder = isPlaceholderDecision(decision);
+                return (
+                  <div key={decision.id} className="rounded-xl border">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 p-4 text-left"
+                      onClick={() =>
+                        setExpandedDecision(expanded ? null : decision.id)
+                      }
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {decision.asset} · {decision.timeframe}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Judged {formatDateTime(decision.createdAt)} ·{" "}
+                          {decision.confidence}% confidence ·{" "}
+                          {decision.confluenceScore}% confluence
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <StatusPill status={decision.verdict} />
+                        <ChevronRight
+                          className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`}
+                        />
+                      </div>
+                    </button>
+                    {expanded && (
+                      <div className="grid gap-4 border-t bg-muted/20 p-4 md:grid-cols-2">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            Rule citations
+                          </p>
+                          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-background p-3 text-xs leading-5">
+                            {typeof evidence === "string"
+                              ? evidence
+                              : JSON.stringify(evidence ?? [], null, 2)}
+                          </pre>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            Market snapshot
+                          </p>
+                          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-background p-3 text-xs leading-5">
+                            {typeof snapshot === "string"
+                              ? snapshot
+                              : JSON.stringify(snapshot ?? {}, null, 2)}
+                          </pre>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            Calculated market context
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                            {context?.summary ??
+                              "No calculated context was persisted for this judgment."}
+                          </p>
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                            <span>
+                              Structure:{" "}
+                              <b className="text-foreground">
+                                {context?.marketStructure ?? "—"}
+                              </b>
+                            </span>
+                            <span>
+                              Volatility:{" "}
+                              <b className="text-foreground">
+                                {context?.volatility?.regime ?? "—"}
+                              </b>
+                            </span>
+                            <span>
+                              Momentum:{" "}
+                              <b className="text-foreground">
+                                {context?.momentum?.direction ?? "—"}
+                              </b>
+                            </span>
+                            <span>
+                              Breakout:{" "}
+                              <b className="text-foreground">
+                                {context?.breakoutState ?? "—"}
+                              </b>
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            Placeholder diagnostics
+                          </p>
+                          {placeholder ? (
+                            <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm leading-6 text-amber-800">
+                              No structured strategy-engine judgment was
+                              returned. A BUY/SELL placeholder is shown for
+                              audit visibility only and is not
+                              Telegram-eligible.
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              This row contains a structured strategy-engine
+                              response.
+                            </p>
+                          )}
+                        </div>
+                        <div className="md:col-span-2">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            Generated outcome
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                            {decision.verdict === "APPROVED"
+                              ? `${decision.generatedDirection ?? "—"} · Entry ${decision.generatedEntry ?? "—"} · SL ${decision.generatedStopLoss ?? "—"} · TP ${decision.generatedTakeProfit ?? "—"}`
+                              : (decision.decisionReason ??
+                                "No supported outcome generated.")}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No strategy-engine judgments have been recorded yet.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
 }
 
-type WinningRateMetricView = { generated: number; resolved: number; wins: number; losses: number; winRate: number | null };
-type WinningRateVersionView = { version: string; overall: WinningRateMetricView; assets: Array<WinningRateMetricView & { key: string }>; timeframes: Array<WinningRateMetricView & { key: string; asset: string; timeframe: string }>; confidenceBands: Array<WinningRateMetricView & { key: string }>; confidenceByAssetTimeframe: Array<WinningRateMetricView & { key: string; asset: string; timeframe: string; confidenceBand: string }> };
-function WinningRateMetricCells({ metric }: { metric: WinningRateMetricView }) { return <><td className="px-3 py-3 text-right">{metric.generated}</td><td className="px-3 py-3 text-right">{metric.resolved}</td><td className="px-3 py-3 text-right text-emerald-600">{metric.wins}</td><td className="px-3 py-3 text-right text-rose-600">{metric.losses}</td><td className="px-3 py-3 text-right font-semibold">{metric.winRate == null ? "—" : `${metric.winRate}%`}</td></>; }
-function WinningRateTable({ title, rows, keyLabel }: { title: string; rows: Array<WinningRateMetricView & { key: string }>; keyLabel: string }) { return <Card><CardHeader><CardTitle className="font-display text-lg">{title}</CardTitle></CardHeader><CardContent><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b text-left text-[11px] uppercase tracking-[0.14em] text-muted-foreground"><th className="px-3 py-3">{keyLabel}</th><th className="px-3 py-3 text-right">Generated</th><th className="px-3 py-3 text-right">Resolved</th><th className="px-3 py-3 text-right">Wins</th><th className="px-3 py-3 text-right">Losses</th><th className="px-3 py-3 text-right">Win rate</th></tr></thead><tbody>{rows.map((row) => <tr key={row.key} className="border-b last:border-0"><td className="px-3 py-3 font-medium">{row.key}</td><WinningRateMetricCells metric={row} /></tr>)}</tbody></table></div></CardContent></Card>; }
-function WinningRateConfidenceGroups({ rows }: { rows: WinningRateVersionView["confidenceByAssetTimeframe"] }) { const groups = Array.from(new Map(rows.map((row) => [`${row.asset} · ${row.timeframe}`, { asset: row.asset, timeframe: row.timeframe, rows: rows.filter((item) => item.asset === row.asset && item.timeframe === row.timeframe) }])).values()); return <Card><CardHeader><CardTitle className="font-display text-lg">Confidence bands by asset and timeframe</CardTitle><p className="text-xs text-muted-foreground">Each group contains the complete confidence-band record for one asset and timeframe.</p></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><div className="md:col-span-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">Read each card as one isolated asset/timeframe view. The five requested bands stay together for easier comparison.</div>{groups.map((group) => <div key={`${group.asset}-${group.timeframe}`} className="overflow-hidden rounded-xl border"><div className="border-b bg-primary/[0.045] px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Asset / timeframe</p><p className="mt-1 font-display text-lg font-semibold">{group.asset} · {group.timeframe}</p></div><div className="overflow-x-auto"><table className="w-full min-w-[560px] text-xs"><thead><tr className="border-b text-left text-[10px] uppercase tracking-[0.12em] text-muted-foreground"><th className="px-3 py-2.5">Confidence band</th><th className="px-3 py-2.5 text-right">Generated</th><th className="px-3 py-2.5 text-right">Resolved</th><th className="px-3 py-2.5 text-right">Wins</th><th className="px-3 py-2.5 text-right">Losses</th><th className="px-3 py-2.5 text-right">Win rate</th></tr></thead><tbody>{group.rows.map((row) => <tr key={row.key} className="border-b last:border-0"><td className="px-3 py-2.5 font-medium">{row.confidenceBand}</td><WinningRateMetricCells metric={row} /></tr>)}</tbody></table></div></div>)}</CardContent></Card>; }
-function WinningRateVersionCard({ version }: { version: WinningRateVersionView }) { const label = version.version === "replacement-forex-v1" ? "Replacement Intelligence v1" : version.version === "forex-trading-combined-document-v2" ? "Replacement Intelligence v2" : version.version === "forex-trading-combined-document-v3" ? "Replacement Intelligence v3" : "Replacement Intelligence v4"; return <div className="space-y-5"><div className="flex flex-col gap-4 rounded-2xl border bg-card p-5 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">Historical performance</p><h2 className="mt-1 font-display text-2xl font-semibold tracking-tight">{label}</h2><p className="mt-1 text-sm text-muted-foreground">Only signals generated by this exact intelligence version are included.</p></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-5"><SummaryStat label="Generated" value={version.overall.generated} tone="neutral" /><SummaryStat label="Resolved" value={version.overall.resolved} tone="neutral" /><SummaryStat label="Wins" value={version.overall.wins} tone="good" /><SummaryStat label="Losses" value={version.overall.losses} tone="bad" /><SummaryStat label="Win rate" value={version.overall.winRate ?? 0} tone="neutral" /></div></div><WinningRateTable title="By asset" rows={version.assets} keyLabel="Asset" /><WinningRateTable title="By asset and timeframe" rows={version.timeframes} keyLabel="Asset · timeframe" /><WinningRateTable title="By confidence band" rows={version.confidenceBands} keyLabel="Confidence band" /><WinningRateConfidenceGroups rows={version.confidenceByAssetTimeframe} /></div>; }
-function MacroStatusPanel() { const macro = trpc.intelligence.macroStatus.useQuery(); return <Card className="mb-6"><CardHeader><CardTitle className="font-display text-lg">Official macro layer</CardTitle><p className="text-xs text-muted-foreground">Free official-source context available to active v4. Missing or stale data never overrides the full v2 foundation.</p></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{(macro.data ?? []).map((item) => <div key={item.asset} className="rounded-xl border bg-muted/10 p-3"><div className="flex items-center justify-between gap-2"><p className="font-semibold">{item.asset}</p><StatusPill status={item.context.status} /></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{item.context.summary}</p><p className="mt-2 text-[11px] text-muted-foreground">Observations: {item.context.observations?.length ?? 0} · Fetched: {item.context.fetchedAt ? formatDateTime(item.context.fetchedAt) : "—"}</p></div>)}</CardContent></Card>; }
-function V2V3Comparison({ versions }: { versions: WinningRateVersionView[] }) { const v2 = versions.find((version) => version.version === "forex-trading-combined-document-v2"); const v3 = versions.find((version) => version.version === "forex-trading-combined-document-v3"); const v4 = versions.find((version) => version.version === "forex-trading-combined-document-v4"); if (!v2 && !v3) return null; return <Card className="mb-6"><CardHeader><CardTitle className="font-display text-lg">Version-separated paper comparison</CardTitle><p className="text-xs text-muted-foreground">These are descriptive paper records, not proof that a newer version is more accurate. V4 is now the active paper-signal model. Compare it with historical v3 records, but do not treat the comparison as proof of profitability.</p></CardHeader><CardContent className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Replacement Intelligence v2</p><div className="mt-3 grid grid-cols-2 gap-2"><SummaryStat label="Generated" value={v2?.overall.generated ?? 0} tone="neutral" /><SummaryStat label="Resolved" value={v2?.overall.resolved ?? 0} tone="neutral" /><SummaryStat label="Win rate" value={v2?.overall.winRate ?? 0} tone="neutral" /></div></div><div className="rounded-xl border border-primary/20 bg-primary/[0.035] p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Replacement Intelligence v3</p><div className="mt-3 grid grid-cols-2 gap-2"><SummaryStat label="Generated" value={v3?.overall.generated ?? 0} tone="neutral" /><SummaryStat label="Resolved" value={v3?.overall.resolved ?? 0} tone="neutral" /><SummaryStat label="Win rate" value={v3?.overall.winRate ?? 0} tone="neutral" /></div></div><div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">Replacement Intelligence v4 · active</p><div className="mt-3 grid grid-cols-2 gap-2"><SummaryStat label="Generated" value={v4?.overall.generated ?? 0} tone="neutral" /><SummaryStat label="Resolved" value={v4?.overall.resolved ?? 0} tone="neutral" /><SummaryStat label="Win rate" value={v4?.overall.winRate ?? 0} tone="neutral" /></div></div></CardContent></Card>; }
-function TimingMetricCells({ metric }: { metric: { generated: number; resolved: number; takeProfitHits: number; stopLossHits: number; winRate: number | null } }) { return <><td className="whitespace-nowrap px-1.5 py-2 text-right">{metric.generated}</td><td className="whitespace-nowrap px-1.5 py-2 text-right">{metric.resolved}</td><td className="whitespace-nowrap px-1.5 py-2 text-right text-emerald-600">{metric.takeProfitHits}</td><td className="whitespace-nowrap px-1.5 py-2 text-right text-rose-600">{metric.stopLossHits}</td><td className="whitespace-nowrap px-1.5 py-2 text-right font-semibold text-primary">{metric.winRate === null ? "—" : `${metric.winRate}%`}</td></>; }
-function intelligenceVersionLabel(version: string) { return version === "replacement-forex-v1" ? "Replacement Intelligence v1" : version === "forex-trading-combined-document-v2" ? "Replacement Intelligence v2" : version === "forex-trading-combined-document-v3" ? "Replacement Intelligence v3" : "Replacement Intelligence v4"; }
-function LocatorOutcomeReviewCard() { const stats = trpc.intelligence.locatorV4OutcomeStats.useQuery(undefined, LIVE_QUERY_OPTIONS); const validation = stats.data?.validation; return <Card className="mb-6 border-primary/20 bg-primary/[0.025]"><CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle className="font-display text-lg">Current Entry Locator v4 review</CardTitle><p className="mt-1 text-xs leading-5 text-muted-foreground">Outcome evidence scoped only to signals emitted after the stateful entry-indicator locator became authoritative.</p></div><Badge className="border-primary/25 bg-primary/10 text-primary">ENTRY_LOCATOR_V4</Badge></div></CardHeader><CardContent><div className="grid gap-3 sm:grid-cols-5"><SummaryStat label="Generated" value={stats.data?.total ?? 0} tone="neutral" /><SummaryStat label="Resolved" value={validation?.resolved ?? 0} tone="neutral" /><SummaryStat label="TP wins" value={validation?.wins ?? 0} tone="good" /><SummaryStat label="SL losses" value={validation?.losses ?? 0} tone="bad" /><SummaryStat label="Win rate" value={validation?.winRate ?? 0} tone="neutral" /></div><div className="mt-4 rounded-xl border border-dashed p-3 text-xs leading-5 text-muted-foreground">{validation?.reviewStatus === "READY_FOR_REVIEW" ? "The current locator-era sample has reached its configured review threshold." : `Collecting locator-era paper evidence (${validation?.resolved ?? 0}/${validation?.reviewThreshold ?? 50} resolved). No threshold or intelligence change is being made from this sample yet.`}</div></CardContent></Card>; }
-function TimingAnalyticsPage({ mode }: { mode: "hour" | "day" }) { const query = mode === "hour" ? trpc.intelligence.bestTimeToTradeStats.useQuery() : trpc.intelligence.bestDaysToTradeStats.useQuery(); const title = mode === "hour" ? "Best Time to Trade" : "Best Days to Trade"; const description = mode === "hour" ? "Paper-signal outcomes grouped by the UTC hour when each signal was generated." : "Paper-signal outcomes grouped by the UTC day when each signal was generated."; const groups = query.data?.groups ?? []; const visibleVersions = (query.data?.versions ?? []).filter((version) => groups.some((group) => group.version === version && group.buckets.some((bucket) => bucket.generated > 0))); return <><PageHeading eyebrow="Timing intelligence" title={title} description={description} /><div className="mb-6 rounded-xl border bg-muted/20 p-4 text-sm"><p className="font-medium">How to read this page</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Generated and resolved counts use persisted paper signals. Take-profit hits equal WIN outcomes, stop-loss hits equal LOSS outcomes, and win rate is calculated as (take-profit hits ÷ resolved signals) × 100. Empty buckets are shown as zero. All timestamps are grouped in UTC and all records remain UNVALIDATED and paper-only.</p></div>{query.isError && <DataError text={`${title} data could not be loaded. Refresh after the database connection recovers.`} />}{query.isLoading ? <Card><CardContent className="p-6 text-sm text-muted-foreground">Loading timing analytics…</CardContent></Card> : <div className="space-y-8">{visibleVersions.length ? visibleVersions.map((version) => <section key={version}><div className="mb-4"><p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">Version-separated paper history</p><h2 className="mt-1 font-display text-2xl font-semibold">{intelligenceVersionLabel(version)}</h2></div><div className="grid gap-4 lg:grid-cols-2">{groups.filter((group) => group.version === version).map((group) => <Card key={`${group.version}-${group.asset}-${group.timeframe}`}><CardHeader className="pb-3"><CardTitle className="font-display text-lg">{group.asset} · {group.timeframe}</CardTitle><p className="text-xs text-muted-foreground">{mode === "hour" ? "Every UTC hour" : "Every weekday"}</p></CardHeader><CardContent><div className="overflow-x-auto"><table className="w-full min-w-[590px] table-fixed text-[11px]"><colgroup><col className="w-[25%]" /><col className="w-[14%]" /><col className="w-[14%]" /><col className="w-[14%]" /><col className="w-[14%]" /><col className="w-[19%]" /></colgroup><thead><tr className="border-b text-left text-[10px] uppercase tracking-[0.08em] text-muted-foreground"><th className="whitespace-nowrap px-1.5 py-2">{mode === "hour" ? "Hour" : "Day"}</th><th className="whitespace-nowrap px-1.5 py-2 text-right">Generated</th><th className="whitespace-nowrap px-1.5 py-2 text-right">Resolved</th><th className="whitespace-nowrap px-1.5 py-2 text-right">TP hits</th><th className="whitespace-nowrap px-1.5 py-2 text-right">SL hits</th><th className="whitespace-nowrap px-1.5 py-2 text-right">Win rate</th></tr></thead><tbody>{group.buckets.map((bucket) => <tr key={bucket.key} className="border-b last:border-0"><td className="px-3 py-2 font-medium">{bucket.label}</td><TimingMetricCells metric={bucket} /></tr>)}</tbody></table></div></CardContent></Card>)}</div></section>) : <Card><CardContent className="p-6 text-sm text-muted-foreground">No persisted paper-signal records are available for the selected analytics scope.</CardContent></Card>}</div>}</>; }
+type WinningRateMetricView = {
+  generated: number;
+  resolved: number;
+  wins: number;
+  losses: number;
+  winRate: number | null;
+};
+type WinningRateVersionView = {
+  version: string;
+  overall: WinningRateMetricView;
+  assets: Array<WinningRateMetricView & { key: string }>;
+  timeframes: Array<
+    WinningRateMetricView & { key: string; asset: string; timeframe: string }
+  >;
+  confidenceBands: Array<WinningRateMetricView & { key: string }>;
+  confidenceByAssetTimeframe: Array<
+    WinningRateMetricView & {
+      key: string;
+      asset: string;
+      timeframe: string;
+      confidenceBand: string;
+    }
+  >;
+};
+function WinningRateMetricCells({ metric }: { metric: WinningRateMetricView }) {
+  return (
+    <>
+      <td className="px-3 py-3 text-right">{metric.generated}</td>
+      <td className="px-3 py-3 text-right">{metric.resolved}</td>
+      <td className="px-3 py-3 text-right text-emerald-600">{metric.wins}</td>
+      <td className="px-3 py-3 text-right text-rose-600">{metric.losses}</td>
+      <td className="px-3 py-3 text-right font-semibold">
+        {metric.winRate == null ? "—" : `${metric.winRate}%`}
+      </td>
+    </>
+  );
+}
+function WinningRateTable({
+  title,
+  rows,
+  keyLabel,
+}: {
+  title: string;
+  rows: Array<WinningRateMetricView & { key: string }>;
+  keyLabel: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-display text-lg">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] text-sm">
+            <thead>
+              <tr className="border-b text-left text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                <th className="px-3 py-3">{keyLabel}</th>
+                <th className="px-3 py-3 text-right">Generated</th>
+                <th className="px-3 py-3 text-right">Resolved</th>
+                <th className="px-3 py-3 text-right">Wins</th>
+                <th className="px-3 py-3 text-right">Losses</th>
+                <th className="px-3 py-3 text-right">Win rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => (
+                <tr key={row.key} className="border-b last:border-0">
+                  <td className="px-3 py-3 font-medium">{row.key}</td>
+                  <WinningRateMetricCells metric={row} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+function WinningRateConfidenceGroups({
+  rows,
+}: {
+  rows: WinningRateVersionView["confidenceByAssetTimeframe"];
+}) {
+  const groups = Array.from(
+    new Map(
+      rows.map(row => [
+        `${row.asset} · ${row.timeframe}`,
+        {
+          asset: row.asset,
+          timeframe: row.timeframe,
+          rows: rows.filter(
+            item => item.asset === row.asset && item.timeframe === row.timeframe
+          ),
+        },
+      ])
+    ).values()
+  );
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-display text-lg">
+          Confidence bands by asset and timeframe
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Each group contains the complete confidence-band record for one asset
+          and timeframe.
+        </p>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          Read each card as one isolated asset/timeframe view. The five
+          requested bands stay together for easier comparison.
+        </div>
+        {groups.map(group => (
+          <div
+            key={`${group.asset}-${group.timeframe}`}
+            className="overflow-hidden rounded-xl border"
+          >
+            <div className="border-b bg-primary/[0.045] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                Asset / timeframe
+              </p>
+              <p className="mt-1 font-display text-lg font-semibold">
+                {group.asset} · {group.timeframe}
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-xs">
+                <thead>
+                  <tr className="border-b text-left text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                    <th className="px-3 py-2.5">Confidence band</th>
+                    <th className="px-3 py-2.5 text-right">Generated</th>
+                    <th className="px-3 py-2.5 text-right">Resolved</th>
+                    <th className="px-3 py-2.5 text-right">Wins</th>
+                    <th className="px-3 py-2.5 text-right">Losses</th>
+                    <th className="px-3 py-2.5 text-right">Win rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.rows.map(row => (
+                    <tr key={row.key} className="border-b last:border-0">
+                      <td className="px-3 py-2.5 font-medium">
+                        {row.confidenceBand}
+                      </td>
+                      <WinningRateMetricCells metric={row} />
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+function WinningRateVersionCard({
+  version,
+}: {
+  version: WinningRateVersionView;
+}) {
+  const label =
+    version.version === "replacement-forex-v1"
+      ? "Replacement Intelligence v1"
+      : version.version === "forex-trading-combined-document-v2"
+        ? "Replacement Intelligence v2"
+        : version.version === "forex-trading-combined-document-v3"
+          ? "Replacement Intelligence v3"
+          : "Replacement Intelligence v4";
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 rounded-2xl border bg-card p-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+            Historical performance
+          </p>
+          <h2 className="mt-1 font-display text-2xl font-semibold tracking-tight">
+            {label}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Only signals generated by this exact intelligence version are
+            included.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <SummaryStat
+            label="Generated"
+            value={version.overall.generated}
+            tone="neutral"
+          />
+          <SummaryStat
+            label="Resolved"
+            value={version.overall.resolved}
+            tone="neutral"
+          />
+          <SummaryStat label="Wins" value={version.overall.wins} tone="good" />
+          <SummaryStat
+            label="Losses"
+            value={version.overall.losses}
+            tone="bad"
+          />
+          <SummaryStat
+            label="Win rate"
+            value={version.overall.winRate ?? 0}
+            tone="neutral"
+          />
+        </div>
+      </div>
+      <WinningRateTable
+        title="By asset"
+        rows={version.assets}
+        keyLabel="Asset"
+      />
+      <WinningRateTable
+        title="By asset and timeframe"
+        rows={version.timeframes}
+        keyLabel="Asset · timeframe"
+      />
+      <WinningRateTable
+        title="By confidence band"
+        rows={version.confidenceBands}
+        keyLabel="Confidence band"
+      />
+      <WinningRateConfidenceGroups rows={version.confidenceByAssetTimeframe} />
+    </div>
+  );
+}
+function MacroStatusPanel() {
+  const macro = trpc.intelligence.macroStatus.useQuery();
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="font-display text-lg">
+          Official macro layer
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Free official-source context available to active v4. Missing or stale
+          data never overrides the full v2 foundation.
+        </p>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {(macro.data ?? []).map(item => (
+          <div key={item.asset} className="rounded-xl border bg-muted/10 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold">{item.asset}</p>
+              <StatusPill status={item.context.status} />
+            </div>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              {item.context.summary}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Observations: {item.context.observations?.length ?? 0} · Fetched:{" "}
+              {item.context.fetchedAt
+                ? formatDateTime(item.context.fetchedAt)
+                : "—"}
+            </p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+function V2V3Comparison({ versions }: { versions: WinningRateVersionView[] }) {
+  const v2 = versions.find(
+    version => version.version === "forex-trading-combined-document-v2"
+  );
+  const v3 = versions.find(
+    version => version.version === "forex-trading-combined-document-v3"
+  );
+  const v4 = versions.find(
+    version => version.version === "forex-trading-combined-document-v4"
+  );
+  if (!v2 && !v3) return null;
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="font-display text-lg">
+          Version-separated paper comparison
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          These are descriptive paper records, not proof that a newer version is
+          more accurate. V4 is now the active paper-signal model. Compare it
+          with historical v3 records, but do not treat the comparison as proof
+          of profitability.
+        </p>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            Replacement Intelligence v2
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <SummaryStat
+              label="Generated"
+              value={v2?.overall.generated ?? 0}
+              tone="neutral"
+            />
+            <SummaryStat
+              label="Resolved"
+              value={v2?.overall.resolved ?? 0}
+              tone="neutral"
+            />
+            <SummaryStat
+              label="Win rate"
+              value={v2?.overall.winRate ?? 0}
+              tone="neutral"
+            />
+          </div>
+        </div>
+        <div className="rounded-xl border border-primary/20 bg-primary/[0.035] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+            Replacement Intelligence v3
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <SummaryStat
+              label="Generated"
+              value={v3?.overall.generated ?? 0}
+              tone="neutral"
+            />
+            <SummaryStat
+              label="Resolved"
+              value={v3?.overall.resolved ?? 0}
+              tone="neutral"
+            />
+            <SummaryStat
+              label="Win rate"
+              value={v3?.overall.winRate ?? 0}
+              tone="neutral"
+            />
+          </div>
+        </div>
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+            Replacement Intelligence v4 · active
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <SummaryStat
+              label="Generated"
+              value={v4?.overall.generated ?? 0}
+              tone="neutral"
+            />
+            <SummaryStat
+              label="Resolved"
+              value={v4?.overall.resolved ?? 0}
+              tone="neutral"
+            />
+            <SummaryStat
+              label="Win rate"
+              value={v4?.overall.winRate ?? 0}
+              tone="neutral"
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+function TimingMetricCells({
+  metric,
+}: {
+  metric: {
+    generated: number;
+    resolved: number;
+    takeProfitHits: number;
+    stopLossHits: number;
+    winRate: number | null;
+  };
+}) {
+  return (
+    <>
+      <td className="whitespace-nowrap px-1.5 py-2 text-right">
+        {metric.generated}
+      </td>
+      <td className="whitespace-nowrap px-1.5 py-2 text-right">
+        {metric.resolved}
+      </td>
+      <td className="whitespace-nowrap px-1.5 py-2 text-right text-emerald-600">
+        {metric.takeProfitHits}
+      </td>
+      <td className="whitespace-nowrap px-1.5 py-2 text-right text-rose-600">
+        {metric.stopLossHits}
+      </td>
+      <td className="whitespace-nowrap px-1.5 py-2 text-right font-semibold text-primary">
+        {metric.winRate === null ? "—" : `${metric.winRate}%`}
+      </td>
+    </>
+  );
+}
+function intelligenceVersionLabel(version: string) {
+  return version === "replacement-forex-v1"
+    ? "Replacement Intelligence v1"
+    : version === "forex-trading-combined-document-v2"
+      ? "Replacement Intelligence v2"
+      : version === "forex-trading-combined-document-v3"
+        ? "Replacement Intelligence v3"
+        : "Replacement Intelligence v4";
+}
+function LocatorOutcomeReviewCard() {
+  const stats = trpc.intelligence.locatorV4OutcomeStats.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
+  const validation = stats.data?.validation;
+  return (
+    <Card className="mb-6 border-primary/20 bg-primary/[0.025]">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle className="font-display text-lg">
+              Current Entry Locator v4 review
+            </CardTitle>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Outcome evidence scoped only to signals emitted after the stateful
+              entry-indicator locator became authoritative.
+            </p>
+          </div>
+          <Badge className="border-primary/25 bg-primary/10 text-primary">
+            ENTRY_LOCATOR_V4
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-5">
+          <SummaryStat
+            label="Generated"
+            value={stats.data?.total ?? 0}
+            tone="neutral"
+          />
+          <SummaryStat
+            label="Resolved"
+            value={validation?.resolved ?? 0}
+            tone="neutral"
+          />
+          <SummaryStat
+            label="TP wins"
+            value={validation?.wins ?? 0}
+            tone="good"
+          />
+          <SummaryStat
+            label="SL losses"
+            value={validation?.losses ?? 0}
+            tone="bad"
+          />
+          <SummaryStat
+            label="Win rate"
+            value={validation?.winRate ?? 0}
+            tone="neutral"
+          />
+        </div>
+        <div className="mt-4 rounded-xl border border-dashed p-3 text-xs leading-5 text-muted-foreground">
+          {validation?.reviewStatus === "READY_FOR_REVIEW"
+            ? "The current locator-era sample has reached its configured review threshold."
+            : `Collecting locator-era paper evidence (${validation?.resolved ?? 0}/${validation?.reviewThreshold ?? 50} resolved). No threshold or intelligence change is being made from this sample yet.`}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+function TimingAnalyticsPage({ mode }: { mode: "hour" | "day" }) {
+  const query =
+    mode === "hour"
+      ? trpc.intelligence.bestTimeToTradeStats.useQuery()
+      : trpc.intelligence.bestDaysToTradeStats.useQuery();
+  const title = mode === "hour" ? "Best Time to Trade" : "Best Days to Trade";
+  const description =
+    mode === "hour"
+      ? "Paper-signal outcomes grouped by the UTC hour when each signal was generated."
+      : "Paper-signal outcomes grouped by the UTC day when each signal was generated.";
+  const groups = query.data?.groups ?? [];
+  const visibleVersions = (query.data?.versions ?? []).filter(version =>
+    groups.some(
+      group =>
+        group.version === version &&
+        group.buckets.some(bucket => bucket.generated > 0)
+    )
+  );
+  return (
+    <>
+      <PageHeading
+        eyebrow="Timing intelligence"
+        title={title}
+        description={description}
+      />
+      {query.isError && (
+        <DataError
+          text={`${title} data could not be loaded. Refresh after the database connection recovers.`}
+        />
+      )}
+      {query.isLoading ? (
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            Loading timing analytics…
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-8">
+          {visibleVersions.length ? (
+            visibleVersions.map(version => (
+              <section key={version}>
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+                    Version-separated paper history
+                  </p>
+                  <h2 className="mt-1 font-display text-2xl font-semibold">
+                    {intelligenceVersionLabel(version)}
+                  </h2>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {groups
+                    .filter(group => group.version === version)
+                    .map(group => (
+                      <Card
+                        key={`${group.version}-${group.asset}-${group.timeframe}`}
+                      >
+                        <CardHeader className="pb-3">
+                          <CardTitle className="font-display text-lg">
+                            {group.asset} · {group.timeframe}
+                          </CardTitle>
+                          <p className="text-xs text-muted-foreground">
+                            {mode === "hour"
+                              ? "Every UTC hour"
+                              : "Every weekday"}
+                          </p>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="overflow-x-auto">
+                            <table className="w-full min-w-[590px] table-fixed text-[11px]">
+                              <colgroup>
+                                <col className="w-[25%]" />
+                                <col className="w-[14%]" />
+                                <col className="w-[14%]" />
+                                <col className="w-[14%]" />
+                                <col className="w-[14%]" />
+                                <col className="w-[19%]" />
+                              </colgroup>
+                              <thead>
+                                <tr className="border-b text-left text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                                  <th className="whitespace-nowrap px-1.5 py-2">
+                                    {mode === "hour" ? "Hour" : "Day"}
+                                  </th>
+                                  <th className="whitespace-nowrap px-1.5 py-2 text-right">
+                                    Generated
+                                  </th>
+                                  <th className="whitespace-nowrap px-1.5 py-2 text-right">
+                                    Resolved
+                                  </th>
+                                  <th className="whitespace-nowrap px-1.5 py-2 text-right">
+                                    TP hits
+                                  </th>
+                                  <th className="whitespace-nowrap px-1.5 py-2 text-right">
+                                    SL hits
+                                  </th>
+                                  <th className="whitespace-nowrap px-1.5 py-2 text-right">
+                                    Win rate
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {group.buckets.map(bucket => (
+                                  <tr
+                                    key={bucket.key}
+                                    className="border-b last:border-0"
+                                  >
+                                    <td className="px-3 py-2 font-medium">
+                                      {bucket.label}
+                                    </td>
+                                    <TimingMetricCells metric={bucket} />
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                </div>
+              </section>
+            ))
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">
+                No persisted paper-signal records are available for the selected
+                analytics scope.
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
 
 function WinningRatePage() {
-  const stats = trpc.intelligence.winningRateStats.useQuery(undefined, LIVE_QUERY_OPTIONS);
-  const callback = trpc.scanner.callbackStatus.useQuery(undefined, LIVE_QUERY_OPTIONS);
-  const excluded = trpc.intelligence.excludedWinningRateSignals.useQuery(undefined, { enabled: stats.data?.reconciliation?.status === "MISMATCH" });
-  const review = trpc.intelligence.status.useQuery(undefined, LIVE_QUERY_OPTIONS);
-  const patterns = review.data?.promotionPlan?.patterns ?? [];
+  const stats = trpc.intelligence.winningRateStats.useQuery(
+    undefined,
+    LIVE_QUERY_OPTIONS
+  );
+  const excluded = trpc.intelligence.excludedWinningRateSignals.useQuery(
+    undefined,
+    { enabled: stats.data?.reconciliation?.status === "MISMATCH" }
+  );
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showExcluded, setShowExcluded] = useState(false);
-  const utils = trpc.useUtils();
-  const reviewMutation = trpc.intelligence.reviewLessonPattern.useMutation({ onSuccess: () => utils.intelligence.status.invalidate(), onError: (error) => window.alert(error.message) });
-  const refresh = () => { void Promise.all([stats.refetch(), callback.refetch(), excluded.refetch(), review.refetch()]); };
+  const refresh = () => {
+    void Promise.all([
+      stats.refetch(),
+      excluded.refetch(),
+    ]);
+  };
   useEffect(() => {
     if (!autoRefresh) return;
     const timer = window.setInterval(refresh, 60_000);
     return () => window.clearInterval(timer);
   }, [autoRefresh]);
-  const patternsEligible = patterns.filter((pattern) => pattern.eligible);
-  const visibleVersions = (stats.data?.versions ?? []).filter((version) => version.overall.generated > 0);
-  return <>
-    {stats.isError && <DataError text="Winning Rate statistics could not be loaded. Refresh after the database connection recovers." />}
-    <PageHeading eyebrow="Performance ledger" title="Winning rate" description="Historical paper-signal outcomes separated by Replacement Intelligence version, asset, timeframe, and confidence band." />
-    <WinningRateTelemetry stats={stats.data} callback={callback.data} excluded={excluded.data} isRefreshing={stats.isFetching || callback.isFetching || excluded.isFetching || review.isFetching} autoRefresh={autoRefresh} showExcluded={showExcluded} onRefresh={refresh} onToggleAutoRefresh={() => setAutoRefresh((value) => !value)} onToggleExcluded={() => setShowExcluded((value) => !value)} />
-    <LocatorOutcomeReviewCard />
-    <div className="mb-6 rounded-xl border bg-muted/20 p-4 text-sm"><p className="font-medium">How to read this page</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Generated counts include PENDING signals. Resolved counts equal WIN plus LOSS. Win rate is calculated only from resolved signals, so a blank rate means there is not yet a resolved result in that bucket. All records remain paper-only and UNVALIDATED.</p></div>
-    <Card className="mb-6 border-primary/15 bg-primary/[0.025]"><CardHeader><CardTitle className="font-display text-lg">Loss-learning review</CardTitle><p className="text-xs text-muted-foreground">Losses become structured proposals first. Only three comparable outcomes with the same pattern key become eligible for review; acceptance never claims profitability.</p></CardHeader><CardContent><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border bg-background p-3"><p className="text-xs text-muted-foreground">Proposed lessons</p><p className="mt-1 text-2xl font-semibold">{review.data?.promotionPlan?.proposedCount ?? 0}</p></div><div className="rounded-xl border bg-background p-3"><p className="text-xs text-muted-foreground">Eligible patterns</p><p className="mt-1 text-2xl font-semibold">{patternsEligible.length}</p></div><div className="rounded-xl border bg-background p-3"><p className="text-xs text-muted-foreground">Accepted lessons</p><p className="mt-1 text-2xl font-semibold">{review.data?.acceptedLessonCount ?? 0}</p></div></div><div className="mt-4 rounded-xl border border-dashed p-3 text-xs text-muted-foreground">{patternsEligible.length ? <div className="space-y-3">{patternsEligible.slice(0, 6).map((pattern) => { const reviewPattern = pattern.key.slice(pattern.outcome.length + 1); const busy = reviewMutation.isPending && reviewMutation.variables?.patternKey === reviewPattern; return <div key={pattern.key} className="flex flex-col gap-3 rounded-lg bg-background/70 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium text-foreground">{pattern.outcome} · {reviewPattern}</p><p className="mt-1">{pattern.count} comparable outcomes · eligible for explicit review</p></div><div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => reviewMutation.mutate({ outcome: pattern.outcome as "WIN" | "LOSS", patternKey: reviewPattern, decision: "REJECT" })}>Reject</Button><Button size="sm" disabled={busy} onClick={() => reviewMutation.mutate({ outcome: pattern.outcome as "WIN" | "LOSS", patternKey: reviewPattern, decision: "ACCEPT" })}>Accept</Button></div></div>; })}</div> : "No recurring pattern has reached the three-outcome review threshold yet. Active v4 remains authoritative for new paper signals."}</div></CardContent></Card>
-    <MacroStatusPanel />
-    <V2V3Comparison versions={visibleVersions} />
-    {visibleVersions.length ? <div className="space-y-10">{visibleVersions.map((version) => <WinningRateVersionCard key={version.version} version={version} />)}</div> : <Card><CardContent className="p-6 text-sm text-muted-foreground">No persisted paper-signal records are available for the selected analytics scope.</CardContent></Card>}
-  </>;
+  const visibleVersions = (stats.data?.versions ?? []).filter(
+    version => version.overall.generated > 0
+  );
+  return (
+    <>
+      {stats.isError && (
+        <DataError text="Winning Rate statistics could not be loaded. Refresh after the database connection recovers." />
+      )}
+      <PageHeading
+        eyebrow="Performance ledger"
+        title="Winning rate"
+        description="Historical paper-signal outcomes separated by Replacement Intelligence version, asset, timeframe, and confidence band."
+      />
+      <WinningRateTelemetry
+        stats={stats.data}
+        excluded={excluded.data}
+        isRefreshing={stats.isFetching || excluded.isFetching}
+        autoRefresh={autoRefresh}
+        showExcluded={showExcluded}
+        onRefresh={refresh}
+        onToggleAutoRefresh={() => setAutoRefresh(value => !value)}
+        onToggleExcluded={() => setShowExcluded(value => !value)}
+      />
+      {visibleVersions.length ? (
+        <div className="space-y-10">
+          {visibleVersions.map(version => (
+            <WinningRateVersionCard key={version.version} version={version} />
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            No persisted paper-signal records are available for the selected
+            analytics scope.
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
 }
-export default function Home() { const [location] = useLocation(); const path = location.split("?")[0]; const rules = trpc.rules.list.useQuery(undefined, { enabled: path === "/" }); if (path === "/" && !rules.isLoading && !rules.data?.length) return <Onboarding />;   const page = path === "/chat-audit" ? <ChatAudit /> : path === "/strategy-rules" ? <RulesPage /> : path === "/trade-history" ? <TradeHistory /> : path === "/scanner" ? <ScannerPage /> : path === "/winning-rate" ? <WinningRatePage /> : path === "/best-time-to-trade" ? <TimingAnalyticsPage mode="hour" /> : path === "/best-days-to-trade" ? <TimingAnalyticsPage mode="day" /> : <Overview />; return <DashboardLayout><div className="mx-auto w-full max-w-[1500px]">{page}</div></DashboardLayout>; }
+export default function Home() {
+  const [location] = useLocation();
+  const path = location.split("?")[0];
+  const rules = trpc.rules.list.useQuery(undefined, { enabled: path === "/" });
+  if (path === "/" && !rules.isLoading && !rules.data?.length)
+    return <Onboarding />;
+  const page =
+    path === "/chat-audit" ? (
+      <ChatAudit />
+    ) : path === "/strategy-rules" ? (
+      <RulesPage />
+    ) : path === "/trade-history" ? (
+      <TradeHistory />
+    ) : path === "/scanner" ? (
+      <ScannerPage />
+    ) : path === "/winning-rate" ? (
+      <WinningRatePage />
+    ) : path === "/best-time-to-trade" ? (
+      <TimingAnalyticsPage mode="hour" />
+    ) : path === "/best-days-to-trade" ? (
+      <TimingAnalyticsPage mode="day" />
+    ) : (
+      <Overview />
+    );
+  return (
+    <DashboardLayout>
+      <div className="mx-auto w-full max-w-[1500px]">{page}</div>
+    </DashboardLayout>
+  );
+}

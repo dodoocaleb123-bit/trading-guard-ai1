@@ -1174,3 +1174,11 @@
 
 - [x] Remove the remaining Scanner callback card containing scheduler warnings and app-side run history; preserve the external callback endpoint and scanner backend behavior.
 - [x] Add regression coverage and publish the callback-card removal correction.
+
+- [x] Inventory potentially useless or redundant cards across the current Overview, Scanner, Trade History, Winning Rate, and timing pages; do not remove anything until the user chooses.
+- [x] Present each candidate card with its purpose, live data dependencies, and removal impact for user approval.
+
+- [x] Remove all previously identified optional cards: scheduler/callback cards, Official macro layer, Judgment boundary, Signal discipline, timing-page instructions, Judgment-to-alert bridge, Guardrail health, empty cooldown history, and empty locator review; keep the recommended operational cards.
+- [x] Investigate BTC/USD 15MIN signal # associated with the screenshot and verify whether its PENDING state conflicts with stop-loss evidence.
+- [x] If confirmed stale, mark the BTC/USD 15MIN paper signal LOSS, deliver the appropriate Telegram outcome reply once, and release its asset/timeframe block without altering unrelated records.
+- [x] Add regression coverage, verify the cleaned dashboard, and publish the correction.

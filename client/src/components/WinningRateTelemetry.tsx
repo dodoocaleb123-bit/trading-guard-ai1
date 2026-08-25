@@ -1,5 +1,4 @@
-import { Activity, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -13,17 +12,6 @@ type WinningRateStats = {
     excludedTotal: number;
     status: "RECONCILED" | "MISMATCH";
   };
-};
-
-type CallbackStatus = {
-  status: string;
-  label: string;
-  diagnosis: string;
-  taskUid?: string | null;
-  appLastRunAt?: DateValue;
-  schedulerLastAttemptAt?: DateValue;
-  nextExecutionAt?: DateValue;
-  schedulerJob?: { cronExpression?: string | null } | null;
 };
 
 type ExcludedSignal = {
@@ -43,7 +31,6 @@ type ExcludedSignal = {
 
 type WinningRateTelemetryProps = {
   stats: WinningRateStats | undefined;
-  callback: CallbackStatus | undefined;
   excluded: ExcludedSignal[] | undefined;
   isRefreshing: boolean;
   autoRefresh: boolean;
@@ -57,13 +44,7 @@ function formatDateTime(value: DateValue) {
   return value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
 }
 
-function callbackTone(status: string) {
-  if (status === "HEALTHY") return "border-emerald-500/20 bg-emerald-500/10 text-emerald-700";
-  if (status === "CALLBACK_NOT_REACHED" || status === "SCHEDULER_UNAVAILABLE") return "border-amber-500/25 bg-amber-500/10 text-amber-800";
-  return "border-slate-500/20 bg-slate-500/10 text-slate-700";
-}
-
-export function WinningRateTelemetry({ stats, callback, excluded, isRefreshing, autoRefresh, showExcluded, onRefresh, onToggleAutoRefresh, onToggleExcluded }: WinningRateTelemetryProps) {
+export function WinningRateTelemetry({ stats, excluded, isRefreshing, autoRefresh, showExcluded, onRefresh, onToggleAutoRefresh, onToggleExcluded }: WinningRateTelemetryProps) {
   const reconciliation = stats?.reconciliation;
   const hasMismatch = reconciliation?.status === "MISMATCH";
   return <>
@@ -80,10 +61,6 @@ export function WinningRateTelemetry({ stats, callback, excluded, isRefreshing, 
           <p className="mt-2 text-xs leading-5 text-muted-foreground">Last updated {formatDateTime(stats?.generatedAt)} · {reconciliation?.includedTotal ?? 0} recognized-version records included.</p>
           <p className="mt-1 text-[11px] text-muted-foreground">Automatic refresh runs every 60 seconds while enabled.</p>
         </CardContent>
-      </Card>
-      <Card className="border-primary/15 bg-primary/[0.025]">
-        <CardHeader className="p-4 pb-2"><div className="flex items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-sm"><Activity className="h-4 w-4 text-primary" />Scanner and Heartbeat</CardTitle><Badge className={callbackTone(callback?.status ?? "NOT_CONFIGURED")}>{callback?.label ?? "LOADING"}</Badge></div></CardHeader>
-        <CardContent className="px-4 pb-4 pt-1"><p className="text-xs leading-5 text-muted-foreground">{callback?.diagnosis ?? "Loading callback status…"}</p><div className="mt-2 grid gap-1 text-[11px] text-muted-foreground"><span>Last scanner run: {formatDateTime(callback?.appLastRunAt)}</span><span>Last Heartbeat attempt: {formatDateTime(callback?.schedulerLastAttemptAt)}</span><span>Next scheduled run: {formatDateTime(callback?.nextExecutionAt)}</span></div></CardContent>
       </Card>
       <Card className={hasMismatch ? "border-amber-500/25 bg-amber-500/10" : "border-emerald-500/20 bg-emerald-500/5"}>
         <CardContent className="p-4"><div className="flex items-center justify-between gap-3"><div><p className={`font-medium text-sm ${hasMismatch ? "text-amber-800" : "text-emerald-700"}`}>{hasMismatch ? "Version-count reconciliation" : "Version counts reconciled"}</p><p className={`mt-1 text-xs leading-5 ${hasMismatch ? "text-amber-800/80" : "text-emerald-700/80"}`}>{hasMismatch ? `${reconciliation?.excludedTotal ?? 0} record${reconciliation?.excludedTotal === 1 ? "" : "s"} fall outside the v1–v4 analytics set.` : "All source records belong to a recognized analytics version."}</p></div>{hasMismatch && <Button type="button" size="sm" variant="outline" className="h-8 shrink-0 border-amber-500/30 bg-transparent px-2 text-xs text-amber-800 hover:bg-amber-500/10" onClick={onToggleExcluded}>{showExcluded ? <ChevronUp className="mr-1 h-3.5 w-3.5" /> : <ChevronDown className="mr-1 h-3.5 w-3.5" />}{showExcluded ? "Hide" : "Inspect"}</Button>}</div></CardContent>

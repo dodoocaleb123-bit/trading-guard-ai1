@@ -42,6 +42,37 @@ export function resolveOutcome(direction: "BUY" | "SELL", price: number, stop: n
   return win ? "WIN" : loss ? "LOSS" : null;
 }
 
+export type OutcomeCandle = { datetime?: string | null; high?: unknown; low?: unknown };
+
+export function aggregatePostEntryEvidence(direction: "BUY" | "SELL", signalOpenedAt: Date | string, entry: number, candles: readonly OutcomeCandle[], currentPrice: number) {
+  const openedAt = signalOpenedAt instanceof Date ? signalOpenedAt.getTime() : new Date(signalOpenedAt).getTime();
+  const validCurrentPrice = Number.isFinite(currentPrice) ? currentPrice : null;
+  let high = validCurrentPrice ?? Number.NEGATIVE_INFINITY;
+  let low = validCurrentPrice ?? Number.POSITIVE_INFINITY;
+  let entered = validCurrentPrice !== null && (direction === "BUY" ? validCurrentPrice >= entry : validCurrentPrice <= entry);
+  let latestCandleAt: string | null = null;
+  let usedIntrabar = false;
+  for (const candle of candles) {
+    if (!candle.datetime) continue;
+    const candleAt = new Date(candle.datetime.includes("T") ? candle.datetime : `${candle.datetime.replace(" ", "T")}Z`).getTime();
+    if (!Number.isFinite(candleAt) || !Number.isFinite(openedAt) || candleAt < openedAt) continue;
+    const candleHigh = Number(candle.high);
+    const candleLow = Number(candle.low);
+    if (!Number.isFinite(candleHigh) || !Number.isFinite(candleLow)) continue;
+    high = Math.max(high, candleHigh);
+    low = Math.min(low, candleLow);
+    latestCandleAt = candle.datetime;
+    usedIntrabar = true;
+    if (direction === "BUY" ? candleHigh >= entry : candleLow <= entry) entered = true;
+  }
+  return { high, low, entered, latestCandleAt, usedIntrabar };
+}
+
+export function resolveOutcomeFromPostEntryEvidence(direction: "BUY" | "SELL", price: number, stop: number, target: number, entry: number, evidence: ReturnType<typeof aggregatePostEntryEvidence>): "WIN" | "LOSS" | null {
+  if (!evidence.entered) return null;
+  return resolveOutcome(direction, price, stop, target, evidence.high, evidence.low, entry);
+}
+
 export function buildSignalLevels(asset: string, timeframe: "15MIN" | "1H", close: number, trend: "UP" | "DOWN") {
   const p = precision(asset);
   const direction = trend === "UP" ? "BUY" : "SELL";
@@ -512,22 +543,18 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
     try {
       const timeframe = signal.timeframe === "1H" ? "1H" : "15MIN";
       const cached = seriesCache?.get(`${signal.asset}:${timeframe}`);
-      const latestCandle = cached?.values.at(-1);
       const market = cached
-        ? { symbol: signal.asset, price: cached.close, close: cached.close, high: Number(latestCandle?.high), low: Number(latestCandle?.low), fetchedAt: cached.fetchedAt }
+        ? { symbol: signal.asset, price: cached.close, close: cached.close, fetchedAt: cached.fetchedAt }
         : await fetchMarketSnapshot(signal.asset, timeframe === "1H" ? "1h" : "15min");
       const price = market.price;
       const stop = Number(signal.stopLoss);
       const target = Number(signal.takeProfit);
-      const candleStartedAt = typeof latestCandle?.datetime === "string" ? latestCandle.datetime : null;
-      const useIntrabarRange = shouldUseIntrabarRange(signal.openedAt, candleStartedAt);
-      const observedHigh = useIntrabarRange ? Number(market.high) : price;
-      const observedLow = useIntrabarRange ? Number(market.low) : price;
-      const status = resolveOutcome(signal.direction, price, stop, target, observedHigh, observedLow, Number(signal.entry));
+      const evidence = aggregatePostEntryEvidence(signal.direction, signal.openedAt, Number(signal.entry), cached?.values ?? [], price);
+      const status = resolveOutcomeFromPostEntryEvidence(signal.direction, price, stop, target, Number(signal.entry), evidence);
       if (!status) continue;
-      const resolutionCandleAt = candleStartedAt ? new Date(candleStartedAt.includes("T") ? candleStartedAt : `${candleStartedAt.replace(" ", "T")}Z`) : null;
-      const note = `Closed from live ${signal.asset} ${signal.timeframe} price ${price}; evidence candle ${resolutionCandleAt?.toISOString() ?? "unavailable"}; intrabar range ${useIntrabarRange ? "used" : "not used"}.`;
-      await db.update(generatedSignals).set({ status, closedAt: new Date(), outcomeNote: note, resolutionCandleAt, resolutionPrice: String(price), resolutionHigh: Number.isFinite(Number(market.high)) ? String(market.high) : null, resolutionLow: Number.isFinite(Number(market.low)) ? String(market.low) : null, resolutionUsedIntrabar: useIntrabarRange }).where(eq(generatedSignals.id, signal.id));
+      const resolutionCandleAt = evidence.latestCandleAt ? new Date(evidence.latestCandleAt.includes("T") ? evidence.latestCandleAt : `${evidence.latestCandleAt.replace(" ", "T")}Z`) : null;
+      const note = `Closed from live ${signal.asset} ${signal.timeframe} price ${price}; evidence candle ${resolutionCandleAt?.toISOString() ?? "unavailable"}; cumulative post-entry range ${evidence.usedIntrabar ? "used" : "not used"}.`;
+      await db.update(generatedSignals).set({ status, closedAt: new Date(), outcomeNote: note, resolutionCandleAt, resolutionPrice: String(price), resolutionHigh: Number.isFinite(evidence.high) ? String(evidence.high) : null, resolutionLow: Number.isFinite(evidence.low) ? String(evidence.low) : null, resolutionUsedIntrabar: evidence.usedIntrabar }).where(eq(generatedSignals.id, signal.id));
       await mirrorToSupabase("trade_outcomes", { signal_id: signal.id, user_id: userId, status, close_price: price, note });
       const activeVersion = await getActiveIntelligenceVersion(userId);
       const sourceComponents = (() => { try { return JSON.parse(signal.intelligenceComponents ?? "[]") as string[]; } catch { return []; } })();

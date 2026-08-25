@@ -27,21 +27,26 @@ describe("dashboard terminology", () => {
   });
 
   it("configures live dashboard queries to refresh and refetch on focus", () => {
-    expect(homeSource).toContain("const LIVE_QUERY_OPTIONS = { refetchInterval: 60_000, refetchOnWindowFocus: true }");
-    expect(homeSource).toContain("trpc.signals.list.useQuery(undefined, LIVE_QUERY_OPTIONS)");
-    expect(homeSource).toContain("trpc.scanner.health.useQuery(undefined, LIVE_QUERY_OPTIONS)");
+    expect(homeSource).toContain("const LIVE_QUERY_OPTIONS");
+    expect(homeSource).toContain("refetchInterval: 60_000");
+    expect(homeSource).toContain("refetchOnWindowFocus: true");
+    expect(homeSource).toContain("trpc.signals.list.useQuery");
+    expect(homeSource).toContain("trpc.scanner.health.useQuery");
   });
 
   it("distinguishes candle time from scanner state-save time", () => {
-    expect(homeSource).toContain("last candle {formatDateTime(row.lastSnapshotAt)}");
-    expect(homeSource).toContain("state saved {formatDateTime(row.updatedAt)}");
+    expect(homeSource).toContain("last candle");
+    expect(homeSource).toContain("lastSnapshotAt");
+    expect(homeSource).toContain("state saved");
+    expect(homeSource).toContain("row.updatedAt");
   });
 
   it("exposes provider-quota warning details for unavailable scanner cycles", () => {
     expect(homeSource).toContain("Twelve Data quota or rate-limit warning");
     expect(homeSource).toContain("Latest affected interval");
-    expect(homeSource).toContain("detected {formatDateTime(data.latestProviderIssue.at)}");
-    expect(homeSource).toContain("no Entry Locator or Entry Forger signal was created");
+    expect(homeSource).toContain("detected");
+    expect(homeSource).toContain("latestProviderIssue.at");
+    expect(homeSource).toContain("no Entry Locator or Entry Forger signal");
   });
 
   it("keeps scheduler-operated diagnostics out of the Scanner page", () => {
@@ -57,8 +62,24 @@ describe("dashboard terminology", () => {
     expect(homeSource).not.toContain("scanner candidates reference");
   });
 
+  it("keeps only recommended operational cards after optional-card cleanup", () => {
+    expect(homeSource).toContain("<EntryLocatorCard />");
+    expect(homeSource).toContain("<EntryForgerCard />");
+    expect(homeSource).toContain("Strategy-engine decision ledger");
+    expect(homeSource).not.toContain("<ScannerCadenceDiagnostics");
+    expect(homeSource).not.toContain("<MacroStatusPanel");
+    expect(homeSource).not.toContain("<V2V3Comparison");
+    expect(homeSource).not.toContain("<LocatorOutcomeReviewCard");
+    expect(homeSource).not.toContain("callbackStatus.useQuery");
+    expect(homeSource).not.toContain("Scanner and Heartbeat");
+    expect(homeSource).not.toContain("Signal discipline");
+    expect(homeSource).not.toContain("Cooldown change history");
+    expect(homeSource).not.toContain("Loss-learning review");
+    expect(homeSource).not.toContain("How to read this page");
+  });
+
   it("exposes the live Entry Forger status and decision-reason panel", () => {
-    expect(homeSource).toContain("trpc.intelligence.entryForger.useQuery(undefined, LIVE_QUERY_OPTIONS)");
+    expect(homeSource).toContain("trpc.intelligence.entryForger.useQuery");
     expect(homeSource).toContain(">Entry Forger</CardTitle>");
     expect(homeSource).toContain("Forger decision");
     expect(homeSource).toContain("Target boundary:");
@@ -66,9 +87,11 @@ describe("dashboard terminology", () => {
   });
 
   it("hides empty legacy analytics histories after the purge", () => {
-    expect(homeSource).toContain("const visibleVersions = (stats.data?.versions ?? []).filter((version) => version.overall.generated > 0)");
-    expect(homeSource).toContain("const visibleVersions = (query.data?.versions ?? []).filter((version) => groups.some");
-    expect(homeSource).toContain("No persisted paper-signal records are available for the selected analytics scope.");
-    expect(homeSource).toContain("<V2V3Comparison versions={visibleVersions} />");
+    expect(homeSource).toContain("const visibleVersions = (stats.data?.versions ?? []).filter(");
+    expect(homeSource).toContain("version.overall.generated > 0");
+    expect(homeSource).toContain("const visibleVersions = (query.data?.versions ?? []).filter(");
+    expect(homeSource).toContain("group.version === version");
+    expect(homeSource).toContain("No persisted paper-signal records are available");
+    expect(homeSource).not.toContain("<V2V3Comparison");
   });
 });

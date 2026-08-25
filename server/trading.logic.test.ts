@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractStrategyText, formatAuditResult, gateAuditDecision, normalizeAsset } from "./integrations";
-import { buildSignalLevels, resolveOutcome, shouldTrackOpenSignal, shouldUseIntrabarRange } from "./scanner";
+import { aggregatePostEntryEvidence, buildSignalLevels, resolveOutcome, resolveOutcomeFromPostEntryEvidence, shouldTrackOpenSignal, shouldUseIntrabarRange } from "./scanner";
 import { deriveStructureAwareLevels } from "./replacement-intelligence";
 import { buildStrategyContext, buildStrategyRuleRecord } from "./routers";
 
@@ -85,6 +85,24 @@ describe("TradingGuardAI market helpers", () => {
   it("ignores pre-entry candle ranges when resolving a newly opened signal", () => {
     expect(shouldUseIntrabarRange(new Date("2026-08-23T22:58:02.000Z"), "2026-08-23 22:00:00")).toBe(false);
     expect(shouldUseIntrabarRange(new Date("2026-08-23T22:58:02.000Z"), "2026-08-23 23:00:00")).toBe(true);
+  });
+
+  it("resolves a stop hit from a later candle after a sell has already entered", () => {
+    const evidence = aggregatePostEntryEvidence("SELL", new Date("2026-08-25T21:20:09.000Z"), 78418, [
+      { datetime: "2026-08-25 21:30:00", high: "78654", low: "78380.86" },
+      { datetime: "2026-08-25 22:00:00", high: "78944", low: "78569.99" },
+    ], 78836.19);
+    expect(evidence.entered).toBe(true);
+    expect(resolveOutcomeFromPostEntryEvidence("SELL", 78836.19, 78682.4129875, 77889.174025, 78418, evidence)).toBe("LOSS");
+    expect(evidence.latestCandleAt).toBe("2026-08-25 22:00:00");
+  });
+
+  it("ignores pre-entry candles when aggregating post-entry evidence", () => {
+    const evidence = aggregatePostEntryEvidence("SELL", new Date("2026-08-25T21:20:09.000Z"), 78418, [
+      { datetime: "2026-08-25 21:15:00", high: "79000", low: "78000" },
+    ], 78500);
+    expect(evidence.entered).toBe(false);
+    expect(evidence.usedIntrabar).toBe(false);
   });
 
   it("builds timeframe-specific 1:2 signal geometry", () => {

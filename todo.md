@@ -1151,3 +1151,7 @@
 - [x] Enforce the shared minimum of 60% confidence and 45% confluence for both Entry Locator and Entry Forger before any paper signal is emitted; exact-boundary and below-threshold regression coverage passes.
 - [x] Diagnose the reported 4:25 PM v4 freshness timestamp and measure scanner-to-v4 and Telegram delivery latency; the timestamp was the latest market candle for the affected user, while user 1 had provider-unavailable cycles and signal delivery itself completed within about 1–5 seconds.
 - [x] Fix the confirmed stale-data cause by fetching each Twelve Data interval once per scheduled run and reusing the fresh window across users; clarify candle time versus state-save time in the dashboard. No Telegram delay defect was found, and cadence, paper-only, UNVALIDATED, and asset/timeframe safeguards remain unchanged.
+
+- [x] Diagnose why the authenticated application interface is not reflecting current backend scanner, threshold, signal, and delivery state; one-shot queries and hardcoded Overview Market pulse values were confirmed as the main causes.
+- [x] Fix the confirmed dashboard synchronization defect by adding one-minute refetching with focus refresh and replacing hardcoded Market pulse values with authenticated live scanner data; scanner and trading behavior were unchanged.
+- [x] Validate current data visibility across Overview, Scanner, and Trade History at desktop and mobile widths; live prices, saved timestamps, source metrics, and scanner warnings rendered correctly.

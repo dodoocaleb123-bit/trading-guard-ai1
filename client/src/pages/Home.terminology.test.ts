@@ -26,6 +26,12 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("Entry Forger");
   });
 
+  it("configures live dashboard queries to refresh and refetch on focus", () => {
+    expect(homeSource).toContain("const LIVE_QUERY_OPTIONS = { refetchInterval: 60_000, refetchOnWindowFocus: true }");
+    expect(homeSource).toContain("trpc.signals.list.useQuery(undefined, LIVE_QUERY_OPTIONS)");
+    expect(homeSource).toContain("trpc.scanner.health.useQuery(undefined, LIVE_QUERY_OPTIONS)");
+  });
+
   it("distinguishes candle time from scanner state-save time", () => {
     expect(homeSource).toContain("last candle {formatDateTime(row.lastSnapshotAt)}");
     expect(homeSource).toContain("state saved {formatDateTime(row.updatedAt)}");

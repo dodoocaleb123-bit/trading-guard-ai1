@@ -537,6 +537,51 @@ export async function createStrategyDecision(input: typeof strategyDecisionLedge
   return { id: Number(result[0].insertId), ...input };
 }
 
+export type LiveMarketPulseRow = {
+  asset: string;
+  price: number | null;
+  candleTime: string | null;
+  savedAt: Date | null;
+  timeframe: string;
+  interval: string | null;
+  trend: string | null;
+};
+
+export function summarizeLiveMarketPulse(rows: Array<{ asset: string; timeframe: string; marketSnapshot: string | null; createdAt: Date }>): LiveMarketPulseRow[] {
+  const seen = new Set<string>();
+  const result: LiveMarketPulseRow[] = [];
+  for (const row of rows) {
+    if (seen.has(row.asset)) continue;
+    seen.add(row.asset);
+    try {
+      const snapshot = JSON.parse(row.marketSnapshot ?? "{}") as { price?: unknown; close?: unknown; interval?: unknown; trend?: unknown; values?: Array<{ datetime?: unknown; close?: unknown }> };
+      const latestValue = Array.isArray(snapshot.values) ? snapshot.values.at(-1) : undefined;
+      const rawPrice = snapshot.price ?? snapshot.close ?? latestValue?.close;
+      const price = typeof rawPrice === "number" ? rawPrice : typeof rawPrice === "string" && Number.isFinite(Number(rawPrice)) ? Number(rawPrice) : null;
+      const candleTime = typeof latestValue?.datetime === "string" ? latestValue.datetime : null;
+      result.push({
+        asset: row.asset,
+        price,
+        candleTime,
+        savedAt: row.createdAt,
+        timeframe: row.timeframe,
+        interval: typeof snapshot.interval === "string" ? snapshot.interval : null,
+        trend: typeof snapshot.trend === "string" ? snapshot.trend : null,
+      });
+    } catch {
+      result.push({ asset: row.asset, price: null, candleTime: null, savedAt: row.createdAt, timeframe: row.timeframe, interval: null, trend: null });
+    }
+  }
+  return result;
+}
+
+export async function getLiveMarketPulse(userId: number): Promise<LiveMarketPulseRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({ asset: strategyDecisionLedger.asset, timeframe: strategyDecisionLedger.timeframe, marketSnapshot: strategyDecisionLedger.marketSnapshot, createdAt: strategyDecisionLedger.createdAt }).from(strategyDecisionLedger).where(eq(strategyDecisionLedger.userId, userId)).orderBy(desc(strategyDecisionLedger.createdAt)).limit(500);
+  return summarizeLiveMarketPulse(rows);
+}
+
 export async function listStrategyDecisions(userId: number, filters: DecisionFilters = {}) {
   const db = await getDb();
   if (!db) return [];

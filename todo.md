@@ -1086,3 +1086,6 @@
 - [x] Monitor external five-minute scanner execution history and compare live callback timestamps with the run ledger.
 - [x] Add dashboard cadence diagnostics for scheduled, received, skipped, duplicate-suppressed, and completed scanner cycles.
 - [x] Add regression coverage and publish the verified cadence-diagnostics update without changing signal rules or quota cadence.
+
+- [x] Revert only the balanced Entry Locator pullback/breakout loosenings to the prior conservative v4 qualification baseline while preserving scanner cadence, external trigger, cadence diagnostics, and paper-trading safeguards.
+- [x] Validate the rollback with focused tests, full build, and live-safety checks before publishing.

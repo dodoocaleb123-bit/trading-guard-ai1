@@ -1104,3 +1104,9 @@
 - [x] Run the final top-to-bottom diagnostic across scheduler, Twelve Data, v4 Entry Locator, paper signals, Telegram, database, automated checks, endpoints, and responsive UI; repair confirmed defects, repeat affected checks, and publish the clean result.
 
 - [x] Repeat several complete diagnostics until one full pass finishes without a confirmed application problem or error; repair and revalidate any confirmed defect before the clean pass.
+
+- [x] Add a clear dashboard banner distinguishing current scanner health from historical skipped windows.
+- [x] Add route-level lazy loading for remaining analytics-heavy screens and verify the bundle output.
+- [x] Add next-session five-minute cadence and Telegram delivery monitoring guidance/diagnostics without changing paper-only behavior.
+
+- [x] Prevent the cadence banner from showing a false health warning while its live diagnostics query is still loading; revalidate the loaded and loading states.

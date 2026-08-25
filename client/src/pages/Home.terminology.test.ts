@@ -26,6 +26,13 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("Entry Forger");
   });
 
+  it("exposes provider-quota warning details for unavailable scanner cycles", () => {
+    expect(homeSource).toContain("Twelve Data quota or rate-limit warning");
+    expect(homeSource).toContain("Latest affected interval");
+    expect(homeSource).toContain("detected {formatDateTime(data.latestProviderIssue.at)}");
+    expect(homeSource).toContain("no Entry Locator or Entry Forger signal was created");
+  });
+
   it("does not reintroduce scanner-decision wording in the revised pages", () => {
     expect(homeSource).not.toContain("scanner decisions");
     expect(homeSource).not.toContain("scanner candidates reference");

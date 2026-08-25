@@ -1138,6 +1138,6 @@
 - [x] Monitor the next five-minute scanner cycles for Entry Forger activity, source attribution, and delivery outcomes without changing scanner cadence or trading safeguards.
 - [x] Add a dashboard comparison filter for Entry Locator versus Entry Forger signal frequency and resolved outcomes using persisted source data.
 
-- [ ] Verify the configured Twelve Data key failover and quota response path without exposing credentials or changing the five-minute cadence.
-- [ ] Add a dashboard provider-quota warning showing affected interval, timestamp, and scanner impact when recent cycles lack market data.
-- [ ] Review fresh scanner-cycle outcomes in the Locator-versus-Forger comparison after provider data becomes available.
+- [x] Verify the configured Twelve Data key failover and quota response path without exposing credentials or changing the five-minute cadence; all five keys were recognized by Twelve Data but returned daily-credit HTTP 429 responses.
+- [x] Add a dashboard provider-quota warning showing affected interval, timestamp, and scanner impact when recent cycles lack market data.
+- [x] Review fresh post-release scanner cycles in the Locator-versus-Forger comparison; cycles at 18:00, 18:05, and 18:10 UTC remained marketData=unavailable because all five provider keys were quota-exhausted, so no new source outcomes were available to compare.

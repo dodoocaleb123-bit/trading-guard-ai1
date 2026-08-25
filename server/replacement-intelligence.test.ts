@@ -131,6 +131,18 @@ describe("replacement PDF-derived intelligence", () => {
     expect(decision.adjustments).toContain("Target/stop geometry");
   });
 
+  it("selects a deterministic pullback entry when current-price range geometry is too extended", () => {
+    const context = {
+      volatility: { atr: 1 },
+      supportResistance: { support: 95, resistance: 102, supportZone: [95, 96] as [number, number], resistanceZone: [101, 102] as [number, number] },
+      breakoutState: "WITHIN_RANGE" as const,
+    } as any;
+    const levels = deriveStructureAwareLevels("EUR/USD", 100, "BUY", context);
+    expect(levels.selectedRiskReward).toBeGreaterThanOrEqual(2);
+    expect(levels.entry).toBeLessThan(100);
+    expect(levels.targetDescription).toContain("pullback entry");
+  });
+
   it("uses the next untouched zone for a confirmed breakout and rejects unconfirmed continuation", () => {
     const base = calculateMarketContext(candles)!;
     const entry = base.supportResistance.resistance + base.volatility.atr + 0.01;

@@ -30,9 +30,11 @@ export function buildSetupIdentity(asset: string, timeframe: string, direction: 
   return `${asset}:${timeframe}:${direction}:${marketRegime ?? "UNKNOWN"}:${breakoutState ?? "UNKNOWN"}`;
 }
 
-export function resolveOutcome(direction: "BUY" | "SELL", price: number, stop: number, target: number, high = price, low = price): "WIN" | "LOSS" | null {
+export function resolveOutcome(direction: "BUY" | "SELL", price: number, stop: number, target: number, high = price, low = price, entry = price): "WIN" | "LOSS" | null {
   const observedHigh = Number.isFinite(high) ? high : price;
   const observedLow = Number.isFinite(low) ? low : price;
+  const entered = direction === "BUY" ? observedHigh >= entry : observedLow <= entry;
+  if (!entered) return null;
   const win = direction === "BUY" ? observedHigh >= target : observedLow <= target;
   const loss = direction === "BUY" ? observedLow <= stop : observedHigh >= stop;
   return win ? "WIN" : loss ? "LOSS" : null;
@@ -451,7 +453,7 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
       const useIntrabarRange = shouldUseIntrabarRange(signal.openedAt, candleStartedAt);
       const observedHigh = useIntrabarRange ? Number(market.high) : price;
       const observedLow = useIntrabarRange ? Number(market.low) : price;
-      const status = resolveOutcome(signal.direction, price, stop, target, observedHigh, observedLow);
+      const status = resolveOutcome(signal.direction, price, stop, target, observedHigh, observedLow, Number(signal.entry));
       if (!status) continue;
       const resolutionCandleAt = candleStartedAt ? new Date(candleStartedAt.includes("T") ? candleStartedAt : `${candleStartedAt.replace(" ", "T")}Z`) : null;
       const note = `Closed from live ${signal.asset} ${signal.timeframe} price ${price}; evidence candle ${resolutionCandleAt?.toISOString() ?? "unavailable"}; intrabar range ${useIntrabarRange ? "used" : "not used"}.`;

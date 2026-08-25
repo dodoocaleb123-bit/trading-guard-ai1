@@ -65,6 +65,11 @@ describe("TradingGuardAI market helpers", () => {
     expect(resolveOutcome("SELL", 98, 105, 90)).toBeNull();
   });
 
+  it("does not resolve a planned entry before price reaches the entry", () => {
+    expect(resolveOutcome("BUY", 99, 95, 104, 100.5, 99, 101)).toBeNull();
+    expect(resolveOutcome("SELL", 101, 105, 96, 101, 100.5, 99)).toBeNull();
+  });
+
   it("resolves intrabar target touches from candle high and low", () => {
     expect(resolveOutcome("BUY", 99, 95, 100, 101, 98)).toBe("WIN");
     expect(resolveOutcome("SELL", 91, 105, 90, 92, 89)).toBe("WIN");

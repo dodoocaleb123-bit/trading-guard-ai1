@@ -1063,3 +1063,12 @@
 - [x] Verify whether missing five-minute snapshot windows, rather than slow Twelve Data calls, are the primary scanner reliability problem; measure scheduled, started, finished, and market-data timestamps separately.
 
 - [x] Continue monitoring the managed Heartbeat scheduler as best-effort five-minute execution; do not enable Reserved Hosting or add a duplicate scanner worker.
+
+- [x] Diagnose whether the latest XAU/USD snapshots show a confirmed support/resistance breakout and explain the resulting Entry Locator qualification state.
+
+- [x] Audit whether the v4 Entry Locator is over-conservative and misses valuable setups; quantify WAITING reasons and design a safer, less restrictive qualification path without abandoning exact 1:2/1:3 paper geometry.
+
+- [x] Implement deterministic pullback-entry qualification when current-price geometry is extended but a structurally valid 1:2/1:3 entry exists.
+- [x] Implement confirmed-breakout re-anchoring and explicit range-reaction qualification without fabricating targets.
+- [x] Persist near-miss rejection reasons for audit without emitting a signal, and preserve contradiction/duplicate safeguards.
+- [x] Add regression coverage and stored-evaluation simulation for the balanced locator before enabling Telegram paper signals.

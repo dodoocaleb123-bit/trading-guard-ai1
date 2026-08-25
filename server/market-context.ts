@@ -127,8 +127,13 @@ export function calculateMarketContext(values: Array<Record<string, unknown>>): 
   const atr = trueRanges.reduce((sum, value) => sum + value, 0) / trueRanges.length;
   const priorWindow = candles.slice(Math.max(0, candles.length - recentLookback * 2), Math.max(0, candles.length - recentLookback));
   const priorAtr = priorWindow.length ? priorWindow.reduce((sum, candle) => sum + (candle.high - candle.low), 0) / priorWindow.length : atr;
-  const rangeHigh = Math.max(...recent.map((candle) => candle.high));
-  const rangeLow = Math.min(...recent.map((candle) => candle.low));
+  // Build decision zones from completed candles before the latest candle. Including
+  // the current candle made `latest.close > rangeHigh` and `latest.close < rangeLow`
+  // impossible because a candle's close cannot exceed its own high or low.
+  const completedRecent = recent.slice(0, -1);
+  const rangeSource = completedRecent.length >= 2 ? completedRecent : recent;
+  const rangeHigh = Math.max(...rangeSource.map((candle) => candle.high));
+  const rangeLow = Math.min(...rangeSource.map((candle) => candle.low));
   const priorCandles = candles.slice(0, Math.max(0, candles.length - recentLookback));
   const nextResistance = priorCandles.filter((candle) => candle.high > rangeHigh).reduce<number | null>((nearest, candle) => nearest == null ? candle.high : Math.min(nearest, candle.high), null);
   const nextSupport = priorCandles.filter((candle) => candle.low < rangeLow).reduce<number | null>((nearest, candle) => nearest == null ? candle.low : Math.max(nearest, candle.low), null);

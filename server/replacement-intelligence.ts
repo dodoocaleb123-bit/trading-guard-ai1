@@ -205,6 +205,7 @@ export function selectAdaptiveRiskReward(riskDistance: number, availableReward: 
 }
 
 type StructureAwareLevels = {
+  entry: number;
   stopLoss: number;
   takeProfit: number;
   riskDistance: number;
@@ -236,39 +237,52 @@ export function deriveStructureAwareLevels(asset: string | undefined, entry: num
   const volatilityFloor = Math.abs(entry * 0.0012);
   const minimumRisk = Math.max(atr, volatilityFloor);
   const buffer = Math.max(atr * 0.25, Math.abs(entry) * 0.0002);
-  const structuralStop = direction === "BUY" ? context.supportResistance.support - buffer : context.supportResistance.resistance + buffer;
-  const structureDistance = direction === "BUY" ? entry - structuralStop : structuralStop - entry;
-  const riskDistance = Math.max(minimumRisk, Number.isFinite(structureDistance) && structureDistance > 0 ? structureDistance : minimumRisk);
-  const stopLoss = Number((direction === "BUY" ? entry - riskDistance : entry + riskDistance).toFixed(precision));
   const breakoutStateMatches = adaptive && (direction === "BUY" ? context.breakoutState === "ABOVE_RESISTANCE" : context.breakoutState === "BELOW_SUPPORT");
   const breakoutConfirmed = adaptive && breakoutIsConfirmed(entry, direction, context, buffer);
   const breakoutBoundary = direction === "BUY" ? context.nextResistance : context.nextSupport;
   const rangeBoundary = direction === "BUY" ? context.supportResistance.resistance : context.supportResistance.support;
-  const targetBoundary = breakoutStateMatches && breakoutConfirmed ? breakoutBoundary : rangeBoundary;
   const clearance = Math.max(atr * 0.1, Math.abs(entry) * 0.0001);
-  const availableReward = targetBoundary == null ? 0 : direction === "BUY" ? targetBoundary - entry - clearance : entry - targetBoundary - clearance;
-  const selectedRiskReward = !adaptive ? 2 : breakoutStateMatches && !breakoutConfirmed ? null : selectAdaptiveRiskReward(riskDistance, availableReward);
-  const effectiveRiskReward = selectedRiskReward ?? 1;
-  const takeProfit = Number((direction === "BUY" ? entry + riskDistance * effectiveRiskReward : entry - riskDistance * effectiveRiskReward).toFixed(precision));
+  const makeLevels = (candidateEntry: number, mode: "current" | "pullback") => {
+    const structuralStop = direction === "BUY" ? context.supportResistance.support - buffer : context.supportResistance.resistance + buffer;
+    const structureDistance = direction === "BUY" ? candidateEntry - structuralStop : structuralStop - candidateEntry;
+    const riskDistance = Math.max(minimumRisk, Number.isFinite(structureDistance) && structureDistance > 0 ? structureDistance : minimumRisk);
+    const targetBoundary = breakoutStateMatches && breakoutConfirmed ? breakoutBoundary : rangeBoundary;
+    const availableReward = targetBoundary == null ? 0 : direction === "BUY" ? targetBoundary - candidateEntry - clearance : candidateEntry - targetBoundary - clearance;
+    const selectedRiskReward = !adaptive ? 2 : breakoutStateMatches && !breakoutConfirmed ? null : selectAdaptiveRiskReward(riskDistance, availableReward);
+    const effectiveRiskReward = selectedRiskReward ?? 1;
+    const stopLoss = Number((direction === "BUY" ? candidateEntry - riskDistance : candidateEntry + riskDistance).toFixed(precision));
+    const takeProfit = Number((direction === "BUY" ? candidateEntry + riskDistance * effectiveRiskReward : candidateEntry - riskDistance * effectiveRiskReward).toFixed(precision));
+    return { candidateEntry, stopLoss, takeProfit, riskDistance, selectedRiskReward, targetBoundary, mode };
+  };
+  let selected = makeLevels(entry, "current");
+  if (adaptive && selected.selectedRiskReward == null && !breakoutStateMatches) {
+    const pullbackEntry = direction === "BUY" ? context.supportResistance.supportZone[1] + buffer : context.supportResistance.resistanceZone[0] - buffer;
+    const isValidPullback = direction === "BUY" ? pullbackEntry < entry - clearance : pullbackEntry > entry + clearance;
+    if (isValidPullback) {
+      const pullback = makeLevels(pullbackEntry, "pullback");
+      if (pullback.selectedRiskReward != null) selected = pullback;
+    }
+  }
   const breakoutDescription = !adaptive
     ? "Legacy replacement geometry retains the exact 1:2 paper target."
     : breakoutStateMatches
     ? breakoutConfirmed
       ? breakoutBoundary == null ? "Confirmed breakout has no next untouched opposing zone in the supplied history; no target was fabricated." : `Confirmed ${direction === "BUY" ? "bullish" : "bearish"} breakout uses the next untouched opposing zone beyond the broken ${direction === "BUY" ? "resistance" : "support"}.`
-      : `Breakout indication is not confirmed by a directional close, momentum, candle body, and available volume; waiting instead of projecting continuation.`
-    : "Range-bound geometry uses the nearest opposing support/resistance zone.";
-  const ratioDescription = selectedRiskReward == null
+      : "Breakout indication is not confirmed by a directional close, momentum, candle body, and available volume; waiting instead of projecting continuation."
+    : selected.mode === "pullback" ? "Current-price geometry was extended; deterministic pullback entry uses the structural reaction zone." : "Range-bound geometry uses the nearest opposing support/resistance zone.";
+  const ratioDescription = selected.selectedRiskReward == null
     ? `No permitted 1:3 or 1:2 ratio fits the available cleared space after a ${Number(clearance.toFixed(precision))} clearance buffer; the setup is not eligible for emission.`
-    : `Selected the highest cleared allowed ratio of 1:${selectedRiskReward} after a ${Number(clearance.toFixed(precision))} clearance buffer.`;
+    : `Selected the highest cleared allowed ratio of 1:${selected.selectedRiskReward} after a ${Number(clearance.toFixed(precision))} clearance buffer.`;
   return {
-    stopLoss,
-    takeProfit,
-    riskDistance: Number(riskDistance.toFixed(precision)),
-    riskReward: effectiveRiskReward,
-    selectedRiskReward,
+    entry: Number(selected.candidateEntry.toFixed(precision)),
+    stopLoss: selected.stopLoss,
+    takeProfit: selected.takeProfit,
+    riskDistance: Number(selected.riskDistance.toFixed(precision)),
+    riskReward: selected.selectedRiskReward ?? 1,
+    selectedRiskReward: selected.selectedRiskReward,
     stopDescription: `Structure invalidation beyond ${direction === "BUY" ? "support" : "resistance"} with ATR buffer ${Number(buffer.toFixed(precision))}; minimum risk floor ${Number(minimumRisk.toFixed(precision))}.`,
     targetDescription: `${breakoutDescription} ${ratioDescription}`,
-    usedFallbackTarget: adaptive && selectedRiskReward == null,
+    usedFallbackTarget: adaptive && selected.selectedRiskReward == null,
   };
 }
 
@@ -380,11 +394,13 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
   const matchedComponents = matched.slice(0, 8).map((node) => ({ title: node.concept, sourceRuleIds: [], sourceConcept: node.source.passage, trigger: familyToTrigger(node.family), stance: node.contribution >= 0 ? "BUY" as const : "SELL" as const, weight: Math.max(1, Math.abs(node.contribution)), match: node.observation }));
   const explanation = `Replacement PDF-derived intelligence selected ${direction} from ${matched.length} source-linked observations: ${matched.map((node) => `${node.concept} (${node.observation})`).join("; ") || "no matched directional observations"}.${tieBreakNote ? ` ${tieBreakNote}` : ""}${lessonAdjustments.length ? ` Accepted loss-learning adjustments were applied: ${lessonAdjustments.join("; ")}.` : ""}`;
   const geometryMode = model.id === "forex-trading-combined-document-v4"
-    ? context.breakoutState !== "WITHIN_RANGE"
-      ? levels.selectedRiskReward == null
-        ? "BREAKOUT_UNCONFIRMED" as const
-        : levels.targetDescription.includes("next untouched opposing zone") ? "BREAKOUT_NEXT_ZONE" as const : "BREAKOUT_UNCONFIRMED" as const
-      : "RANGE_OPPOSING_ZONE" as const
+    ? levels.targetDescription.includes("pullback entry")
+      ? "PULLBACK_REACTION" as const
+      : context.breakoutState !== "WITHIN_RANGE"
+        ? levels.selectedRiskReward == null
+          ? "BREAKOUT_UNCONFIRMED" as const
+          : levels.targetDescription.includes("next untouched opposing zone") ? "BREAKOUT_NEXT_ZONE" as const : "BREAKOUT_UNCONFIRMED" as const
+        : "RANGE_OPPOSING_ZONE" as const
     : "LEGACY_2R" as const;
   const decisionTrace: IntelligenceDecisionTrace = {
     matchedComponents,
@@ -396,5 +412,5 @@ export function evaluateReplacementIntelligence(market: { asset?: string; close:
   const marketRegime = `${context.marketStructure}/${context.volatility.regime}/${context.breakoutState}/${alignment?.structure ?? "UNAVAILABLE"}`;
   const macroNote = (model.id === "forex-trading-combined-document-v3" || model.id === "forex-trading-combined-document-v4") ? ` Macro/fundamental layer: ${fundamentalContext?.status === "AVAILABLE" ? fundamentalContext.summary : "UNAVAILABLE; no macro direction was fabricated, so the complete v2 intelligence remains the decision base."}` : "";
   const adjustments = `${explanation} Regime-aware confluence used ${context.marketStructure} structure, ${context.volatility.regime} volatility, ${context.breakoutState} breakout state, EMA/oscillator alignment, and ${alignment?.structure ?? "UNAVAILABLE"} higher-timeframe context.${eventRiskPenalty ? ` High-impact calendar risk reduced confidence by ${eventRiskPenalty} points; event volatility may overshoot and correct.` : ""}${geometryDowngrade ? ` Adaptive target geometry did not qualify an allowed ratio, so confidence was downgraded by ${geometryDowngrade} points and the diagnostic level was not eligible for emission.` : ""} ${conflicts.length ? `Conflicts were retained for audit: ${conflicts.join("; ")}.` : "No opposing source-linked components were matched."}${lessonAdjustments.length ? ` Learning trace: ${lessonAdjustments.join("; ")}.` : " No accepted lesson adjustments matched this context."}${macroNote} Target/stop geometry: ${levels.stopDescription} ${levels.targetDescription} Source-linked replacement ${model.id.endsWith("v4") ? "v4" : model.id.endsWith("v3") ? "v3" : "v2"} is authoritative for this paper outcome; validation remains UNVALIDATED.`;
-  return { direction, entry, stopLoss, takeProfit, confidence, confluenceScore, riskReward: levels.riskReward, marketRegime, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace, fundamentalContext, setupIndicators };
+  return { direction, entry: levels.entry, stopLoss: levels.stopLoss, takeProfit: levels.takeProfit, confidence, confluenceScore, riskReward: levels.riskReward, marketRegime, ruleEvidence, ruleFindings, adjustments, buyScore: buy, sellScore: sell, score: { buy, sell, net: buy - sell }, matchedNodes: matched, conflicts, explanation, sourceTrace: matched.map((node) => node.source), decisionTrace, fundamentalContext, setupIndicators };
 }

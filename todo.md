@@ -1167,3 +1167,7 @@
 - [x] Add a dedicated live Entry Forger status panel for all watched assets and timeframes, including snapshot count, last direction, confidence, confluence, and update time.
 - [x] Add clear per-asset/timeframe Entry Forger acceptance, waiting, and rejection reasons sourced from persisted evaluator state, without changing trading safeguards.
 - [x] Add regression tests, responsive visual verification, and publish the Entry Forger dashboard update.
+
+- [x] Remove the app-side scheduler warning and recent run-history UI because scheduling is operated externally; preserve the external scanner callback and non-scheduler diagnostics.
+- [x] Update Scanner-page regression coverage and verify responsive rendering after the scheduler UI removal.
+- [x] Run full validation and publish the Scanner-page cleanup.

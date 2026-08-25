@@ -7,7 +7,7 @@ const homeSource = readFileSync(fileURLToPath(new URL("./Home.tsx", import.meta.
 describe("dashboard terminology", () => {
   it("describes the scanner as a raw market-data collector", () => {
     expect(homeSource).toContain('title="Market data collector"');
-    expect(homeSource).toContain("The scanner collects raw");
+    expect(homeSource).toContain("The external scheduler triggers collection of raw");
     expect(homeSource).toContain("Pause data collection");
   });
 
@@ -42,6 +42,13 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("Latest affected interval");
     expect(homeSource).toContain("detected {formatDateTime(data.latestProviderIssue.at)}");
     expect(homeSource).toContain("no Entry Locator or Entry Forger signal was created");
+  });
+
+  it("keeps scheduler-operated diagnostics out of the Scanner page", () => {
+    expect(homeSource).not.toContain("<ScannerCadenceDiagnostics />");
+    expect(homeSource).not.toContain("Recent app-side run history");
+    expect(homeSource).not.toContain("Activate 5-min schedule");
+    expect(homeSource).toContain("External scheduler controls the collection cadence");
   });
 
   it("does not reintroduce scanner-decision wording in the revised pages", () => {

@@ -1186,3 +1186,9 @@
 - [x] Investigate the GBP/USD 15MIN Entry Forger signal shown as PENDING despite its old sent time, including persisted candles, outcome data, and Telegram delivery state.
 - [x] If confirmed resolved, mark the GBP/USD 15MIN signal with the correct outcome, deliver one deduplicated Telegram reply, and release its obsolete lock.
 - [x] Add regression coverage and publish the GBP/USD stale-outcome correction.
+
+- [x] Perform a complete head-to-toe diagnosis covering source/configuration, schema/database, routes/authentication, scanner and outcome tracking, Telegram delivery, chat/audit flows, frontend rendering, tests, build, and runtime health.
+- [x] Repair every verified defect found during the diagnosis and add regression coverage for each repair.
+- [x] Repeat the complete diagnosis after repairs until one full pass finishes without a newly encountered error or problem, then publish the clean checkpoint.
+
+- [x] Move the ignored pnpm patched-dependency and override settings from package.json into the supported workspace configuration, then re-run all validation.

@@ -1182,3 +1182,7 @@
 - [x] Investigate BTC/USD 15MIN signal # associated with the screenshot and verify whether its PENDING state conflicts with stop-loss evidence.
 - [x] If confirmed stale, mark the BTC/USD 15MIN paper signal LOSS, deliver the appropriate Telegram outcome reply once, and release its asset/timeframe block without altering unrelated records.
 - [x] Add regression coverage, verify the cleaned dashboard, and publish the correction.
+
+- [x] Investigate the GBP/USD 15MIN Entry Forger signal shown as PENDING despite its old sent time, including persisted candles, outcome data, and Telegram delivery state.
+- [x] If confirmed resolved, mark the GBP/USD 15MIN signal with the correct outcome, deliver one deduplicated Telegram reply, and release its obsolete lock.
+- [x] Add regression coverage and publish the GBP/USD stale-outcome correction.

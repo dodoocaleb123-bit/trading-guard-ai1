@@ -1163,3 +1163,7 @@
 - [x] Execute confirmed option B purge: delete named v1/v2/v3 signals, the 309 unlabeled legacy signals, and only their linked Telegram-delivery and strategy-lesson dependents; preserve all v4 records.
 - [x] Verify post-purge counts, current v4 tracking and Telegram outcome delivery, analytics queries, and dashboard visibility.
 - [x] Hide empty legacy v1–v3 analytics sections so the user interface reflects the v4-only dataset after the confirmed purge.
+
+- [x] Add a dedicated live Entry Forger status panel for all watched assets and timeframes, including snapshot count, last direction, confidence, confluence, and update time.
+- [x] Add clear per-asset/timeframe Entry Forger acceptance, waiting, and rejection reasons sourced from persisted evaluator state, without changing trading safeguards.
+- [x] Add regression tests, responsive visual verification, and publish the Entry Forger dashboard update.

@@ -220,6 +220,28 @@ export const entryLocatorStates = mysqlTable("entry_locator_states", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const entryForgerStates = mysqlTable("entry_forger_states", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  asset: varchar("asset", { length: 32 }).notNull(),
+  timeframe: varchar("timeframe", { length: 16 }).notNull(),
+  status: mysqlEnum("status", ["WAITING", "READY", "EMITTED", "REJECTED"]).default("WAITING").notNull(),
+  snapshotCount: int("snapshotCount").default(0).notNull(),
+  lastSnapshotAt: timestamp("lastSnapshotAt"),
+  lastDirection: mysqlEnum("lastDirection", ["BUY", "SELL"]),
+  lastConfidence: decimal("lastConfidence", { precision: 5, scale: 2 }),
+  lastConfluence: decimal("lastConfluence", { precision: 5, scale: 2 }),
+  reason: text("reason"),
+  targetBoundary: decimal("targetBoundary", { precision: 24, scale: 10 }),
+  targetDistance: decimal("targetDistance", { precision: 24, scale: 10 }),
+  riskReward: decimal("riskReward", { precision: 5, scale: 2 }),
+  stateJson: mediumtext("stateJson"),
+  lastEmittedAt: timestamp("lastEmittedAt"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userAssetTimeframeUnique: unique("entry_forger_states_user_asset_timeframe_unique").on(table.userId, table.asset, table.timeframe),
+  updatedAtIdx: index("entry_forger_states_updated_at_idx").on(table.updatedAt),
+}));
 export const appSettings = mysqlTable("app_settings", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().unique(),

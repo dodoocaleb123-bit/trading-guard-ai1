@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, ownerAlertLedger, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryForgerStates, entryLocatorStates, generatedSignals, InsertUser, ownerAlertLedger, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
 import { summarizeScannerCadence } from "./scheduler-status";
@@ -280,6 +280,32 @@ export async function listEntryLocatorStates(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(entryLocatorStates).where(eq(entryLocatorStates.userId, userId)).orderBy(desc(entryLocatorStates.updatedAt));
+}
+
+export async function getEntryForgerState(userId: number, asset: string, timeframe: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(entryForgerStates).where(and(eq(entryForgerStates.userId, userId), eq(entryForgerStates.asset, asset), eq(entryForgerStates.timeframe, timeframe))).limit(1);
+  return rows[0];
+}
+
+export async function saveEntryForgerState(input: { userId: number; asset: string; timeframe: string; status: "WAITING" | "READY" | "EMITTED" | "REJECTED"; snapshotCount: number; lastSnapshotAt?: Date | null; lastDirection?: "BUY" | "SELL" | null; lastConfidence?: string | null; lastConfluence?: string | null; reason: string; targetBoundary?: number | null; targetDistance?: number | null; riskReward?: number | null; stateJson?: string | null; lastEmittedAt?: Date | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const existing = await getEntryForgerState(input.userId, input.asset, input.timeframe);
+  const values = { ...input, lastSnapshotAt: input.lastSnapshotAt ?? null, lastDirection: input.lastDirection ?? null, lastConfidence: input.lastConfidence ?? null, lastConfluence: input.lastConfluence ?? null, targetBoundary: input.targetBoundary == null ? null : String(input.targetBoundary), targetDistance: input.targetDistance == null ? null : String(input.targetDistance), riskReward: input.riskReward == null ? null : String(input.riskReward), stateJson: input.stateJson ?? null, lastEmittedAt: input.lastEmittedAt ?? null };
+  if (existing) {
+    await db.update(entryForgerStates).set({ ...values, lastEmittedAt: input.lastEmittedAt ?? existing.lastEmittedAt ?? null }).where(eq(entryForgerStates.id, existing.id));
+    return { ...existing, ...values };
+  }
+  const result = await db.insert(entryForgerStates).values(values);
+  return { id: Number(result[0].insertId), ...values };
+}
+
+export async function listEntryForgerStates(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(entryForgerStates).where(eq(entryForgerStates.userId, userId)).orderBy(desc(entryForgerStates.updatedAt));
 }
 
 export async function listAuditTrades(userId: number) {

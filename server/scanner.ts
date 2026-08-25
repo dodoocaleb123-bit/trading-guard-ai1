@@ -1,12 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_FORGER_V4_GENERATION_MODE, ENTRY_LOCATOR_V4_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, claimOwnerAlert, listAcceptedStrategyLessons, listFailedOutcomeDeliveries, listIntelligenceComponents, listOpenCurrentV4Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, markOwnerAlertNotified, supersedeGeneratedSignal, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_FORGER_V4_GENERATION_MODE, ENTRY_LOCATOR_V4_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, claimOwnerAlert, listAcceptedStrategyLessons, listFailedOutcomeDeliveries, listIntelligenceComponents, listOpenCurrentV4Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryForgerState, saveEntryLocatorState, markOwnerAlertNotified, supersedeGeneratedSignal, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
 import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { advanceEntryLocator, countStrongSetupIndicators, hasBreakoutConfirmationTransition, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
-import { canUseEntryForgerFallback, deriveEntryForgerLevels } from "./entry-forger";
+import { buildEntryForgerDashboardState, canUseEntryForgerFallback, deriveEntryForgerLevels } from "./entry-forger";
 import { describePaperSignalQuality, hasMinimumPaperSignalQuality } from "./paper-signal-quality";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
@@ -332,17 +332,39 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
       cooldownKey,
     });
     try {
+      const saveForgerState = async (status: "WAITING" | "READY" | "EMITTED" | "REJECTED", reason: string, details: { targetDistance?: number | null; riskReward?: number | null } = {}) => {
+        const dashboardState = buildEntryForgerDashboardState(status, reason, { targetBoundary: observation.targetBoundary, targetDistance: details.targetDistance ?? null, riskReward: details.riskReward ?? null });
+        await saveEntryForgerState({ userId, asset, timeframe, status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null, lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), reason, targetBoundary: observation.targetBoundary, targetDistance: details.targetDistance ?? null, riskReward: details.riskReward ?? null, stateJson: JSON.stringify(dashboardState) });
+      };
       const locatorGeometryDenied = /no allowed ratio fits|no allowed adaptive ratio|adaptive target geometry did not qualify/i.test(`${gated.adjustments ?? ""} ${locatorResult.reason}`);
       const eligibleForgerFallback = canUseEntryForgerFallback({ locatorReady: locatorReadyForEmission, geometryDenied: locatorGeometryDenied, v4Active: replacementModel.id.endsWith("v4"), strategyApproved: shouldNotifyScannerSignal(gated.verdict), qualityApproved: paperSignalQualityApproved, hasCompleteLevels: gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null, activeSignal: Boolean(activeSignal) });
       if (!locatorReadyForEmission && !eligibleForgerFallback) {
+        const forgerStatus = !paperSignalQualityApproved || !shouldNotifyScannerSignal(gated.verdict) || !(gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null) ? "REJECTED" as const : "WAITING" as const;
+        const forgerReason = !paperSignalQualityApproved
+          ? `Entry Forger rejected by the shared quality gate: ${paperSignalQualityReason}`
+          : !shouldNotifyScannerSignal(gated.verdict)
+            ? `Entry Forger rejected because the strategy judgment was ${gated.verdict}; only APPROVED judgments can reach Telegram.`
+            : activeSignal
+              ? "Entry Forger is waiting because this asset/timeframe already has an active v4 paper setup."
+              : !(gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null)
+                ? "Entry Forger rejected because the v4 candidate did not contain complete executable levels."
+                : `Entry Forger is waiting for an Entry Locator geometry denial before using the target-first fallback. ${locatorResult.reason}`;
+        await saveForgerState(forgerStatus, forgerReason);
         console.info(`[Scanner] ${asset} ${timeframe} entry locator waiting: ${locatorResult.reason}`);
         continue;
       }
+      if (eligibleForgerFallback) {
+        await saveForgerState("READY", "Entry Locator denied only the allowed geometry; Entry Forger is eligible to evaluate a target-first fallback.");
+      } else if (locatorReadyForEmission) {
+        await saveForgerState("WAITING", "Entry Locator qualified this setup; Entry Forger remains inactive because Locator has precedence.");
+      }
       if (!shouldNotifyScannerSignal(gated.verdict)) {
+        await saveForgerState("REJECTED", `Entry Forger rejected because the strategy judgment was ${gated.verdict}; only APPROVED judgments can reach Telegram.`);
         console.info(`[Scanner] ${asset} ${timeframe} candidate rejected by strategy gate: ${gated.adjustments}`);
         continue;
       }
       if (!gated.direction || gated.entry == null || gated.stopLoss == null || gated.takeProfit == null) {
+        await saveForgerState("REJECTED", "Entry Forger rejected because the v4 candidate did not contain complete executable levels.");
         console.info(`[Scanner] ${asset} ${timeframe} strategy engine returned an incomplete approved outcome; no signal sent.`);
         continue;
       }
@@ -354,6 +376,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         const canForge = adaptiveV4 && locatorGeometryDenied && paperSignalQualityApproved && !activeSignal && Boolean(gated.direction) && gated.entry != null;
         const forged = canForge ? deriveEntryForgerLevels({ entry: Number(gated.entry), direction: gated.direction as "BUY" | "SELL", targetBoundary: observation.targetBoundary, atr: market.marketContext?.volatility.atr }) : { ready: false as const, reason: "Entry Forger not eligible until Entry Locator geometry denial." };
         if (forged.ready) {
+          await saveForgerState("EMITTED", forged.reason, { targetDistance: forged.targetDistance, riskReward: forged.riskReward });
           const forgedLevels = { asset, timeframe, direction: gated.direction, entry: forged.entry, stopLoss: forged.stopLoss, takeProfit: forged.takeProfit, riskReward: forged.riskReward, confidence: gated.confidence };
           const forgedRationale = `${formatAuditResult(gated, market)} Entry Forger: ${forged.reason}`;
           const [forgedResult] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: forgedLevels.direction as "BUY" | "SELL", entry: String(forgedLevels.entry), stopLoss: String(forgedLevels.stopLoss), takeProfit: String(forgedLevels.takeProfit), riskReward: forgedLevels.riskReward.toFixed(2), confidence: String(forgedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale: forgedRationale, intelligenceVersion: replacementModel.id, generationMode: ENTRY_FORGER_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify([...(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), "ENTRY FORGER: target-first fallback after Entry Locator geometry denial"]), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
@@ -366,6 +389,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
           console.info(`[Scanner] ${asset} ${timeframe} emitted an Entry Forger fallback after Entry Locator denial.`);
           continue;
         }
+        await saveForgerState("REJECTED", `Entry Forger did not qualify: ${forged.reason}`);
         console.info(`[Scanner] ${asset} ${timeframe} has no allowed adaptive ratio; Entry Forger did not qualify: ${forged.reason}`);
         continue;
       }
@@ -375,11 +399,13 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
           ? compareStrongerSameDirectionSetup(activeSignal, { direction: gated.direction, confidence: gated.confidence, confluenceScore: gated.confluenceScore, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: approvedLevels.riskReward, marketRegime: gated.marketRegime, ruleEvidence: gated.ruleEvidence, decisionTrace: gated.decisionTrace })
           : null;
         if (!upgrade || !activeSignal) {
+          await saveForgerState("WAITING", "Entry Forger is waiting because an active v4 paper setup already occupies this asset/timeframe.");
           console.info(`[Scanner] ${asset} ${timeframe} already has an active paper setup; current candidate evaluated immediately but duplicate suppressed.`);
           continue;
         }
         const upgradeDedupeKey = buildUpgradeTelegramDedupeKey(activeSignal.id, upgrade.fingerprint);
         if (await hasTelegramDelivery(upgradeDedupeKey)) {
+          await saveForgerState("WAITING", "Entry Forger is waiting; the stronger Locator replacement for this active setup was already delivered.");
           console.info(`[Scanner] ${asset} ${timeframe} stronger setup upgrade already delivered; duplicate suppressed.`);
           continue;
         }
@@ -395,6 +421,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         await mirrorToSupabase("generated_signals", { user_id: userId, ...approvedLevels, signal_id: replacementSignalId, status: "PENDING", rationale: formatAuditResult(gated, market), confluence_score: gated.confluenceScore ?? 0 });
         created.push({ id: replacementSignalId, ...approvedLevels });
         createdSignalIds.add(replacementSignalId);
+        await saveForgerState("WAITING", "Entry Locator emitted a stronger replacement; Entry Forger remains inactive because Locator has precedence.", { riskReward: approvedLevels.riskReward });
         console.info(`[Scanner] ${asset} ${timeframe} emitted a stronger setup upgrade linked to signal #${activeSignal.id}.`);
         continue;
       }
@@ -406,6 +433,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
       await recordTelegramDelivery({ userId, signalId: signal.id, kind: "SIGNAL", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: buildSignalDeliveryDedupeKey(signal.id), error: delivery.error });
       created.push(signal);
       createdSignalIds.add(signal.id);
+      await saveForgerState("WAITING", "Entry Locator emitted this setup; Entry Forger remains inactive because Locator has precedence.", { riskReward: approvedLevels.riskReward });
     } catch (error) {
       console.warn(`[Scanner] ${asset} ${timeframe} skipped:`, error instanceof Error ? error.message : error);
     }

@@ -49,6 +49,14 @@ describe("dashboard terminology", () => {
     expect(homeSource).not.toContain("scanner candidates reference");
   });
 
+  it("exposes the live Entry Forger status and decision-reason panel", () => {
+    expect(homeSource).toContain("trpc.intelligence.entryForger.useQuery(undefined, LIVE_QUERY_OPTIONS)");
+    expect(homeSource).toContain(">Entry Forger</CardTitle>");
+    expect(homeSource).toContain("Forger decision");
+    expect(homeSource).toContain("Target boundary:");
+    expect(homeSource).toContain("Entry Locator keeps precedence.");
+  });
+
   it("hides empty legacy analytics histories after the purge", () => {
     expect(homeSource).toContain("const visibleVersions = (stats.data?.versions ?? []).filter((version) => version.overall.generated > 0)");
     expect(homeSource).toContain("const visibleVersions = (query.data?.versions ?? []).filter((version) => groups.some");

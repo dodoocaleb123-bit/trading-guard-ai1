@@ -1,5 +1,18 @@
 export type EntryForgerDirection = "BUY" | "SELL";
 
+export type EntryForgerDashboardState = {
+  status: "WAITING" | "READY" | "EMITTED" | "REJECTED";
+  reason: string;
+  targetBoundary: number | null;
+  targetDistance: number | null;
+  riskReward: number | null;
+  updatedAt: string;
+};
+
+export function buildEntryForgerDashboardState(status: EntryForgerDashboardState["status"], reason: string, details: Partial<Omit<EntryForgerDashboardState, "status" | "reason" | "updatedAt">> = {}, updatedAt = new Date()) {
+  return { status, reason, targetBoundary: details.targetBoundary ?? null, targetDistance: details.targetDistance ?? null, riskReward: details.riskReward ?? null, updatedAt: updatedAt.toISOString() } satisfies EntryForgerDashboardState;
+}
+
 export type EntryForgerLevels = {
   ready: true;
   entry: number;

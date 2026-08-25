@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canUseEntryForgerFallback, deriveEntryForgerLevels } from "./entry-forger";
+import { buildEntryForgerDashboardState, canUseEntryForgerFallback, deriveEntryForgerLevels } from "./entry-forger";
 import { formatApprovedTelegramMessage, formatOutcomeTelegramMessage } from "./integrations";
 
 describe("Entry Forger", () => {
@@ -46,6 +46,11 @@ describe("Entry Forger", () => {
     expect(canUseEntryForgerFallback({ ...base, qualityApproved: false })).toBe(false);
     expect(canUseEntryForgerFallback({ ...base, hasCompleteLevels: false })).toBe(false);
     expect(canUseEntryForgerFallback({ ...base, activeSignal: true })).toBe(false);
+  });
+
+  it("serializes dashboard status and target diagnostics without changing fallback rules", () => {
+    const state = buildEntryForgerDashboardState("READY", "Entry Locator denied only the allowed geometry; Entry Forger is eligible.", { targetBoundary: 1.2, targetDistance: 0.01, riskReward: 2 }, new Date("2026-08-25T21:00:00.000Z"));
+    expect(state).toEqual({ status: "READY", reason: "Entry Locator denied only the allowed geometry; Entry Forger is eligible.", targetBoundary: 1.2, targetDistance: 0.01, riskReward: 2, updatedAt: "2026-08-25T21:00:00.000Z" });
   });
 
   it("labels initial and resolved messages by signal source", () => {

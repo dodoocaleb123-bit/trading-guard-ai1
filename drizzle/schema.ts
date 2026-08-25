@@ -127,6 +127,8 @@ export const telegramDeliveries = mysqlTable("telegram_deliveries", {
   telegramMessageId: varchar("telegramMessageId", { length: 64 }),
   dedupeKey: varchar("dedupeKey", { length: 255 }).notNull().unique(),
   error: text("error"),
+  retryCount: int("retryCount").default(0).notNull(),
+  lastRetryAt: timestamp("lastRetryAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   deliveredAt: timestamp("deliveredAt"),
 });

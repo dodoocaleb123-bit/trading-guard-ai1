@@ -292,8 +292,10 @@ export async function listAuditTrades(userId: number) {
 export async function recordTelegramDelivery(input: { userId: number; signalId?: number; auditTradeId?: number; kind: "SIGNAL" | "AUDIT" | "OUTCOME" | "SUMMARY" | "REASON" | "ADJUSTMENT"; status: "DELIVERED" | "FAILED"; telegramMessageId?: string; dedupeKey: string; error?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const deliveredAt = input.status === "DELIVERED" ? new Date() : null;
-  await db.insert(telegramDeliveries).values({ ...input, deliveredAt }).onDuplicateKeyUpdate({ set: { status: input.status, telegramMessageId: input.telegramMessageId ?? null, error: input.error ?? null, deliveredAt } });
+  const now = new Date();
+  const deliveredAt = input.status === "DELIVERED" ? now : null;
+  const isOutcome = input.kind === "OUTCOME";
+  await db.insert(telegramDeliveries).values({ ...input, deliveredAt, retryCount: isOutcome ? 1 : 0, lastRetryAt: isOutcome ? now : null }).onDuplicateKeyUpdate({ set: { status: input.status, telegramMessageId: input.telegramMessageId ?? null, error: input.error ?? null, deliveredAt, retryCount: isOutcome ? sql`${telegramDeliveries.retryCount} + 1` : sql`${telegramDeliveries.retryCount}`, lastRetryAt: isOutcome ? now : sql`${telegramDeliveries.lastRetryAt}` } });
 }
 
 export async function listPaperTradeAdjustments(userId: number, limit = 100) {
@@ -423,11 +425,16 @@ export function summarizeDeliveryCounts(signals: Array<{ status: string }>, audi
 
 export async function getSignalDeliverySummary(userId: number) {
   const db = await getDb();
-  if (!db) return { ...summarizeDeliveryCounts([], [], []), deliveryHealth: summarizeTelegramDeliveryHealth([]) };
+  if (!db) return { ...summarizeDeliveryCounts([], [], []), deliveryHealth: summarizeTelegramDeliveryHealth([]), staleOutcomeFailures: [] };
   const signals = await db.select().from(generatedSignals).where(eq(generatedSignals.userId, userId));
   const audits = await db.select().from(auditTrades).where(eq(auditTrades.userId, userId));
   const deliveries = await db.select().from(telegramDeliveries).where(eq(telegramDeliveries.userId, userId));
-  return { ...summarizeDeliveryCounts(signals, audits, deliveries), deliveryHealth: summarizeTelegramDeliveryHealth(deliveries) };
+  const staleSince = new Date(Date.now() - OUTCOME_RETRY_WINDOW_MINUTES * 60_000);
+  const staleOutcomeFailures = deliveries.filter((delivery) => delivery.kind === "OUTCOME" && delivery.status === "FAILED" && delivery.createdAt < staleSince).slice(0, 25).map((delivery) => {
+    const signal = signals.find((candidate) => candidate.id === delivery.signalId);
+    return { deliveryId: delivery.id, signalId: delivery.signalId, asset: signal?.asset ?? "—", timeframe: signal?.timeframe ?? "—", status: signal?.status ?? "—", retryCount: delivery.retryCount ?? 0, error: delivery.error ?? "Unknown delivery failure", createdAt: delivery.createdAt };
+  });
+  return { ...summarizeDeliveryCounts(signals, audits, deliveries), deliveryHealth: summarizeTelegramDeliveryHealth(deliveries), staleOutcomeFailures };
 }
 
 export async function getSettings(userId: number) {

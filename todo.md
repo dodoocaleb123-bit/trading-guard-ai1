@@ -1116,3 +1116,7 @@
 - [x] Investigate and stop repeated XAU/USD 15MIN WIN Telegram notifications while preserving the underlying paper outcome and audit trail.
 
 - [x] Stop stale historical Telegram outcome failures, especially old HTTP 429 rows, from being retried on every five-minute scanner run; preserve their FAILED audit records and allow only recent retryable failures.
+
+- [x] Verify the next five-minute scanner cycle does not repeat the resolved XAU/USD WIN outcome: the post-fix cycle recorded no new XAU/USD 15MIN outcome delivery and no retry log.
+- [x] Add durable Telegram outcome retry-attempt tracking with bounded retry visibility.
+- [x] Add a dashboard review control for stale failed Telegram outcome deliveries without changing their audit records.

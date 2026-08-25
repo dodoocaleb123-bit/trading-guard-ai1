@@ -29,6 +29,25 @@ describe("scanner cadence diagnostics", () => {
     expect(result.duplicateSuppressed).toBe(1);
   });
 
+  it("classifies the latest Twelve Data quota issue by interval and source", () => {
+    const result = summarizeScannerCadence([
+      { id: 10, runKey: "trading-guard-scanner:10", taskUid: "external-cron-job", startedAt: "2026-08-25T17:00:00.000Z", status: "SUCCEEDED", marketData: "unavailable", error: "Twelve Data 15min unavailable: Request failed with status code 429 | Twelve Data 1h unavailable: Request failed with status code 429" },
+    ]);
+    expect(result.providerUnavailableCycles).toBe(1);
+    expect(result.latestProviderIssue).toMatchObject({ provider: "Twelve Data", intervals: ["15min", "1h"], at: "2026-08-25T17:00:00.000Z", source: "EXTERNAL_TRIGGER" });
+    expect(result.latestProviderIssue?.message).toContain("429");
+  });
+
+  it("keeps the latest provider issue historical when a later cycle is available", () => {
+    const result = summarizeScannerCadence([
+      { id: 10, runKey: "trading-guard-scanner:10", taskUid: "external-cron-job", startedAt: "2026-08-25T17:00:00.000Z", status: "SUCCEEDED", marketData: "unavailable", error: "Twelve Data 15min unavailable: quota" },
+      { id: 11, runKey: "trading-guard-scanner:11", taskUid: "external-cron-job", startedAt: "2026-08-25T17:05:00.000Z", status: "SUCCEEDED", marketData: "available", error: null },
+    ]);
+    expect(result.providerUnavailableCycles).toBe(1);
+    expect(result.latestProviderIssue?.at).toBe("2026-08-25T17:00:00.000Z");
+    expect(result.lastRunAt).toBe("2026-08-25T17:05:00.000Z");
+  });
+
   it("returns a safe empty state", () => {
     expect(summarizeScannerCadence([])).toMatchObject({ receivedCycles: 0, skippedWindows: 0, duplicateSuppressed: 0, lastRunAt: null });
   });

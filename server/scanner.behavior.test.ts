@@ -249,7 +249,10 @@ describe("scanner unavailable-market behavior", () => {
     expect(result.created).toBe(0);
     expect(result.tracked).toBe(0);
     expect(result.marketData).toBe("unavailable");
-    expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "UNAVAILABLE", error: "Twelve Data quota exhausted" });
+    expect(result.marketDataError).toContain("Twelve Data market-data window failed");
+    expect(result.marketDataError).toContain("15min unavailable");
+    expect(result.marketDataError).toContain("1h unavailable");
+    expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "UNAVAILABLE", error: "Twelve Data 15min unavailable: Twelve Data quota exhausted | Twelve Data 1h unavailable: Twelve Data quota exhausted" });
     expect(recordStrategyEngineHealth).toHaveBeenCalledWith(1, { snapshots: 0, completeResponses: 0, retries: 1, unavailableCycle: true });
     expect(insert).not.toHaveBeenCalled();
   });

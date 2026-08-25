@@ -30,7 +30,7 @@ async function executeScannerRun(taskUid: string, source: string) {
       return { ok: true, duplicate: true, runId };
     }
     const result = await scanAllUsers();
-    await finishScannerRun(runId!, { status: "SUCCEEDED", usersProcessed: result.users, createdSignals: result.created, trackedSignals: result.tracked, adjustments: result.adjustments, marketData: result.marketData });
+    await finishScannerRun(runId!, { status: "SUCCEEDED", usersProcessed: result.users, createdSignals: result.created, trackedSignals: result.tracked, adjustments: result.adjustments, marketData: result.marketData, error: result.marketDataError ?? null });
     console.info(`[Scanner] ${source} run complete: users=${result.users} created=${result.created} tracked=${result.tracked} adjustments=${result.adjustments} marketData=${result.marketData}`);
     return { ok: true, runId, ...result };
   } catch (error) {

@@ -44,7 +44,30 @@ export type ScannerCadenceRun = {
   finishedAt?: Date | string | null;
   status: string;
   duplicateCallbacks?: number | null;
+  marketData?: "available" | "unavailable" | "not-run" | string | null;
+  error?: string | null;
 };
+
+export type ScannerProviderIssue = {
+  provider: "Twelve Data";
+  intervals: string[];
+  at: Date | string;
+  source: "EXTERNAL_TRIGGER" | "HEARTBEAT";
+  message: string;
+};
+
+function providerIssueFromRun(run: ScannerCadenceRun): ScannerProviderIssue | null {
+  if (run.marketData !== "unavailable") return null;
+  const error = String(run.error ?? "").trim();
+  const intervals = Array.from(new Set(Array.from(error.matchAll(/Twelve Data (15min|1h) unavailable/gi)).map((match) => match[1].toLowerCase())));
+  return {
+    provider: "Twelve Data",
+    intervals: intervals.length ? intervals : ["15min", "1h"],
+    at: run.startedAt,
+    source: run.taskUid === "external-cron-job" ? "EXTERNAL_TRIGGER" : "HEARTBEAT",
+    message: error || "Market data was unavailable after the configured Twelve Data failover path.",
+  };
+}
 
 export function summarizeScannerCadence(runs: ScannerCadenceRun[]) {
   const byRunKey = new Map<string, ScannerCadenceRun>();
@@ -53,6 +76,7 @@ export function summarizeScannerCadence(runs: ScannerCadenceRun[]) {
     if (!prior || new Date(run.startedAt).getTime() < new Date(prior.startedAt).getTime()) byRunKey.set(run.runKey, run);
   }
   const uniqueRows = Array.from(byRunKey.values()).sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+  const providerIssues = uniqueRows.map(providerIssueFromRun).filter((issue): issue is ScannerProviderIssue => Boolean(issue));
   const intervals = uniqueRows.slice(1).map((row, index) => (new Date(row.startedAt).getTime() - new Date(uniqueRows[index].startedAt).getTime()) / 60000);
   const firstAt = uniqueRows[0] ? new Date(uniqueRows[0].startedAt).getTime() : null;
   const lastAt = uniqueRows.at(-1) ? new Date(uniqueRows.at(-1)!.startedAt).getTime() : null;
@@ -69,6 +93,8 @@ export function summarizeScannerCadence(runs: ScannerCadenceRun[]) {
     lastSource: uniqueRows.at(-1) ? (uniqueRows.at(-1)!.taskUid === "external-cron-job" ? "EXTERNAL_TRIGGER" : "HEARTBEAT") : null,
     externalCycles: uniqueRows.filter((run) => run.taskUid === "external-cron-job").length,
     heartbeatCycles: uniqueRows.filter((run) => run.taskUid !== "external-cron-job").length,
+    providerUnavailableCycles: providerIssues.length,
+    latestProviderIssue: providerIssues.at(-1) ?? null,
     runs: uniqueRows.slice(-12).reverse(),
   };
 }

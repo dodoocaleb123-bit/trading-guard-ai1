@@ -75,7 +75,7 @@ export function buildSignalDeliveryDedupeKey(signalId: number) {
 export const MAX_OUTCOME_TRACKS_PER_RUN = 4;
 export const MAX_FAILED_OUTCOME_RETRIES_PER_RUN = 2;
 
-type ScanUserResult = { created: number; tracked: number; adjustments: number; marketData: ScanMarketDataStatus };
+type ScanUserResult = { created: number; tracked: number; adjustments: number; marketData: ScanMarketDataStatus; marketDataError?: string | null };
 
 export function outcomeFallbackPrice(signal: { status: string; entry: string | number; stopLoss: string | number; takeProfit: string | number; outcomeNote?: string | null; resolutionPrice?: string | number | null }) {
   const resolutionPrice = Number(signal.resolutionPrice);
@@ -131,24 +131,28 @@ async function loadExecutableIntelligence(userId: number): Promise<ExecutableCom
 
 export async function scanUser(userId: number): Promise<ScanUserResult> {
   const db = await getDb();
-  if (!db) return { created: 0, tracked: 0, adjustments: 0, marketData: "not-run" };
+  if (!db) return { created: 0, tracked: 0, adjustments: 0, marketData: "not-run", marketDataError: null };
 
   let series15m: Map<string, MarketSeries>;
   let series1h: Map<string, MarketSeries>;
   const marketDataStartedAt = Date.now();
   console.info(`[Scanner] Market-data window started user=${userId} at=${new Date(marketDataStartedAt).toISOString()}`);
   try {
-    [series15m, series1h] = await Promise.all([
+    const batchResults = await Promise.allSettled([
       fetchMarketSeriesBatch(WATCHLIST, "15min"),
       fetchMarketSeriesBatch(WATCHLIST, "1h"),
     ]);
+    const batchLabels = ["15min", "1h"] as const;
+    const failures = batchResults.flatMap((result, index) => result.status === "rejected" ? [{ interval: batchLabels[index], message: result.reason instanceof Error ? result.reason.message : String(result.reason) }] : []);
+    if (failures.length) throw new Error(failures.map((failure) => `Twelve Data ${failure.interval} unavailable: ${failure.message}`).join(" | "));
+    [series15m, series1h] = batchResults.map((result) => (result as PromiseFulfilledResult<Map<string, MarketSeries>>).value) as [Map<string, MarketSeries>, Map<string, MarketSeries>];
     console.info(`[Scanner] Market-data window completed user=${userId} series15m=${series15m.size} series1h=${series1h.size} durationMs=${Date.now() - marketDataStartedAt} at=${new Date().toISOString()}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await updateStrategyEngineStatus(userId, { status: "UNAVAILABLE", error: message });
     await recordStrategyEngineHealth(userId, { snapshots: 0, completeResponses: 0, retries: 1, unavailableCycle: true });
     console.warn("[Scanner] Market batch unavailable; no signals created:", message);
-    return { created: 0, tracked: 0, adjustments: 0, marketData: "unavailable" };
+    return { created: 0, tracked: 0, adjustments: 0, marketData: "unavailable", marketDataError: `Twelve Data market-data window failed for 15min and/or 1h: ${message}` };
   }
   const seriesCache = new Map<string, MarketSeries>();
   series15m.forEach((series, symbol) => seriesCache.set(`${symbol}:15MIN`, series));
@@ -515,19 +519,22 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
 
 export async function scanAllUsers() {
   const db = await getDb();
-  if (!db) return { users: 0, created: 0, tracked: 0, adjustments: 0, marketData: "not-run" as const };
+  if (!db) return { users: 0, created: 0, tracked: 0, adjustments: 0, marketData: "not-run" as const, marketDataError: null };
   const allUsers = await db.select({ id: users.id }).from(users);
   let created = 0;
   let tracked = 0;
   let adjustments = 0;
   let marketData: ScanMarketDataStatus = allUsers.length ? "available" : "not-run";
+  let marketDataError: string | null = null;
   for (const user of allUsers) {
     const result = await scanUser(user.id);
     created += result.created;
     tracked += result.tracked;
     adjustments += result.adjustments;
-    if (result.marketData === "unavailable") marketData = "unavailable";
-    else if (result.marketData === "not-run" && marketData === "available") marketData = "not-run";
+    if (result.marketData === "unavailable") {
+      marketData = "unavailable";
+      if (!marketDataError && result.marketDataError) marketDataError = result.marketDataError;
+    } else if (result.marketData === "not-run" && marketData === "available") marketData = "not-run";
   }
-  return { users: allUsers.length, created, tracked, adjustments, marketData };
+  return { users: allUsers.length, created, tracked, adjustments, marketData, marketDataError };
 }

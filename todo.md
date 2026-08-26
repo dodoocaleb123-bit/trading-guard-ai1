@@ -1192,3 +1192,7 @@
 - [x] Repeat the complete diagnosis after repairs until one full pass finishes without a newly encountered error or problem, then publish the clean checkpoint.
 
 - [x] Move the ignored pnpm patched-dependency and override settings from package.json into the supported workspace configuration, then re-run all validation.
+
+- [x] Investigate the XAU/USD 15MIN Entry Forger signal shown as PENDING despite the user reporting that it was already resolved, including candle evidence, outcome state, and Telegram delivery.
+- [x] If evidence confirms resolution, update the outcome, release the obsolete asset/timeframe lock, deliver one deduplicated Telegram reply, and validate the correction.
+- [x] Regenerate the pnpm lockfile after migrating workspace configuration and verify the production build can install dependencies successfully.

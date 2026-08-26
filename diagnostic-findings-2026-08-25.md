@@ -44,3 +44,9 @@ The diagnostic found that pnpm 10 was repeatedly warning that the package.json `
 
 - A broad Prettier check reports formatting differences across 105 files, including framework scaffolding and existing project files. This is a style-baseline issue, not a runtime or correctness failure; no broad formatting rewrite was applied because it would create a large unrelated diff and modify framework files.
 - The production build reports large chunks, including the chat/markdown bundle. Build remains successful; this is a performance optimization opportunity, not a functional defect.
+
+## Follow-up XAU/USD 15MIN correction
+
+The screenshot’s two duplicate XAU/USD 15MIN Entry Forger records were confirmed as the 23:25 UTC BUY signals with entry 4663.75950000, stop 4659.13245390, and target 4673.01359220. The persisted 23:30 UTC candle had a high of 4661.35272 and a low of 4658.74680, crossing the stop and not reaching the target. Both records were resolved as LOSS, their outcome replies were delivered to the original Telegram messages with IDs 1900 and 1901, and the obsolete PENDING blocker was released. Two newer 23:55 UTC Entry Locator PENDING records remain separate legitimate current setups.
+
+The earlier publication failure caused by a stale lockfile after the pnpm configuration migration was repaired by regenerating pnpm-lock.yaml. A frozen install and final production build now pass; only the pre-existing large chat/markdown chunk warning remains.

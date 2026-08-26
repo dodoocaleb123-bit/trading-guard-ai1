@@ -3,20 +3,23 @@ import { buildEntryForgerDashboardState, canUseEntryForgerFallback, deriveEntryF
 import { formatApprovedTelegramMessage, formatOutcomeTelegramMessage } from "./integrations";
 
 describe("Entry Forger", () => {
-  it("selects a favorable target and calculates the stop at half the target distance for BUY", () => {
+  it("places the BUY take-profit halfway to the cleared target and the stop at half the take-profit distance", () => {
     const result = deriveEntryForgerLevels({ entry: 100, direction: "BUY", targetBoundary: 110, atr: 1 });
     expect(result.ready).toBe(true);
     if (!result.ready) return;
     expect(result.takeProfit).toBeLessThan(110);
+    expect(result.takeProfit).toBeCloseTo(100 + result.structuralTargetDistance / 2, 8);
     expect(result.stopLoss).toBeCloseTo(100 - result.targetDistance / 2, 8);
     expect(result.riskReward).toBe(2);
+    expect(result.reason).toContain("halfway from entry");
   });
 
-  it("mirrors target-first construction for SELL", () => {
+  it("places the SELL take-profit halfway to the cleared target", () => {
     const result = deriveEntryForgerLevels({ entry: 100, direction: "SELL", targetBoundary: 90, atr: 1 });
     expect(result.ready).toBe(true);
     if (!result.ready) return;
     expect(result.takeProfit).toBeGreaterThan(90);
+    expect(result.takeProfit).toBeCloseTo(100 - result.structuralTargetDistance / 2, 8);
     expect(result.stopLoss).toBeCloseTo(100 + result.targetDistance / 2, 8);
   });
 
@@ -32,9 +35,12 @@ describe("Entry Forger", () => {
     if (!result.ready) expect(result.reason).toContain("executable paper setup");
   });
 
-  it("accepts a target that clears the executable volatility floor", () => {
-    const result = deriveEntryForgerLevels({ entry: 1.16721, direction: "BUY", targetBoundary: 1.1695, atr: 0.0003 });
+  it("accepts a target whose midpoint clears the executable volatility floor", () => {
+    const result = deriveEntryForgerLevels({ entry: 1.16721, direction: "BUY", targetBoundary: 1.171, atr: 0.0003 });
     expect(result.ready).toBe(true);
+    if (!result.ready) return;
+    expect(result.takeProfit).toBeCloseTo(1.16721 + result.structuralTargetDistance / 2, 8);
+    expect(result.stopLoss).toBeCloseTo(1.16721 - result.targetDistance / 2, 8);
   });
 
   it("only enables fallback after a geometry denial and preserves lock and gate safeguards", () => {

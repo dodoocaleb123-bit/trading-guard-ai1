@@ -528,12 +528,12 @@ export async function listRecentScannerRuns(taskUid: string, limit = 20) {
 
 export async function getScannerCadenceDiagnostics(userId: number, now = new Date()) {
   const db = await getDb();
-  if (!db) return { windowHours: 24, expectedIntervalMinutes: 5, observedWindows: 0, receivedCycles: 0, completedCycles: 0, failedCycles: 0, skippedWindows: 0, duplicateSuppressed: 0, averageIntervalMinutes: null, lastRunAt: null, lastSource: null, externalCycles: 0, heartbeatCycles: 0, providerUnavailableCycles: 0, latestProviderIssue: null, runs: [] };
+  if (!db) return { checkedAt: now, windowHours: 24, expectedIntervalMinutes: 5, observedWindows: 0, receivedCycles: 0, completedCycles: 0, failedCycles: 0, skippedWindows: 0, duplicateSuppressed: 0, averageIntervalMinutes: null, lastRunAt: null, lastSource: null, externalCycles: 0, heartbeatCycles: 0, providerUnavailableCycles: 0, providerUnavailableWindows: 0, latestProviderIssue: null, runs: [] };
   const settings = await getSettings(userId);
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const taskUids = [settings.scheduleCronTaskUid, "external-cron-job"].filter((taskUid): taskUid is string => Boolean(taskUid));
   const rows = taskUids.length ? await db.select().from(scannerRunLedger).where(and(gte(scannerRunLedger.startedAt, since), inArray(scannerRunLedger.taskUid, taskUids))).orderBy(desc(scannerRunLedger.startedAt)).limit(500) : [];
-  return { windowHours: 24, expectedIntervalMinutes: 5, ...summarizeScannerCadence(rows) };
+  return { checkedAt: now, windowHours: 24, expectedIntervalMinutes: 5, ...summarizeScannerCadence(rows) };
 }
 
 export async function updateStrategyEngineStatus(userId: number, input: { status: "AVAILABLE" | "UNAVAILABLE" | "NOT_RUN"; error?: string | null }) {

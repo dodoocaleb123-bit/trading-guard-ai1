@@ -2586,7 +2586,11 @@ function ScannerCadenceDiagnostics() {
               <TrendingDown className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
                 <p className="font-medium">
-                  Twelve Data quota or rate-limit warning
+                  {data.latestProviderIssue.severity === "TRANSIENT"
+                    ? "Twelve Data transient connection warning"
+                    : data.latestProviderIssue.severity === "QUOTA"
+                      ? "Twelve Data quota or rate-limit warning"
+                      : "Twelve Data provider warning"}
                 </p>
                 <p className="mt-1 text-xs leading-5">
                   Latest affected interval
@@ -2602,7 +2606,10 @@ function ScannerCadenceDiagnostics() {
                   This cycle could not supply market data, so v4 did not
                   evaluate setups and no Entry Locator or Entry Forger signal
                   was created. Unavailable provider cycles in the last 24 hours:{" "}
-                  {data.providerUnavailableCycles ?? 0}.
+                  {data.providerUnavailableCycles ?? 0}.{" "}
+                  {data.latestProviderIssue.severity === "TRANSIENT"
+                    ? "The scanner will retry on the next scheduled cycle; this is not a quota conclusion."
+                    : "Review provider credentials or quota status before treating the next cycle as reliable."}
                 </p>
                 <p className="mt-1 text-[11px] leading-4 text-amber-800/80">
                   Provider detail: {data.latestProviderIssue.message}
@@ -2621,7 +2628,7 @@ function ScannerCadenceDiagnostics() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {metric("Received cycles", data?.receivedCycles ?? 0)}
               {metric(
-                "Skipped windows",
+                "True skipped windows",
                 data?.skippedWindows ?? 0,
                 data?.skippedWindows ? "text-amber-700" : "text-emerald-700"
               )}
@@ -2634,6 +2641,11 @@ function ScannerCadenceDiagnostics() {
                 "Failed",
                 data?.failedCycles ?? 0,
                 data?.failedCycles ? "text-rose-700" : "text-emerald-700"
+              )}
+              {metric(
+                "Provider-unavailable",
+                data?.providerUnavailableWindows ?? 0,
+                data?.providerUnavailableWindows ? "text-amber-700" : "text-emerald-700"
               )}
               {metric("Duplicates suppressed", data?.duplicateSuppressed ?? 0)}
             </div>
@@ -2656,6 +2668,9 @@ function ScannerCadenceDiagnostics() {
                 Last source:{" "}
                 <b className="text-foreground">{data?.lastSource ?? "—"}</b> ·{" "}
                 {formatDateTime(data?.lastRunAt)}
+              </span>
+              <span>
+                Diagnostics checked: {formatDateTime(data?.checkedAt)}
               </span>
             </div>
             {data?.runs?.length ? (

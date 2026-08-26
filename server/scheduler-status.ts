@@ -48,32 +48,55 @@ export type ScannerCadenceRun = {
   error?: string | null;
 };
 
+export type ScannerRunClassification = "COMPLETED" | "COMPLETED_WITH_DUPLICATES" | "PROVIDER_UNAVAILABLE" | "FAILED";
+
 export type ScannerProviderIssue = {
   provider: "Twelve Data";
   intervals: string[];
   at: Date | string;
   source: "EXTERNAL_TRIGGER" | "HEARTBEAT";
   message: string;
+  statusCode?: number;
+  severity: "TRANSIENT" | "QUOTA" | "OTHER";
 };
 
 function providerIssueFromRun(run: ScannerCadenceRun): ScannerProviderIssue | null {
   if (run.marketData !== "unavailable") return null;
   const error = String(run.error ?? "").trim();
   const intervals = Array.from(new Set(Array.from(error.matchAll(/Twelve Data (15min|1h) unavailable/gi)).map((match) => match[1].toLowerCase())));
+  const statusCodeMatch = error.match(/status code (\d{3})/i);
+  const statusCode = statusCodeMatch ? Number(statusCodeMatch[1]) : undefined;
   return {
     provider: "Twelve Data",
     intervals: intervals.length ? intervals : ["15min", "1h"],
     at: run.startedAt,
     source: run.taskUid === "external-cron-job" ? "EXTERNAL_TRIGGER" : "HEARTBEAT",
     message: error || "Market data was unavailable after the configured Twelve Data failover path.",
+    ...(statusCode ? { statusCode } : {}),
+    severity: statusCode === 429 ? "QUOTA" : statusCode === 408 || statusCode === 425 || statusCode === 500 || statusCode === 502 || statusCode === 503 || statusCode === 504 || statusCode === 522 ? "TRANSIENT" : "OTHER",
   };
+}
+
+function classifyRun(run: ScannerCadenceRun): ScannerRunClassification {
+  if (run.status === "FAILED") return "FAILED";
+  if (run.marketData === "unavailable") return "PROVIDER_UNAVAILABLE";
+  if (Number(run.duplicateCallbacks ?? 0) > 0) return "COMPLETED_WITH_DUPLICATES";
+  return "COMPLETED";
 }
 
 export function summarizeScannerCadence(runs: ScannerCadenceRun[]) {
   const byRunKey = new Map<string, ScannerCadenceRun>();
   for (const run of runs) {
     const prior = byRunKey.get(run.runKey);
-    if (!prior || new Date(run.startedAt).getTime() < new Date(prior.startedAt).getTime()) byRunKey.set(run.runKey, run);
+    if (!prior) {
+      byRunKey.set(run.runKey, run);
+      continue;
+    }
+    const earliest = new Date(run.startedAt).getTime() < new Date(prior.startedAt).getTime() ? run : prior;
+    byRunKey.set(run.runKey, {
+      ...earliest,
+      duplicateCallbacks: Number(prior.duplicateCallbacks ?? 0) + Number(run.duplicateCallbacks ?? 0),
+    });
   }
   const uniqueRows = Array.from(byRunKey.values()).sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
   const providerIssues = uniqueRows.map(providerIssueFromRun).filter((issue): issue is ScannerProviderIssue => Boolean(issue));
@@ -94,8 +117,9 @@ export function summarizeScannerCadence(runs: ScannerCadenceRun[]) {
     externalCycles: uniqueRows.filter((run) => run.taskUid === "external-cron-job").length,
     heartbeatCycles: uniqueRows.filter((run) => run.taskUid !== "external-cron-job").length,
     providerUnavailableCycles: providerIssues.length,
+    providerUnavailableWindows: providerIssues.length,
     latestProviderIssue: providerIssues.at(-1) ?? null,
-    runs: uniqueRows.slice(-12).reverse(),
+    runs: uniqueRows.slice(-12).reverse().map((run) => ({ ...run, classification: classifyRun(run) })),
   };
 }
 

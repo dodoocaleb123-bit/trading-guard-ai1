@@ -15,6 +15,8 @@ describe("scanner cadence diagnostics", () => {
     expect(result.duplicateSuppressed).toBe(3);
     expect(result.averageIntervalMinutes).toBe(10);
     expect(result.lastSource).toBe("EXTERNAL_TRIGGER");
+    expect(result.runs[0].classification).toBe("FAILED");
+    expect(result.runs[1].classification).toBe("COMPLETED_WITH_DUPLICATES");
   });
 
   it("deduplicates shared buckets while preserving source counts", () => {
@@ -27,6 +29,7 @@ describe("scanner cadence diagnostics", () => {
     expect(result.externalCycles).toBe(1);
     expect(result.heartbeatCycles).toBe(1);
     expect(result.duplicateSuppressed).toBe(1);
+    expect(result.runs[1].classification).toBe("COMPLETED_WITH_DUPLICATES");
   });
 
   it("classifies the latest Twelve Data quota issue by interval and source", () => {
@@ -34,8 +37,17 @@ describe("scanner cadence diagnostics", () => {
       { id: 10, runKey: "trading-guard-scanner:10", taskUid: "external-cron-job", startedAt: "2026-08-25T17:00:00.000Z", status: "SUCCEEDED", marketData: "unavailable", error: "Twelve Data 15min unavailable: Request failed with status code 429 | Twelve Data 1h unavailable: Request failed with status code 429" },
     ]);
     expect(result.providerUnavailableCycles).toBe(1);
-    expect(result.latestProviderIssue).toMatchObject({ provider: "Twelve Data", intervals: ["15min", "1h"], at: "2026-08-25T17:00:00.000Z", source: "EXTERNAL_TRIGGER" });
+    expect(result.providerUnavailableWindows).toBe(1);
+    expect(result.runs[0].classification).toBe("PROVIDER_UNAVAILABLE");
+    expect(result.latestProviderIssue).toMatchObject({ provider: "Twelve Data", intervals: ["15min", "1h"], at: "2026-08-25T17:00:00.000Z", source: "EXTERNAL_TRIGGER", statusCode: 429, severity: "QUOTA" });
     expect(result.latestProviderIssue?.message).toContain("429");
+  });
+
+  it("classifies a transient Twelve Data 522 separately from quota exhaustion", () => {
+    const result = summarizeScannerCadence([
+      { runKey: "trading-guard-scanner:522", taskUid: "external-cron-job", startedAt: "2026-08-26T00:00:00.000Z", status: "SUCCEEDED", marketData: "unavailable", error: "Twelve Data 1h unavailable: Request failed with status code 522" },
+    ]);
+    expect(result.latestProviderIssue).toMatchObject({ statusCode: 522, severity: "TRANSIENT" });
   });
 
   it("keeps the latest provider issue historical when a later cycle is available", () => {
@@ -49,6 +61,6 @@ describe("scanner cadence diagnostics", () => {
   });
 
   it("returns a safe empty state", () => {
-    expect(summarizeScannerCadence([])).toMatchObject({ receivedCycles: 0, skippedWindows: 0, duplicateSuppressed: 0, lastRunAt: null });
+    expect(summarizeScannerCadence([])).toMatchObject({ receivedCycles: 0, skippedWindows: 0, providerUnavailableWindows: 0, duplicateSuppressed: 0, lastRunAt: null });
   });
 });

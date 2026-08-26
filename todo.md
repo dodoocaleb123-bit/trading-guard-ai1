@@ -1202,3 +1202,6 @@
 - [x] Prevent a v3 baseline-only no-directional evaluation error from aborting an otherwise valid v4 scanner cycle; persist a neutral/unavailable baseline trace and continue with v4, with regression coverage.
 - [x] Make optional Supabase trade_outcomes mirroring handle an absent remote table without noisy error logs or primary-outcome impact, and add regression coverage.
 - [x] Investigate the three reported missed scanner cycles, reconcile exact scheduled versus received timestamps, repair any confirmed cadence or dashboard observability defect, and validate the external five-minute path; 00:00–00:35 UTC had a primary run in every five-minute bucket, while three callbacks were duplicate-suppressed and 1H candle timestamps correctly remained on the hourly boundary.
+- [x] Clarify cadence diagnostics so duplicate callbacks, provider failures, and true skipped windows are visibly distinct.
+- [x] Add a transient Twelve Data HTTP 522 health alert with regression coverage and safe delivery behavior.
+- [x] Strengthen next-cycle scanner monitoring and verify several post-change external-trigger cycles without changing paper-trading rules.

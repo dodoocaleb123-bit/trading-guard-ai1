@@ -18,7 +18,7 @@ export type EntryForgerLevels = {
   entry: number;
   stopLoss: number;
   takeProfit: number;
-  riskReward: 2;
+  riskReward: 1.4;
   targetDistance: number;
   structuralTargetDistance: number;
   reason: string;
@@ -31,6 +31,8 @@ const MIN_RELATIVE_DISTANCE = 0.00005;
 const MIN_EXECUTABLE_TARGET_RELATIVE_DISTANCE = 0.0012;
 const TARGET_CLEARANCE_ATR = 0.15;
 const MIN_TARGET_DISTANCE_ATR = 0.5;
+const TAKE_PROFIT_TARGET_FRACTION = 0.7;
+const STOP_TARGET_FRACTION = 0.5;
 
 export function canUseEntryForgerFallback(input: {
   locatorReady: boolean;
@@ -59,8 +61,10 @@ export function deriveEntryForgerLevels(input: { entry: number; direction: Entry
   const targetDistance = favorableDistance - clearance;
   const minimumDistance = Math.max(relativeBuffer, Math.abs(entry) * MIN_EXECUTABLE_TARGET_RELATIVE_DISTANCE, Number.isFinite(atr) && atr > 0 ? atr * MIN_TARGET_DISTANCE_ATR : 0);
   if (!(targetDistance >= minimumDistance)) return { ready: false, reason: `Entry Forger target boundary is too close for an executable paper setup after clearance; minimum target distance is ${minimumDistance}.` };
-  const takeProfit = input.direction === "BUY" ? entry + targetDistance : entry - targetDistance;
-  const stopLoss = input.direction === "BUY" ? entry - targetDistance / 2 : entry + targetDistance / 2;
+  const takeProfitDistance = targetDistance * TAKE_PROFIT_TARGET_FRACTION;
+  const stopLossDistance = targetDistance * STOP_TARGET_FRACTION;
+  const takeProfit = input.direction === "BUY" ? entry + takeProfitDistance : entry - takeProfitDistance;
+  const stopLoss = input.direction === "BUY" ? entry - stopLossDistance : entry + stopLossDistance;
   if (![takeProfit, stopLoss].every(Number.isFinite)) return { ready: false, reason: "Entry Forger calculated non-finite levels." };
 
   return {
@@ -68,9 +72,9 @@ export function deriveEntryForgerLevels(input: { entry: number; direction: Entry
     entry,
     stopLoss,
     takeProfit,
-    riskReward: 2,
+    riskReward: 1.4,
     targetDistance,
     structuralTargetDistance: targetDistance,
-    reason: `Entry Forger selected a take-profit area before the opposing structural boundary with a ${clearance} clearance buffer, then calculated the stop at half the target distance.`,
+    reason: `Entry Forger selected a target-first paper setup ${clearance} beyond the clearance buffer; take profit uses 70% of the cleared target distance and stop loss uses 50%, producing 1:1.4 risk/reward.`,
   };
 }

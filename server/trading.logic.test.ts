@@ -93,14 +93,15 @@ describe("TradingGuardAI market helpers", () => {
     expect(shouldUseIntrabarRange(new Date("2026-08-23T22:58:02.000Z"), "2026-08-23 23:00:00")).toBe(true);
   });
 
-  it("includes the signal-overlapping candle when requested for live tracking", () => {
+  it("excludes a pre-entry wick even when the candle overlaps the signal timeframe", () => {
     const evidence = aggregatePostEntryEvidence("SELL", new Date("2026-08-26T01:30:08.000Z"), 100, [
       { datetime: "2026-08-26 01:00:00", high: "106", low: "98" },
-    ], 104, true);
-    expect(evidence.usedIntrabar).toBe(true);
-    expect(evidence.high).toBe(106);
-    expect(evidence.low).toBe(98);
-    expect(resolveOutcomeFromPostEntryEvidence("SELL", 104, 105, 90, 100, evidence, true)).toBe("LOSS");
+    ], 104);
+    expect(evidence.usedIntrabar).toBe(false);
+    expect(evidence.latestCandleAt).toBeNull();
+    expect(evidence.high).toBe(104);
+    expect(evidence.low).toBe(104);
+    expect(resolveOutcomeFromPostEntryEvidence("SELL", 104, 105, 90, 100, evidence, false)).toBeNull();
   });
 
   it("resolves a stop hit from a later candle after a sell has already entered", () => {

@@ -48,7 +48,7 @@ export function getOutcomeCandles(market: Pick<MarketSnapshot, "values">): Outco
   return (market.values ?? []) as OutcomeCandle[];
 }
 
-export function aggregatePostEntryEvidence(direction: "BUY" | "SELL", signalOpenedAt: Date | string, entry: number, candles: readonly OutcomeCandle[], currentPrice: number, includeOverlappingCandle = false) {
+export function aggregatePostEntryEvidence(direction: "BUY" | "SELL", signalOpenedAt: Date | string, entry: number, candles: readonly OutcomeCandle[], currentPrice: number) {
   const openedAt = signalOpenedAt instanceof Date ? signalOpenedAt.getTime() : new Date(signalOpenedAt).getTime();
   const validCurrentPrice = Number.isFinite(currentPrice) ? currentPrice : null;
   let high = validCurrentPrice ?? Number.NEGATIVE_INFINITY;
@@ -56,32 +56,18 @@ export function aggregatePostEntryEvidence(direction: "BUY" | "SELL", signalOpen
   let entered = validCurrentPrice !== null && (direction === "BUY" ? validCurrentPrice >= entry : validCurrentPrice <= entry);
   let latestCandleAt: string | null = null;
   let usedIntrabar = false;
-  let overlapping: { datetime: string; high: number; low: number } | null = null;
   for (const candle of candles) {
     if (!candle.datetime) continue;
     const candleAt = new Date(candle.datetime.includes("T") ? candle.datetime : `${candle.datetime.replace(" ", "T")}Z`).getTime();
     if (!Number.isFinite(candleAt) || !Number.isFinite(openedAt)) continue;
     const candleHigh = Number(candle.high);
     const candleLow = Number(candle.low);
-    if (!Number.isFinite(candleHigh) || !Number.isFinite(candleLow)) continue;
-    if (candleAt < openedAt) {
-      if (includeOverlappingCandle && (!overlapping || candleAt > new Date(overlapping.datetime.includes("T") ? overlapping.datetime : `${overlapping.datetime.replace(" ", "T")}Z`).getTime())) {
-        overlapping = { datetime: candle.datetime, high: candleHigh, low: candleLow };
-      }
-      continue;
-    }
+    if (!Number.isFinite(candleHigh) || !Number.isFinite(candleLow) || candleAt < openedAt) continue;
     high = Math.max(high, candleHigh);
     low = Math.min(low, candleLow);
     latestCandleAt = candle.datetime;
     usedIntrabar = true;
     if (direction === "BUY" ? candleHigh >= entry : candleLow <= entry) entered = true;
-  }
-  if (includeOverlappingCandle && overlapping) {
-    high = Math.max(high, overlapping.high);
-    low = Math.min(low, overlapping.low);
-    latestCandleAt ??= overlapping.datetime;
-    usedIntrabar = true;
-    if (direction === "BUY" ? overlapping.high >= entry : overlapping.low <= entry) entered = true;
   }
   return { high, low, entered, latestCandleAt, usedIntrabar };
 }
@@ -582,7 +568,7 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
       const price = market.price;
       const stop = Number(signal.stopLoss);
       const target = Number(signal.takeProfit);
-      const evidence = aggregatePostEntryEvidence(signal.direction, signal.openedAt, Number(signal.entry), getOutcomeCandles(market), price, true);
+      const evidence = aggregatePostEntryEvidence(signal.direction, signal.openedAt, Number(signal.entry), getOutcomeCandles(market), price);
       const status = resolveOutcomeFromPostEntryEvidence(signal.direction, price, stop, target, Number(signal.entry), evidence, true);
       if (!status) continue;
       const resolutionCandleAt = evidence.latestCandleAt ? new Date(evidence.latestCandleAt.includes("T") ? evidence.latestCandleAt : `${evidence.latestCandleAt.replace(" ", "T")}Z`) : null;

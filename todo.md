@@ -1206,3 +1206,4 @@
 - [x] Add a transient Twelve Data HTTP 522 health alert with regression coverage and safe delivery behavior.
 - [x] Strengthen next-cycle scanner monitoring and verify several post-change external-trigger cycles without changing paper-trading rules.
 - [x] Update Entry Forger to set take profit halfway from entry to the selected target boundary, keep stop loss at half the resulting take-profit distance, preserve gates/precedence, add tests, and publish the validated change.
+- [x] Identify all active v4 paper signals blocking Entry Forger, present exact proposed closures for confirmation, close only confirmed blockers, verify lock release, and publish the validated update; 8 confirmed Entry Forger rows invalidated, with no remaining v4 PENDING blockers.

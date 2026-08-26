@@ -10,7 +10,7 @@ import { buildEntryForgerDashboardState, canUseEntryForgerFallback, deriveEntryF
 import { describePaperSignalQuality, hasMinimumPaperSignalQuality } from "./paper-signal-quality";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
-import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, normalizeForensicFinding, sendTelegramMessage, type MarketSeries, type MarketSnapshot } from "./integrations";
+import { fetchMarketSeries, fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, normalizeForensicFinding, sendTelegramMessage, type MarketSeries, type MarketSnapshot } from "./integrations";
 import { notifyOwner } from "./_core/notification";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -48,7 +48,7 @@ export function getOutcomeCandles(market: Pick<MarketSnapshot, "values">): Outco
   return (market.values ?? []) as OutcomeCandle[];
 }
 
-export function aggregatePostEntryEvidence(direction: "BUY" | "SELL", signalOpenedAt: Date | string, entry: number, candles: readonly OutcomeCandle[], currentPrice: number) {
+export function aggregatePostEntryEvidence(direction: "BUY" | "SELL", signalOpenedAt: Date | string, entry: number, candles: readonly OutcomeCandle[], currentPrice: number, includeOverlappingCandle = false) {
   const openedAt = signalOpenedAt instanceof Date ? signalOpenedAt.getTime() : new Date(signalOpenedAt).getTime();
   const validCurrentPrice = Number.isFinite(currentPrice) ? currentPrice : null;
   let high = validCurrentPrice ?? Number.NEGATIVE_INFINITY;
@@ -56,24 +56,38 @@ export function aggregatePostEntryEvidence(direction: "BUY" | "SELL", signalOpen
   let entered = validCurrentPrice !== null && (direction === "BUY" ? validCurrentPrice >= entry : validCurrentPrice <= entry);
   let latestCandleAt: string | null = null;
   let usedIntrabar = false;
+  let overlapping: { datetime: string; high: number; low: number } | null = null;
   for (const candle of candles) {
     if (!candle.datetime) continue;
     const candleAt = new Date(candle.datetime.includes("T") ? candle.datetime : `${candle.datetime.replace(" ", "T")}Z`).getTime();
-    if (!Number.isFinite(candleAt) || !Number.isFinite(openedAt) || candleAt < openedAt) continue;
+    if (!Number.isFinite(candleAt) || !Number.isFinite(openedAt)) continue;
     const candleHigh = Number(candle.high);
     const candleLow = Number(candle.low);
     if (!Number.isFinite(candleHigh) || !Number.isFinite(candleLow)) continue;
+    if (candleAt < openedAt) {
+      if (includeOverlappingCandle && (!overlapping || candleAt > new Date(overlapping.datetime.includes("T") ? overlapping.datetime : `${overlapping.datetime.replace(" ", "T")}Z`).getTime())) {
+        overlapping = { datetime: candle.datetime, high: candleHigh, low: candleLow };
+      }
+      continue;
+    }
     high = Math.max(high, candleHigh);
     low = Math.min(low, candleLow);
     latestCandleAt = candle.datetime;
     usedIntrabar = true;
     if (direction === "BUY" ? candleHigh >= entry : candleLow <= entry) entered = true;
   }
+  if (includeOverlappingCandle && overlapping) {
+    high = Math.max(high, overlapping.high);
+    low = Math.min(low, overlapping.low);
+    latestCandleAt ??= overlapping.datetime;
+    usedIntrabar = true;
+    if (direction === "BUY" ? overlapping.high >= entry : overlapping.low <= entry) entered = true;
+  }
   return { high, low, entered, latestCandleAt, usedIntrabar };
 }
 
-export function resolveOutcomeFromPostEntryEvidence(direction: "BUY" | "SELL", price: number, stop: number, target: number, entry: number, evidence: ReturnType<typeof aggregatePostEntryEvidence>): "WIN" | "LOSS" | null {
-  if (!evidence.entered) return null;
+export function resolveOutcomeFromPostEntryEvidence(direction: "BUY" | "SELL", price: number, stop: number, target: number, entry: number, evidence: ReturnType<typeof aggregatePostEntryEvidence>, assumeEntry = false): "WIN" | "LOSS" | null {
+  if (!assumeEntry && !evidence.entered) return null;
   return resolveOutcome(direction, price, stop, target, evidence.high, evidence.low, entry);
 }
 
@@ -558,14 +572,18 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
     try {
       const timeframe = signal.timeframe === "1H" ? "1H" : "15MIN";
       const cached = seriesCache?.get(`${signal.asset}:${timeframe}`);
-      const market: MarketSnapshot = cached
-        ? { symbol: signal.asset, price: cached.close, close: cached.close, fetchedAt: cached.fetchedAt, values: cached.values }
-        : await fetchMarketSnapshot(signal.asset, timeframe === "1H" ? "1h" : "15min");
+      let market: MarketSnapshot;
+      if (cached) {
+        market = { symbol: signal.asset, price: cached.close, close: cached.close, fetchedAt: cached.fetchedAt, values: cached.values };
+      } else {
+        const series = await fetchMarketSeries(signal.asset, timeframe === "1H" ? "1h" : "15min");
+        market = { ...series, price: series.close };
+      }
       const price = market.price;
       const stop = Number(signal.stopLoss);
       const target = Number(signal.takeProfit);
-      const evidence = aggregatePostEntryEvidence(signal.direction, signal.openedAt, Number(signal.entry), getOutcomeCandles(market), price);
-      const status = resolveOutcomeFromPostEntryEvidence(signal.direction, price, stop, target, Number(signal.entry), evidence);
+      const evidence = aggregatePostEntryEvidence(signal.direction, signal.openedAt, Number(signal.entry), getOutcomeCandles(market), price, true);
+      const status = resolveOutcomeFromPostEntryEvidence(signal.direction, price, stop, target, Number(signal.entry), evidence, true);
       if (!status) continue;
       const resolutionCandleAt = evidence.latestCandleAt ? new Date(evidence.latestCandleAt.includes("T") ? evidence.latestCandleAt : `${evidence.latestCandleAt.replace(" ", "T")}Z`) : null;
       const note = `Closed from live ${signal.asset} ${signal.timeframe} price ${price}; evidence candle ${resolutionCandleAt?.toISOString() ?? "unavailable"}; cumulative post-entry range ${evidence.usedIntrabar ? "used" : "not used"}.`;

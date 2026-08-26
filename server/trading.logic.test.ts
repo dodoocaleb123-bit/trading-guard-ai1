@@ -93,6 +93,16 @@ describe("TradingGuardAI market helpers", () => {
     expect(shouldUseIntrabarRange(new Date("2026-08-23T22:58:02.000Z"), "2026-08-23 23:00:00")).toBe(true);
   });
 
+  it("includes the signal-overlapping candle when requested for live tracking", () => {
+    const evidence = aggregatePostEntryEvidence("SELL", new Date("2026-08-26T01:30:08.000Z"), 100, [
+      { datetime: "2026-08-26 01:00:00", high: "106", low: "98" },
+    ], 104, true);
+    expect(evidence.usedIntrabar).toBe(true);
+    expect(evidence.high).toBe(106);
+    expect(evidence.low).toBe(98);
+    expect(resolveOutcomeFromPostEntryEvidence("SELL", 104, 105, 90, 100, evidence, true)).toBe("LOSS");
+  });
+
   it("resolves a stop hit from a later candle after a sell has already entered", () => {
     const evidence = aggregatePostEntryEvidence("SELL", new Date("2026-08-25T21:20:09.000Z"), 78418, [
       { datetime: "2026-08-25 21:30:00", high: "78654", low: "78380.86" },

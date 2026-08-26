@@ -835,7 +835,16 @@ function EntryForgerCard() {
     undefined,
     LIVE_QUERY_OPTIONS
   );
+  const openSignalsQuery = trpc.scanner.openCurrentSignals.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const releaseMutation = trpc.scanner.releaseEntryForgerBlockers.useMutation({
+    onSuccess: () => openSignalsQuery.refetch(),
+  });
   const states = query.data ?? [];
+  const blockingSignals = (openSignalsQuery.data ?? []).filter((signal) => signal.blocksEntryForger);
+  const releaseBlockingSignals = () => {
+    if (!blockingSignals.length || !window.confirm(`Release ${blockingSignals.length} active paper-signal blocker(s) from Entry Forger? They will remain PENDING for outcome tracking.`)) return;
+    releaseMutation.mutate({ signalIds: blockingSignals.map((signal) => signal.id) });
+  };
   const formatNumber = (value: unknown) =>
     value == null
       ? "—"
@@ -857,6 +866,17 @@ function EntryForgerCard() {
         </div>
       </CardHeader>
       <CardContent>
+        {blockingSignals.length > 0 && (
+          <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">{blockingSignals.length} active paper signal{blockingSignals.length === 1 ? "" : "s"} currently hold an Entry Forger lock.</p>
+              <p className="mt-1 text-xs leading-5">Release the lock without deleting or resolving the signal; outcome tracking continues until WIN, LOSS, or manual resolution.</p>
+            </div>
+            <Button type="button" size="sm" variant="outline" className="shrink-0 border-amber-600/40 bg-background" onClick={releaseBlockingSignals} disabled={releaseMutation.isPending}>
+              {releaseMutation.isPending ? "Releasing…" : "Release blockers"}
+            </Button>
+          </div>
+        )}
         {states.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {states.map(state => (

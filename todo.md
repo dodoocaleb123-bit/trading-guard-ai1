@@ -1207,3 +1207,5 @@
 - [x] Strengthen next-cycle scanner monitoring and verify several post-change external-trigger cycles without changing paper-trading rules.
 - [x] Update Entry Forger to set take profit halfway from entry to the selected target boundary, keep stop loss at half the resulting take-profit distance, preserve gates/precedence, add tests, and publish the validated change.
 - [x] Identify all active v4 paper signals blocking Entry Forger, present exact proposed closures for confirmation, close only confirmed blockers, verify lock release, and publish the validated update; 8 confirmed Entry Forger rows invalidated, with no remaining v4 PENDING blockers.
+- [x] Preserve outcome tracking for manually released v4 paper signals while excluding them from Entry Forger locks; the eight released rows are PENDING with blocksEntryForger=false.
+- [x] Add a confirmed one-click blocker-release workflow in the UI, migrate the existing released rows, add regression coverage, and verify fresh Entry Forger readiness; four new Entry Forger signals were subsequently created on the fresh cycle.

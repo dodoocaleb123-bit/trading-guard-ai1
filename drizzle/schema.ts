@@ -68,6 +68,8 @@ export const generatedSignals = mysqlTable("generated_signals", {
   intelligenceComponents: mediumtext("intelligenceComponents"),
   marketRegime: varchar("marketRegime", { length: 128 }),
   status: mysqlEnum("status", ["PENDING", "WIN", "LOSS", "INVALIDATED", "SUPERSEDED"]).default("PENDING").notNull(),
+  /** When false, the signal remains trackable but does not block a new Entry Forger setup. */
+  blocksEntryForger: boolean("blocksEntryForger").default(true).notNull(),
   /** Links an older paper signal to the newer signal that superseded it. */
   supersededBySignalId: int("supersededBySignalId"),
   outcomeNote: text("outcomeNote"),

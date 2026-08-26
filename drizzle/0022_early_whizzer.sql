@@ -1,0 +1,1 @@
+ALTER TABLE `generated_signals` ADD `blocksEntryForger` boolean DEFAULT true NOT NULL;

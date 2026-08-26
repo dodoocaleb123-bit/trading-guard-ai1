@@ -440,20 +440,40 @@ function telegramDestination(asset?: string) {
 export async function sendTelegramMessage(text: string, asset?: string, options?: { replyToMessageId?: string }): Promise<{ delivered: boolean; telegramMessageId?: string; error?: string }> {
   const destination = telegramDestination(asset);
   if (!destination.token || !destination.chatId) return { delivered: false, error: `${asset ?? "BTC/USD"} Telegram credentials are not configured` };
+  const endpoint = `https://api.telegram.org/bot${destination.token}/sendMessage`;
+  const replyParameters = options?.replyToMessageId && Number.isInteger(Number(options.replyToMessageId))
+    ? { reply_parameters: { message_id: Number(options.replyToMessageId) } }
+    : {};
+  const postMessage = (extra: typeof replyParameters) => axios.post<{ ok?: boolean; result?: { message_id?: number }; description?: string }>(endpoint, {
+    chat_id: destination.chatId,
+    text,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    ...extra,
+  }, { timeout: 12000 });
+  const notificationKind = text.includes("PAPER SETUP UPGRADE") ? "upgrade" : text.includes("PAPER ADJUSTMENT") ? "adjustment" : text.includes("PAPER WARNING") ? "warning" : text.includes("OUTCOME CORRECTION") ? "correction" : text.includes("· REASON") ? "reason" : text.startsWith("WIN\n") || text.startsWith("LOSS\n") ? "outcome" : "signal";
   try {
-    const response = await axios.post<{ ok?: boolean; result?: { message_id?: number }; description?: string }>(`https://api.telegram.org/bot${destination.token}/sendMessage`, {
-      chat_id: destination.chatId,
-      text,
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
-      ...(options?.replyToMessageId && Number.isInteger(Number(options.replyToMessageId)) ? { reply_parameters: { message_id: Number(options.replyToMessageId) } } : {}),
-    }, { timeout: 12000 });
+    const response = await postMessage(replyParameters);
     const telegramMessageId = response.data.result?.message_id != null ? String(response.data.result.message_id) : undefined;
-    const notificationKind = text.includes("PAPER SETUP UPGRADE") ? "upgrade" : text.includes("PAPER ADJUSTMENT") ? "adjustment" : text.includes("PAPER WARNING") ? "warning" : text.includes("OUTCOME CORRECTION") ? "correction" : text.includes("· REASON") ? "reason" : text.startsWith("WIN\n") || text.startsWith("LOSS\n") ? "outcome" : "signal";
-    console.info(`[Telegram] ${asset ?? "BTC/USD"} ${notificationKind} notification delivered${options?.replyToMessageId ? " as reply" : ""}`);
+    console.info(`[Telegram] ${asset ?? "BTC/USD"} ${notificationKind} notification delivered${Object.keys(replyParameters).length ? " as reply" : ""}`);
     return { delivered: true, telegramMessageId };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const status = Number((error as any)?.response?.status);
+    const providerMessage = (error as any)?.response?.data?.description;
+    if (Object.keys(replyParameters).length && status === 400) {
+      try {
+        const fallbackResponse = await postMessage({});
+        const telegramMessageId = fallbackResponse.data.result?.message_id != null ? String(fallbackResponse.data.result.message_id) : undefined;
+        console.info(`[Telegram] ${asset ?? "BTC/USD"} ${notificationKind} notification delivered without reply fallback after HTTP 400`);
+        return { delivered: true, telegramMessageId };
+      } catch (fallbackError) {
+        const fallbackMessage = (fallbackError as any)?.response?.data?.description ?? (fallbackError instanceof Error ? fallbackError.message : String(fallbackError));
+        const message = `reply HTTP 400${providerMessage ? ` (${providerMessage})` : ""}; standalone fallback failed: ${fallbackMessage}`;
+        console.warn(`[Telegram] Could not send ${asset ?? "BTC/USD"} notification:`, message);
+        return { delivered: false, error: message };
+      }
+    }
+    const message = providerMessage ?? (error instanceof Error ? error.message : String(error));
     console.warn(`[Telegram] Could not send ${asset ?? "BTC/USD"} notification:`, message);
     return { delivered: false, error: message };
   }

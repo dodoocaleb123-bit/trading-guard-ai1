@@ -247,14 +247,14 @@ export async function getPaperTradeUpgradeSummary(userId: number) {
 export const ENTRY_LOCATOR_V4_GENERATION_MODE = "ENTRY_LOCATOR_V4" as const;
 export const ENTRY_FORGER_V4_GENERATION_MODE = "ENTRY_FORGER_V4" as const;
 
-export function isEntryForgerBlockingSignal(signal: { status: string; blocksEntryForger: boolean }) {
-  return signal.status === "PENDING" && signal.blocksEntryForger;
+export function isEntryForgerBlockingSignal(signal: { status: string; blocksEntryForger?: boolean }) {
+  return signal.status === "PENDING";
 }
 
 export async function hasOpenGeneratedSignal(userId: number, asset: string, timeframe: string, intelligenceVersion?: string, generationMode?: string) {
   const db = await getDb();
   if (!db) return false;
-  const filters = [eq(generatedSignals.userId, userId), eq(generatedSignals.asset, asset), eq(generatedSignals.timeframe, timeframe), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.blocksEntryForger, true)];
+  const filters = [eq(generatedSignals.userId, userId), eq(generatedSignals.asset, asset), eq(generatedSignals.timeframe, timeframe), eq(generatedSignals.status, "PENDING")];
   if (intelligenceVersion) filters.push(eq(generatedSignals.intelligenceVersion, intelligenceVersion));
   if (generationMode) filters.push(eq(generatedSignals.generationMode, generationMode));
   const rows = await db.select({ id: generatedSignals.id }).from(generatedSignals).where(and(...filters)).limit(1);
@@ -337,24 +337,10 @@ export async function listPaperTradeAdjustments(userId: number, limit = 100) {
   return rows.map((row) => ({ ...row, telegramDelivery: deliveries.find((delivery) => delivery.kind === "ADJUSTMENT" && delivery.dedupeKey === row.dedupeKey) ?? null }));
 }
 
-export async function listOpenCurrentV4Signals(userId: number, blockingOnly = false) {
+export async function listOpenCurrentV4Signals(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  const predicates = [
-    eq(generatedSignals.userId, userId),
-    eq(generatedSignals.status, "PENDING"),
-    eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"),
-    inArray(generatedSignals.generationMode, [ENTRY_LOCATOR_V4_GENERATION_MODE, ENTRY_FORGER_V4_GENERATION_MODE]),
-  ];
-  if (blockingOnly) predicates.push(eq(generatedSignals.blocksEntryForger, true));
-  return db.select().from(generatedSignals).where(and(...predicates)).orderBy(desc(generatedSignals.openedAt));
-}
-
-export async function releaseEntryForgerBlockers(userId: number, signalIds: number[]) {
-  const db = await getDb();
-  if (!db || signalIds.length === 0) return 0;
-  const result = await db.update(generatedSignals).set({ blocksEntryForger: false, outcomeNote: sql`COALESCE(${generatedSignals.outcomeNote}, 'Entry Forger lock released by user; outcome tracking remains active.')` }).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), inArray(generatedSignals.id, signalIds), eq(generatedSignals.blocksEntryForger, true)));
-  return Number(result[0].affectedRows ?? 0);
+  return db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), inArray(generatedSignals.generationMode, [ENTRY_LOCATOR_V4_GENERATION_MODE, ENTRY_FORGER_V4_GENERATION_MODE]))).orderBy(desc(generatedSignals.openedAt));
 }
 
 export const OUTCOME_RETRY_WINDOW_MINUTES = 20;

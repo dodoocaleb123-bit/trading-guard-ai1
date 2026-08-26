@@ -6,8 +6,8 @@ describe("Entry Forger lock policy", () => {
     expect(isEntryForgerBlockingSignal({ status: "PENDING", blocksEntryForger: true })).toBe(true);
   });
 
-  it("keeps released pending signals trackable without blocking", () => {
-    expect(isEntryForgerBlockingSignal({ status: "PENDING", blocksEntryForger: false })).toBe(false);
+  it("blocks every unresolved pending signal regardless of legacy release state", () => {
+    expect(isEntryForgerBlockingSignal({ status: "PENDING", blocksEntryForger: false })).toBe(true);
   });
 
   it("does not treat resolved signals as blockers", () => {

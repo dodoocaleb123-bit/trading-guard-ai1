@@ -151,14 +151,14 @@ describe("scanner paper routing with shared quality gate", () => {
     expect(shouldNotifyScannerSignal("DENIED")).toBe(false);
   });
 
-  it("requests blocker-only open signals for Entry Forger arbitration", async () => {
+  it("requests all unresolved open signals for strict Entry Forger arbitration", async () => {
     fetchMarketSeriesBatch.mockResolvedValue(allSeries());
     generateScannerDecisions.mockResolvedValue([]);
     listOpenCurrentV4Signals.mockClear();
 
     await scanUser(1);
 
-    expect(listOpenCurrentV4Signals).toHaveBeenCalledWith(1, true);
+    expect(listOpenCurrentV4Signals).toHaveBeenCalledWith(1);
   });
 
   it("does not emit when an approved candidate lacks an explicit permitted v4 ratio", async () => {

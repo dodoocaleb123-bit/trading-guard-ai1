@@ -912,20 +912,40 @@ function EntryForgerCard() {
                 {(state.targetBoundary != null ||
                   state.targetDistance != null ||
                   state.riskReward != null) && (
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                    <span>
-                      Target boundary:{" "}
-                      <b className="text-foreground">
-                        {formatNumber(state.targetBoundary)}
-                      </b>
-                    </span>
-                    <span>
-                      Target distance:{" "}
-                      <b className="text-foreground">
-                        {formatNumber(state.targetDistance)}
-                      </b>
-                    </span>
-                    <span>
+                  <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+                    <div className="grid grid-cols-2 gap-2">
+                      <span>
+                        Target boundary:{" "}
+                        <b className="text-foreground">
+                          {formatNumber(state.targetBoundary)}
+                        </b>
+                      </span>
+                      <span>
+                        Target-to-entry distance D:{" "}
+                        <b className="text-foreground">
+                          {formatNumber(state.targetDistance)}
+                        </b>
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 rounded-md bg-muted/40 p-2">
+                      <span>
+                        TP distance (70% of D):{" "}
+                        <b className="text-foreground">
+                          {state.targetDistance == null
+                            ? "—"
+                            : formatNumber(Number(state.targetDistance) * 0.7)}
+                        </b>
+                      </span>
+                      <span>
+                        SL distance (50% of D):{" "}
+                        <b className="text-foreground">
+                          {state.targetDistance == null
+                            ? "—"
+                            : formatNumber(Number(state.targetDistance) * 0.5)}
+                        </b>
+                      </span>
+                    </div>
+                    <span className="block">
                       Planned R:R:{" "}
                       <b className="text-foreground">
                         {state.riskReward == null

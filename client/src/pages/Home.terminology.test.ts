@@ -86,6 +86,14 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("Entry Locator keeps precedence.");
   });
 
+  it("shows the Entry Forger target-distance geometry breakdown", () => {
+    expect(homeSource).toContain("Target-to-entry distance D:");
+    expect(homeSource).toContain("TP distance (70% of D):");
+    expect(homeSource).toContain("SL distance (50% of D):");
+    expect(homeSource).toContain("Number(state.targetDistance) * 0.7");
+    expect(homeSource).toContain("Number(state.targetDistance) * 0.5");
+  });
+
   it("hides empty legacy analytics histories after the purge", () => {
     expect(homeSource).toContain("const visibleVersions = (stats.data?.versions ?? []).filter(");
     expect(homeSource).toContain("version.overall.generated > 0");

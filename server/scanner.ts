@@ -94,6 +94,15 @@ export function attachSetupIndicators<T extends { market: Record<string, unknown
   return { ...decision, setupIndicators, market: { ...decision.market, setupIndicators } };
 }
 
+export function safelyEvaluateBaselineIntelligence(input: Parameters<typeof evaluateReplacementIntelligence>[0], model: Parameters<typeof evaluateReplacementIntelligence>[1]) {
+  try {
+    return { status: "AVAILABLE" as const, decision: evaluateReplacementIntelligence(input, model), error: undefined };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return { status: "UNAVAILABLE" as const, decision: undefined, error: reason };
+  }
+}
+
 export function isEligibleContradictoryReplacement(decision: { contradictionLocatorReady?: boolean; entry?: unknown; stopLoss?: unknown; takeProfit?: unknown; decisionTrace?: { levelDerivation?: { selectedRiskReward?: unknown } } }) {
   const selectedRiskReward = Number(decision.decisionTrace?.levelDerivation?.selectedRiskReward);
   const hasLevels = [decision.entry, decision.stopLoss, decision.takeProfit].every((value) => value != null && Number.isFinite(Number(value)));
@@ -251,8 +260,10 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
           return { asset, timeframe, noDirectionalSetup: true, entryLocatorReady: false, entryLocatorReason: "No directional setup indicator detected; accumulating fresh scanner snapshots.", verdict: "SKIPPED" as const, confidence: 0, confluenceScore: 0, marketRegime: "WAITING/ACCUMULATING", adjustments: "No directional setup indicator detected; accumulating fresh scanner snapshots before constructing a v4 candidate.", direction: "NEUTRAL" as const, entry: null, stopLoss: null, takeProfit: null, ruleEvidence: [], ruleFindings: [], decisionTrace: undefined, setupIndicators: detectedIndicators, market: { ...market, fundamentalContext, setupIndicators: detectedIndicators, replacementIntelligence: undefined, v3BaselineIntelligence: undefined, replacementMarketRegime: "WAITING/ACCUMULATING" } };
         }
         const replacementIntelligence = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, values: series.values, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementModel);
-        const v3BaselineIntelligence = market.marketContext ? evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, values: series.values, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementBaselineModel) : undefined;
-        if (!replacementIntelligence || !v3BaselineIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
+        const baselineEvaluation = market.marketContext ? safelyEvaluateBaselineIntelligence({ asset, close: series.close, interval: series.interval, values: series.values, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementBaselineModel) : { status: "UNAVAILABLE" as const, decision: undefined, error: "Market context unavailable" };
+        const v3BaselineIntelligence = baselineEvaluation.decision;
+        if (!replacementIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
+        if (baselineEvaluation.status !== "AVAILABLE") console.warn(`[Scanner] ${asset} ${timeframe} v3 baseline unavailable; continuing with v4: ${baselineEvaluation.error ?? "unknown baseline error"}`);
         return attachSetupIndicators({
           asset,
           timeframe,
@@ -270,7 +281,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
           ruleEvidence: replacementIntelligence.ruleEvidence,
           ruleFindings: replacementIntelligence.ruleFindings,
           decisionTrace: replacementIntelligence.decisionTrace,
-          market: { ...market, fundamentalContext, intelligenceSeed: replacementIntelligence, replacementIntelligence, v3BaselineIntelligence, replacementMarketRegime: replacementIntelligence.marketRegime },
+          market: { ...market, fundamentalContext, intelligenceSeed: replacementIntelligence, replacementIntelligence, v3BaselineIntelligence, v3BaselineStatus: baselineEvaluation.status, v3BaselineError: baselineEvaluation.error, replacementMarketRegime: replacementIntelligence.marketRegime },
         }, detectedIndicators);
       }));
     decisions.metrics = { snapshots: candidates.length, completeResponses: decisions.length, retries: 0 };

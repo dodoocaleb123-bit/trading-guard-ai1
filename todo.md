@@ -1196,3 +1196,8 @@
 - [x] Investigate the XAU/USD 15MIN Entry Forger signal shown as PENDING despite the user reporting that it was already resolved, including candle evidence, outcome state, and Telegram delivery.
 - [x] If evidence confirms resolution, update the outcome, release the obsolete asset/timeframe lock, deliver one deduplicated Telegram reply, and validate the correction.
 - [x] Regenerate the pnpm lockfile after migrating workspace configuration and verify the production build can install dependencies successfully.
+
+- [x] Perform a new head-to-toe diagnosis of source, database, scanner, model arbitration, Telegram delivery, chat/audit, UI, runtime, and deployment behavior; repair confirmed defects, add regression tests, and repeat validation until a clean pass completes.
+- [x] Fix scanner regression-test mocks that omit saveEntryForgerState, add the missing behavior assertions, and rerun the full diagnosis.
+- [x] Prevent a v3 baseline-only no-directional evaluation error from aborting an otherwise valid v4 scanner cycle; persist a neutral/unavailable baseline trace and continue with v4, with regression coverage.
+- [x] Make optional Supabase trade_outcomes mirroring handle an absent remote table without noisy error logs or primary-outcome impact, and add regression coverage.

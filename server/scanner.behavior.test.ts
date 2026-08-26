@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculateMarketContext } from "./market-context";
 
-const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV4Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db } = vi.hoisted(() => {
+const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV4Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, saveEntryForgerState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db } = vi.hoisted(() => {
   const fetchMarketSeriesBatch = vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); });
   const generateScannerDecisions = vi.fn();
   const createStrategyDecision = vi.fn(async (input: any) => ({ id: 99, ...input }));
@@ -16,6 +16,7 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
   const markOwnerAlertNotified = vi.fn(async () => undefined);
   const getEntryLocatorState = vi.fn(async () => undefined);
   const saveEntryLocatorState = vi.fn(async (input: any) => input);
+  const saveEntryForgerState = vi.fn(async (input: any) => input);
   const updateStrategyEngineStatus = vi.fn();
   const recordStrategyEngineHealth = vi.fn();
   const getActiveIntelligenceVersion = vi.fn(async () => ({ id: 1, versionLabel: "forex-trading-combined-document-v2" }));
@@ -34,7 +35,7 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
     })),
   }));
   const db = { select, insert, update: vi.fn() };
-  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV4Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db };
+  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV4Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, saveEntryForgerState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db };
 });
 
 vi.mock("./db", () => ({
@@ -43,6 +44,7 @@ vi.mock("./db", () => ({
   listAcceptedStrategyLessons,
   getActiveIntelligenceVersion,
   ENTRY_LOCATOR_V4_GENERATION_MODE: "ENTRY_LOCATOR_V4",
+  ENTRY_FORGER_V4_GENERATION_MODE: "ENTRY_FORGER_V4",
   activateIntelligenceVersion,
   listIntelligenceComponents,
   createIntelligenceVersion,
@@ -54,6 +56,7 @@ vi.mock("./db", () => ({
   hasOpenGeneratedSignal,
   getEntryLocatorState,
   saveEntryLocatorState,
+  saveEntryForgerState,
   updateStrategyEngineStatus,
   recordStrategyEngineHealth,
   getRelevantRulesText: vi.fn(async () => "## Rules\nUse confirmation."),
@@ -90,7 +93,7 @@ vi.mock("./integrations", () => ({
   sendTelegramMessage,
 }));
 
-import { attachSetupIndicators, compactStrategyContext, isEligibleContradictoryReplacement, scanAllUsers, scanUser, shouldNotifyScannerSignal } from "./scanner";
+import { attachSetupIndicators, compactStrategyContext, isEligibleContradictoryReplacement, safelyEvaluateBaselineIntelligence, scanAllUsers, scanUser, shouldNotifyScannerSignal } from "./scanner";
 
 const series = (symbol: string, interval: "15min" | "1h") => {
   const values = [{ open: "0.9", high: "1.1", low: "0.8", close: "1" }, { open: "1.9", high: "2.1", low: "1.8", close: "2" }, { open: "2.9", high: "3.1", low: "2.8", close: "3" }];
@@ -117,6 +120,18 @@ describe("scanner context bounds", () => {
     expect(isEligibleContradictoryReplacement(base)).toBe(true);
     expect(isEligibleContradictoryReplacement({ ...base, contradictionLocatorReady: false })).toBe(false);
     expect(isEligibleContradictoryReplacement({ ...base, decisionTrace: { levelDerivation: { selectedRiskReward: 1 } } })).toBe(false);
+  });
+
+  it("keeps a baseline no-direction result recoverable for the v4 cycle", () => {
+    const context = calculateMarketContext([
+      { open: "0.9", high: "1.1", low: "0.8", close: "1" },
+      { open: "1.9", high: "2.1", low: "1.8", close: "2" },
+      { open: "2.9", high: "3.1", low: "2.8", close: "3" },
+    ])!;
+    const result = safelyEvaluateBaselineIntelligence({ asset: "EUR/USD", close: 3, interval: "15min", values: [], marketContext: context }, { id: "forex-trading-combined-document-v3", sourceDocument: "test", nodes: [], decisionPolicy: "test", learningPolicy: "test" });
+    expect(result.status).toBe("UNAVAILABLE");
+    expect(result.decision).toBeUndefined();
+    expect(result.error).toContain("No directional setup indicators detected");
   });
 
   it("limits the strategy context to the configured prompt budget", () => {

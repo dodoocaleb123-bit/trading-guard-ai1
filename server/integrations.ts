@@ -36,6 +36,8 @@ export type MarketSnapshot = {
   replacementIntelligence?: ReplacementDecision;
 };
 
+const missingSupabaseMirrorTables = new Set<string>();
+
 const supabaseHeaders = () => ({
   apikey: ENV.supabaseAnonKey,
   Authorization: `Bearer ${ENV.supabaseAnonKey}`,
@@ -51,6 +53,14 @@ export async function mirrorToSupabase(table: string, payload: Record<string, un
     });
     return Array.isArray(response.data) ? response.data[0] : response.data;
   } catch (error) {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    if (status === 404) {
+      if (!missingSupabaseMirrorTables.has(table)) {
+        missingSupabaseMirrorTables.add(table);
+        console.info(`[Supabase] Optional mirror table unavailable: ${table}; primary application persistence remains authoritative.`);
+      }
+      return null;
+    }
     console.warn(`[Supabase] Could not mirror ${table}:`, error instanceof Error ? error.message : error);
     return null;
   }

@@ -18,7 +18,7 @@ export type EntryForgerLevels = {
   entry: number;
   stopLoss: number;
   takeProfit: number;
-  riskReward: 1.4;
+  riskReward: 2;
   targetDistance: number;
   structuralTargetDistance: number;
   reason: string;
@@ -31,7 +31,7 @@ const MIN_RELATIVE_DISTANCE = 0.00005;
 const MIN_EXECUTABLE_TARGET_RELATIVE_DISTANCE = 0.0012;
 const TARGET_CLEARANCE_ATR = 0.15;
 const MIN_TARGET_DISTANCE_ATR = 0.5;
-const TAKE_PROFIT_TARGET_FRACTION = 0.7;
+const TAKE_PROFIT_TARGET_FRACTION = 1;
 const STOP_TARGET_FRACTION = 0.5;
 
 export function canUseEntryForgerFallback(input: {
@@ -72,9 +72,9 @@ export function deriveEntryForgerLevels(input: { entry: number; direction: Entry
     entry,
     stopLoss,
     takeProfit,
-    riskReward: 1.4,
+    riskReward: 2,
     targetDistance,
     structuralTargetDistance: targetDistance,
-    reason: `Entry Forger selected a target-first paper setup ${clearance} beyond the clearance buffer; take profit uses 70% of the cleared target distance and stop loss uses 50%, producing 1:1.4 risk/reward.`,
+    reason: `Entry Forger selected a target-first paper setup ${clearance} beyond the clearance buffer; take profit uses the full cleared target distance and stop loss uses 50%, producing 1:2 risk/reward.`,
   };
 }

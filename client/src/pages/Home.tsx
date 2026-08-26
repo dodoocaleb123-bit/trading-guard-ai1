@@ -929,11 +929,11 @@ function EntryForgerCard() {
                     </div>
                     <div className="grid grid-cols-2 gap-2 rounded-md bg-muted/40 p-2">
                       <span>
-                        TP distance (70% of D):{" "}
+                        TP distance (100% of D):{" "}
                         <b className="text-foreground">
                           {state.targetDistance == null
                             ? "—"
-                            : formatNumber(Number(state.targetDistance) * 0.7)}
+                            : formatNumber(Number(state.targetDistance))}
                         </b>
                       </span>
                       <span>

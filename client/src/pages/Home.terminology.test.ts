@@ -88,9 +88,9 @@ describe("dashboard terminology", () => {
 
   it("shows the Entry Forger target-distance geometry breakdown", () => {
     expect(homeSource).toContain("Target-to-entry distance D:");
-    expect(homeSource).toContain("TP distance (70% of D):");
+    expect(homeSource).toContain("TP distance (100% of D):");
     expect(homeSource).toContain("SL distance (50% of D):");
-    expect(homeSource).toContain("Number(state.targetDistance) * 0.7");
+    expect(homeSource).toContain("Number(state.targetDistance))");
     expect(homeSource).toContain("Number(state.targetDistance) * 0.5");
   });
 

@@ -10,7 +10,7 @@ import { buildEntryForgerDashboardState, canUseEntryForgerFallback, deriveEntryF
 import { describePaperSignalQuality, hasMinimumPaperSignalQuality } from "./paper-signal-quality";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
-import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, normalizeForensicFinding, sendTelegramMessage, type MarketSeries } from "./integrations";
+import { fetchMarketSeriesBatch, fetchMarketSnapshot, fetchStrategyRulesFromSupabase, forensicAnalysis, formatApprovedTelegramMessage, formatOutcomeTelegramMessage, formatPaperTradeAdjustmentTelegramMessage, formatPaperTradeContradictionWarningTelegramMessage, formatPaperTradeUpgradeTelegramMessage, formatAuditResult, generateScannerDecisions, mirrorToSupabase, normalizeForensicFinding, sendTelegramMessage, type MarketSeries, type MarketSnapshot } from "./integrations";
 import { notifyOwner } from "./_core/notification";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
@@ -43,6 +43,10 @@ export function resolveOutcome(direction: "BUY" | "SELL", price: number, stop: n
 }
 
 export type OutcomeCandle = { datetime?: string | null; high?: unknown; low?: unknown };
+
+export function getOutcomeCandles(market: Pick<MarketSnapshot, "values">): OutcomeCandle[] {
+  return (market.values ?? []) as OutcomeCandle[];
+}
 
 export function aggregatePostEntryEvidence(direction: "BUY" | "SELL", signalOpenedAt: Date | string, entry: number, candles: readonly OutcomeCandle[], currentPrice: number) {
   const openedAt = signalOpenedAt instanceof Date ? signalOpenedAt.getTime() : new Date(signalOpenedAt).getTime();
@@ -554,13 +558,13 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
     try {
       const timeframe = signal.timeframe === "1H" ? "1H" : "15MIN";
       const cached = seriesCache?.get(`${signal.asset}:${timeframe}`);
-      const market = cached
-        ? { symbol: signal.asset, price: cached.close, close: cached.close, fetchedAt: cached.fetchedAt }
+      const market: MarketSnapshot = cached
+        ? { symbol: signal.asset, price: cached.close, close: cached.close, fetchedAt: cached.fetchedAt, values: cached.values }
         : await fetchMarketSnapshot(signal.asset, timeframe === "1H" ? "1h" : "15min");
       const price = market.price;
       const stop = Number(signal.stopLoss);
       const target = Number(signal.takeProfit);
-      const evidence = aggregatePostEntryEvidence(signal.direction, signal.openedAt, Number(signal.entry), cached?.values ?? [], price);
+      const evidence = aggregatePostEntryEvidence(signal.direction, signal.openedAt, Number(signal.entry), getOutcomeCandles(market), price);
       const status = resolveOutcomeFromPostEntryEvidence(signal.direction, price, stop, target, Number(signal.entry), evidence);
       if (!status) continue;
       const resolutionCandleAt = evidence.latestCandleAt ? new Date(evidence.latestCandleAt.includes("T") ? evidence.latestCandleAt : `${evidence.latestCandleAt.replace(" ", "T")}Z`) : null;

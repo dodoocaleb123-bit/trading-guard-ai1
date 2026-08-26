@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractStrategyText, formatAuditResult, gateAuditDecision, normalizeAsset } from "./integrations";
-import { aggregatePostEntryEvidence, buildSignalLevels, resolveOutcome, resolveOutcomeFromPostEntryEvidence, shouldTrackOpenSignal, shouldUseIntrabarRange } from "./scanner";
+import { aggregatePostEntryEvidence, buildSignalLevels, getOutcomeCandles, resolveOutcome, resolveOutcomeFromPostEntryEvidence, shouldTrackOpenSignal, shouldUseIntrabarRange } from "./scanner";
 import { deriveStructureAwareLevels } from "./replacement-intelligence";
 import { buildStrategyContext, buildStrategyRuleRecord } from "./routers";
 
@@ -80,6 +80,12 @@ describe("TradingGuardAI market helpers", () => {
     const created = new Set([14610004]);
     expect(shouldTrackOpenSignal(14610004, created)).toBe(false);
     expect(shouldTrackOpenSignal(14610003, created)).toBe(true);
+  });
+
+  it("retains fetched market values for cumulative outcome tracking", () => {
+    const candles = getOutcomeCandles({ values: [{ datetime: "2026-08-26 02:00:00", high: "101", low: "99" }] });
+    expect(candles).toHaveLength(1);
+    expect(candles[0]).toEqual({ datetime: "2026-08-26 02:00:00", high: "101", low: "99" });
   });
 
   it("ignores pre-entry candle ranges when resolving a newly opened signal", () => {

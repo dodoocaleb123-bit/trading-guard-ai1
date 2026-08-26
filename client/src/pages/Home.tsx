@@ -837,10 +837,13 @@ function EntryForgerCard() {
   );
   const openSignalsQuery = trpc.scanner.openCurrentSignals.useQuery(undefined, LIVE_QUERY_OPTIONS);
   const releaseMutation = trpc.scanner.releaseEntryForgerBlockers.useMutation({
-    onSuccess: () => openSignalsQuery.refetch(),
+    onSuccess: async () => {
+      await Promise.all([openSignalsQuery.refetch(), query.refetch()]);
+    },
   });
   const states = query.data ?? [];
   const blockingSignals = (openSignalsQuery.data ?? []).filter((signal) => signal.blocksEntryForger);
+  const blockingKeys = new Set(blockingSignals.map((signal) => `${signal.asset}:${signal.timeframe}`));
   const releaseBlockingSignals = () => {
     if (!blockingSignals.length || !window.confirm(`Release ${blockingSignals.length} active paper-signal blocker(s) from Entry Forger? They will remain PENDING for outcome tracking.`)) return;
     releaseMutation.mutate({ signalIds: blockingSignals.map((signal) => signal.id) });
@@ -926,7 +929,9 @@ function EntryForgerCard() {
                     Forger decision
                   </p>
                   <p className="mt-1 text-xs leading-5 text-foreground">
-                    {state.reason ?? "No decision reason recorded."}
+                    {!blockingKeys.has(`${state.asset}:${state.timeframe}`) && /active v4 paper setup/i.test(state.reason ?? "")
+                      ? "No active Entry Forger blocker; existing PENDING setup remains tracking-only for outcome resolution."
+                      : state.reason ?? "No decision reason recorded."}
                   </p>
                 </div>
                 {(state.targetBoundary != null ||

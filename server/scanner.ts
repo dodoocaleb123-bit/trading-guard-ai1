@@ -315,7 +315,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
     console.warn("[Scanner] Strategy engine unavailable; no new signals created:", message);
     return { created: 0, tracked: await trackOpenSignals(userId, seriesCache), adjustments: 0, marketData: "available" };
   }
-  const activeCurrentSignals = await listOpenCurrentV4Signals(userId);
+  const activeCurrentSignals = await listOpenCurrentV4Signals(userId, true);
   for (const gated of decisions) {
     const { asset, timeframe, market } = gated;
     const sourceCandidate = candidates.find((candidate) => candidate.asset === asset && candidate.timeframe === timeframe);

@@ -337,10 +337,17 @@ export async function listPaperTradeAdjustments(userId: number, limit = 100) {
   return rows.map((row) => ({ ...row, telegramDelivery: deliveries.find((delivery) => delivery.kind === "ADJUSTMENT" && delivery.dedupeKey === row.dedupeKey) ?? null }));
 }
 
-export async function listOpenCurrentV4Signals(userId: number) {
+export async function listOpenCurrentV4Signals(userId: number, blockingOnly = false) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), inArray(generatedSignals.generationMode, [ENTRY_LOCATOR_V4_GENERATION_MODE, ENTRY_FORGER_V4_GENERATION_MODE]))).orderBy(desc(generatedSignals.openedAt));
+  const predicates = [
+    eq(generatedSignals.userId, userId),
+    eq(generatedSignals.status, "PENDING"),
+    eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"),
+    inArray(generatedSignals.generationMode, [ENTRY_LOCATOR_V4_GENERATION_MODE, ENTRY_FORGER_V4_GENERATION_MODE]),
+  ];
+  if (blockingOnly) predicates.push(eq(generatedSignals.blocksEntryForger, true));
+  return db.select().from(generatedSignals).where(and(...predicates)).orderBy(desc(generatedSignals.openedAt));
 }
 
 export async function releaseEntryForgerBlockers(userId: number, signalIds: number[]) {

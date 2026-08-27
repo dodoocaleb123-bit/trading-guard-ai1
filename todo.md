@@ -1253,3 +1253,11 @@
 - [x] Add an authenticated production smoke test for complete persisted v5 hierarchy payloads after scanner cycles. Added scripts/v5-production-smoke.mjs; execution requires V5_PRODUCTION_BASE_URL and V5_SESSION_COOKIE.
 - [x] Monitor several production cycles for qualified/waiting decisions and actual-ratio distributions, recording only observed production evidence. Recent cycles succeeded with marketData=available; observed persisted decisions include WAITING and QUALIFIED states with ratios such as 0.16, 0.18, 0.19, and 114.45.
 - [x] Run full regression, typecheck, build, responsive UI, data-integrity, and production validation; resolve confirmed defects and publish v5. Regression passed 56 files / 222 tests; TypeScript and production build passed; database cleanup and v5-only source/UI audits passed.
+
+## v5 follow-up observability
+
+- [x] Run the authenticated v5 production smoke test after a fresh scanner cycle and record the persisted hierarchy result. Added and wired the authenticated `scanner.v5Smoke` procedure and dashboard card; fresh production-cycle verification confirmed complete persisted hierarchy evidence. The standalone CLI additionally requires a session cookie supplied at execution time.
+- [x] Add per-asset zone-map history with freshness timestamps for 4H, 1H, and independent 15M zones.
+- [x] Add a 24-hour qualified-versus-waiting trend view using persisted v5 decision-ledger data only.
+- [x] Re-audit and test the v5 hierarchy → Entry Locator → Entry Forger path, including shared quality gates, strict locks, paper-only status, and actual-ratio reporting. The scanner path confirms hierarchy first, Locator precedence, Forger geometry-denial fallback, shared gates, strict locks, and v5 generation labels.
+- [x] Run full tests, typecheck, build, responsive UI verification, production-cycle checks, and publish the follow-up release. Focused validation passed 40 tests; full validation passed 56 files / 222 tests; TypeScript, build, desktop/mobile Scanner screenshots, and fresh production-cycle checks passed.

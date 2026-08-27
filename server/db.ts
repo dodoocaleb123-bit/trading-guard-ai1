@@ -619,6 +619,32 @@ export async function listStrategyDecisions(userId: number, filters: DecisionFil
   return filterStrategyDecisions(rows, filters);
 }
 
+export async function getV5HierarchySmokeStatus(userId: number, lookbackMinutes = 30) {
+  const db = await getDb();
+  if (!db) return { ok: false, reason: "Database is unavailable.", checkedDecisions: 0, qualified: 0, waiting: 0, actualRatios: [], latestCycleAt: null as Date | null };
+  const since = new Date(Date.now() - lookbackMinutes * 60_000);
+  const [decisions, runs] = await Promise.all([
+    db.select().from(strategyDecisionLedger).where(and(eq(strategyDecisionLedger.userId, userId), gte(strategyDecisionLedger.createdAt, since))).orderBy(desc(strategyDecisionLedger.createdAt)).limit(500),
+    db.select().from(scannerRunLedger).where(and(gte(scannerRunLedger.finishedAt, since), eq(scannerRunLedger.status, "SUCCEEDED"))).orderBy(desc(scannerRunLedger.finishedAt)).limit(20),
+  ]);
+  const hierarchyRows = decisions.flatMap((decision) => {
+    try {
+      const snapshot = JSON.parse(decision.marketSnapshot ?? "{}");
+      const workflow = snapshot?.replacementIntelligence?.workflow;
+      if (!workflow || !Array.isArray(workflow.zones) || !workflow.confirmation || !["QUALIFIED", "WAITING"].includes(workflow.status)) return [];
+      return [{ status: workflow.status as "QUALIFIED" | "WAITING", riskReward: Number(workflow.riskReward), createdAt: decision.createdAt }];
+    } catch {
+      return [];
+    }
+  });
+  const actualRatios = hierarchyRows.map((row) => row.riskReward).filter(Number.isFinite);
+  const qualified = hierarchyRows.filter((row) => row.status === "QUALIFIED").length;
+  const waiting = hierarchyRows.filter((row) => row.status === "WAITING").length;
+  const latestCycleAt = runs[0]?.finishedAt ?? null;
+  const ok = Boolean(latestCycleAt && hierarchyRows.length);
+  return { ok, reason: ok ? "Recent successful scanner cycles have complete persisted v5 hierarchy payloads." : "No complete v5 hierarchy payload was found after a recent successful scanner cycle.", checkedDecisions: hierarchyRows.length, qualified, waiting, actualRatios, latestCycleAt };
+}
+
 export async function listStrategyDecisionsSince(userId: number, since: Date) {
   const db = await getDb();
   if (!db) return [];

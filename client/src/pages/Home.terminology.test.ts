@@ -94,6 +94,19 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("Number(state.targetDistance) * 0.5");
   });
 
+  it("exposes the v5 zone map, history freshness, and qualification trend", () => {
+    expect(homeSource).toContain("V5 supply-and-demand zone map");
+    expect(homeSource).toContain("Recent zone-map history");
+    expect(homeSource).toContain("FRESH ·");
+    expect(homeSource).toContain("AGING ·");
+    expect(homeSource).toContain("STALE ·");
+    expect(homeSource).toContain("Authenticated v5 production smoke");
+    expect(homeSource).toContain("trpc.scanner.v5Smoke.useQuery");
+    expect(homeSource).toContain("V5 qualification trend · last 24 hours");
+    expect(homeSource).toContain("V5 qualified and waiting decisions by hour");
+    expect(homeSource).toContain("4H and 1H provide context; 15M zones are drawn independently");
+  });
+
   it("hides empty legacy analytics histories after the purge", () => {
     expect(homeSource).toContain("const visibleVersions = (stats.data?.versions ?? []).filter(");
     expect(homeSource).toContain("version.overall.generated > 0");

@@ -2740,6 +2740,95 @@ function ScannerCadenceDiagnostics() {
   );
 }
 
+function V5SmokeStatusCard() {
+  const smoke = trpc.scanner.v5Smoke.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const data = smoke.data;
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle className="font-display text-xl">Authenticated v5 production smoke</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">Checks recent successful scanner cycles against complete persisted hierarchy payloads.</p>
+          </div>
+          <Badge className={data?.ok ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600" : "border-amber-500/20 bg-amber-500/10 text-amber-700"}>{data?.ok ? "PASS" : smoke.isLoading ? "CHECKING" : "WAITING"}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {smoke.isError ? <DataError text="Authenticated v5 smoke status could not be loaded." /> : (
+          <div className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-4">
+            <span>Payloads checked: <b className="text-foreground">{data?.checkedDecisions ?? 0}</b></span>
+            <span>Qualified: <b className="text-emerald-600">{data?.qualified ?? 0}</b></span>
+            <span>Waiting: <b className="text-amber-700">{data?.waiting ?? 0}</b></span>
+            <span>Actual ratios: <b className="text-foreground">{data?.actualRatios?.length ? data.actualRatios.join(", ") : "—"}</b></span>
+          </div>
+        )}
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">{data?.reason ?? "Waiting for an authenticated production check."}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function V5DecisionTrend() {
+  const decisions = trpc.scanner.decisions.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const buckets = useMemo(() => {
+    const now = Date.now();
+    const grouped = new Map<number, { label: string; qualified: number; waiting: number; total: number }>();
+    for (let offset = 23; offset >= 0; offset -= 1) {
+      const hour = new Date(now - offset * 60 * 60 * 1000);
+      const key = new Date(hour.getFullYear(), hour.getMonth(), hour.getDate(), hour.getHours()).getTime();
+      grouped.set(key, { label: hour.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), qualified: 0, waiting: 0, total: 0 });
+    }
+    for (const decision of decisions.data ?? []) {
+      const created = new Date(decision.createdAt);
+      if (now - created.getTime() > 24 * 60 * 60 * 1000) continue;
+      const key = new Date(created.getFullYear(), created.getMonth(), created.getDate(), created.getHours()).getTime();
+      const bucket = grouped.get(key);
+      if (!bucket) continue;
+      const snapshot = parseStoredJson(decision.marketSnapshot);
+      const workflow = snapshot && typeof snapshot === "object" ? (snapshot as { replacementIntelligence?: { workflow?: { status?: string } } }).replacementIntelligence?.workflow : null;
+      if (workflow?.status === "QUALIFIED") bucket.qualified += 1;
+      if (workflow?.status === "WAITING") bucket.waiting += 1;
+      if (workflow?.status === "QUALIFIED" || workflow?.status === "WAITING") bucket.total += 1;
+    }
+    return Array.from(grouped.values());
+  }, [decisions.data]);
+  const max = Math.max(1, ...buckets.map(bucket => bucket.total));
+  const qualified = buckets.reduce((sum, bucket) => sum + bucket.qualified, 0);
+  const waiting = buckets.reduce((sum, bucket) => sum + bucket.waiting, 0);
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="font-display text-xl">V5 qualification trend · last 24 hours</CardTitle>
+        <p className="text-xs leading-5 text-muted-foreground">Counts only persisted hierarchy decisions. A quiet hour remains quiet; it is not treated as a failed or qualified cycle.</p>
+      </CardHeader>
+      <CardContent>
+        {decisions.isError ? <DataError text="The v5 qualification trend could not be loaded." /> : decisions.isLoading ? <p className="text-sm text-muted-foreground">Loading qualification history…</p> : (
+          <>
+            <div className="mb-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
+              <span><b className="text-emerald-600">{qualified}</b> qualified</span>
+              <span><b className="text-amber-600">{waiting}</b> waiting</span>
+              <span>{qualified + waiting} decisions with hierarchy status</span>
+            </div>
+            <div className="grid h-32 grid-cols-[repeat(24,minmax(0,1fr))] items-end gap-1" aria-label="V5 qualified and waiting decisions by hour">
+              {buckets.map((bucket, index) => (
+                <div key={`${bucket.label}-${index}`} className="flex h-full min-w-0 flex-col justify-end gap-1" title={`${bucket.label}: ${bucket.qualified} qualified, ${bucket.waiting} waiting`}>
+                  <div className="flex min-h-0 flex-1 flex-col justify-end gap-px">
+                    {bucket.qualified > 0 && <div className="rounded-t-sm bg-emerald-500/75" style={{ height: `${(bucket.qualified / max) * 100}%` }} />}
+                    {bucket.waiting > 0 && <div className="bg-amber-500/70" style={{ height: `${(bucket.waiting / max) * 100}%` }} />}
+                  </div>
+                  {index % 4 === 0 && <span className="truncate text-[9px] text-muted-foreground">{bucket.label}</span>}
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex gap-4 text-[11px] text-muted-foreground"><span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-emerald-500/75" />Qualified</span><span><i className="mr-1 inline-block h-2 w-2 rounded-sm bg-amber-500/70" />Waiting</span></div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function V5ZoneMap() {
   const decisions = trpc.scanner.decisions.useQuery(undefined, LIVE_QUERY_OPTIONS);
   const latestByAsset = useMemo(() => {
@@ -2752,9 +2841,28 @@ function V5ZoneMap() {
     }
     return map;
   }, [decisions.data]);
+  const historyByAsset = useMemo(() => {
+    const map = new Map<string, Array<{ createdAt: string | Date; status: string }>>();
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    for (const decision of decisions.data ?? []) {
+      const createdAt = new Date(decision.createdAt);
+      if (createdAt.getTime() < cutoff) continue;
+      const snapshot = parseStoredJson(decision.marketSnapshot);
+      const workflow = snapshot && typeof snapshot === "object" ? (snapshot as { replacementIntelligence?: { workflow?: { status?: string } } }).replacementIntelligence?.workflow : null;
+      if (!workflow?.status) continue;
+      const rows = map.get(decision.asset) ?? [];
+      rows.push({ createdAt: decision.createdAt, status: workflow.status });
+      map.set(decision.asset, rows);
+    }
+    return map;
+  }, [decisions.data]);
   const formatZone = (zone: any) => {
     if (!zone) return "No qualifying zone";
     return `${zone.kind} ${Number(zone.lower).toFixed(5)}–${Number(zone.upper).toFixed(5)}`;
+  };
+  const freshness = (createdAt: string | Date) => {
+    const ageMinutes = Math.max(0, Math.round((Date.now() - new Date(createdAt).getTime()) / 60_000));
+    return ageMinutes <= 15 ? `FRESH · ${ageMinutes}m` : ageMinutes <= 60 ? `AGING · ${ageMinutes}m` : `STALE · ${ageMinutes}m`;
   };
   return (
     <Card className="mb-6 border-primary/15 bg-primary/[0.025]">
@@ -2798,6 +2906,17 @@ function V5ZoneMap() {
                         </div>
                       );
                     })}
+                  </div>
+                  <div className="mt-4 border-t pt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Recent zone-map history</p>
+                    <div className="mt-2 space-y-1.5">
+                      {(historyByAsset.get(item.symbol) ?? []).slice(0, 3).map((entry, index) => (
+                        <div key={`${item.symbol}-${entry.createdAt}-${index}`} className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                          <span>{entry.status}</span><span>{freshness(entry.createdAt)}</span>
+                        </div>
+                      ))}
+                      {!(historyByAsset.get(item.symbol) ?? []).length && <p className="text-[11px] text-muted-foreground">No recent persisted map history.</p>}
+                    </div>
                   </div>
                 </div>
               );
@@ -2924,7 +3043,9 @@ function ScannerPage() {
         }
       />
       <AdaptiveGeometryDiagnostics />
+      <V5SmokeStatusCard />
       <V5ZoneMap />
+      <V5DecisionTrend />
       <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
         <Card>
           <CardHeader>

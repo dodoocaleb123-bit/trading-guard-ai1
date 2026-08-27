@@ -2843,6 +2843,7 @@ function ScannerPage() {
     (!cadence.data?.latestSuccessfulAt ||
       new Date(providerIssue.at).getTime() > new Date(cadence.data.latestSuccessfulAt).getTime())
   );
+  const latestTimeframeHealth = cadence.data?.latestTimeframeHealth ?? [];
 
   return (
     <>
@@ -2889,6 +2890,45 @@ function ScannerPage() {
           </Card>
         );
       })()}
+      <Card className="mb-6">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="font-display text-xl">Required timeframe retrieval</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                The latest scanner cycle must retrieve 15M confirmation, 1H context, and 4H bias data before v5 can evaluate a complete hierarchy.
+              </p>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Latest cycle: {cadence.data?.latestSuccessfulAt ? formatDateTime(cadence.data.latestSuccessfulAt) : "—"}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {(["15min", "1h", "4h"] as const).map(interval => {
+              const item = latestTimeframeHealth.find(entry => entry.interval === interval);
+              const status = item?.status ?? "NOT_RECORDED";
+              const available = status === "AVAILABLE";
+              const unavailable = status === "UNAVAILABLE";
+              return (
+                <div key={interval} className={`rounded-xl border p-3 ${available ? "border-emerald-500/25 bg-emerald-500/5" : unavailable ? "border-rose-500/25 bg-rose-500/5" : "border-slate-300 bg-slate-50"}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{interval}</p>
+                    {available ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Clock3 className={`h-4 w-4 ${unavailable ? "text-rose-600" : "text-slate-500"}`} />}
+                  </div>
+                  <p className={`mt-2 text-sm font-semibold ${available ? "text-emerald-800" : unavailable ? "text-rose-800" : "text-slate-700"}`}>
+                    {available ? "AVAILABLE" : unavailable ? "UNAVAILABLE" : "NOT RECORDED"}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                    {item?.at ? `Verified ${formatDateTime(item.at)}` : "Waiting for a recorded complete cycle"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
       {providerOutageActive && providerIssue ? (
         <Card role="alert" className="mb-6 border-amber-500/25 bg-amber-500/[0.04]">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">

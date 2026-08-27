@@ -1391,3 +1391,10 @@
 - [x] Fix the scanner-to-v5 lifecycle so overlapping or stalled callbacks cannot leave fresh cycles stuck in RUNNING or suppress later complete snapshots
 - [x] Add focused regression coverage for chat transport errors and scanner callback lifecycle behavior
 - [x] Run full validation and publish the combined fix without changing v5 judgment, Telegram, tracking, or paper-only rules
+- [x] Verify whether the reported 1H market-data retrieval failure at 11:40–11:41 UTC is real
+- [x] Verify 4H retrieval status for the same scanner cycles
+- [x] Fix any confirmed 1H or 4H retrieval defect without changing v5 decision rules
+- [x] Add clear per-timeframe 1H and 4H retrieval success/failure observability to the app interface
+- [x] Run focused and full regression validation plus production-cycle verification
+- [x] Publish the verified 1H/4H retrieval and observability update
+

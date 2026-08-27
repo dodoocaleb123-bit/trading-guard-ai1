@@ -67,6 +67,29 @@ export type ScannerProviderIssue = {
   severity: "TRANSIENT" | "QUOTA" | "OTHER";
 };
 
+export type ScannerTimeframeHealth = {
+  interval: "15min" | "1h" | "4h";
+  status: "AVAILABLE" | "UNAVAILABLE" | "NOT_RECORDED";
+  at: Date | string | null;
+};
+
+const REQUIRED_MARKET_INTERVALS = ["15min", "1h", "4h"] as const;
+
+function timeframeHealthFromRun(run: ScannerCadenceRun | null): ScannerTimeframeHealth[] {
+  if (!run) return REQUIRED_MARKET_INTERVALS.map((interval) => ({ interval, status: "NOT_RECORDED", at: null }));
+  const at = run.finishedAt ?? run.startedAt ?? null;
+  if (run.status === "SUCCEEDED" && run.marketData === "available") {
+    return REQUIRED_MARKET_INTERVALS.map((interval) => ({ interval, status: "AVAILABLE", at }));
+  }
+  const error = String(run.error ?? "");
+  const unavailable = new Set(Array.from(error.matchAll(/Twelve Data (5min|15min|1h|4h) unavailable/gi)).map((match) => match[1].toLowerCase()));
+  return REQUIRED_MARKET_INTERVALS.map((interval) => ({
+    interval,
+    status: unavailable.has(interval) ? "UNAVAILABLE" : "NOT_RECORDED",
+    at: unavailable.has(interval) ? at : null,
+  }));
+}
+
 function providerIssueFromRun(run: ScannerCadenceRun): ScannerProviderIssue | null {
   if (run.marketData !== "unavailable") return null;
   const error = String(run.error ?? "").trim();
@@ -130,6 +153,7 @@ export function summarizeScannerCadence(runs: ScannerCadenceRun[]) {
     providerUnavailableCycles: providerIssues.length,
     providerUnavailableWindows: providerIssues.length,
     latestProviderIssue: providerIssues.at(-1) ?? null,
+    latestTimeframeHealth: timeframeHealthFromRun(uniqueRows.at(-1) ?? null),
     runs: uniqueRows.slice(-12).reverse().map((run) => ({ ...run, classification: classifyRun(run) })),
   };
 }

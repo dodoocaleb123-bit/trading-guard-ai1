@@ -70,7 +70,33 @@ describe("scanner cadence diagnostics", () => {
     expect(result.latestSuccessfulSource).toBe("HEARTBEAT");
   });
 
+  it("reports required timeframe retrieval as available after a complete cycle", () => {
+    const result = summarizeScannerCadence([
+      { runKey: "trading-guard-scanner:30", taskUid: "external-cron-job", startedAt: "2026-08-27T23:40:00.000Z", finishedAt: "2026-08-27T23:40:12.000Z", status: "SUCCEEDED", marketData: "available" },
+    ]);
+    expect(result.latestTimeframeHealth).toEqual([
+      { interval: "15min", status: "AVAILABLE", at: "2026-08-27T23:40:12.000Z" },
+      { interval: "1h", status: "AVAILABLE", at: "2026-08-27T23:40:12.000Z" },
+      { interval: "4h", status: "AVAILABLE", at: "2026-08-27T23:40:12.000Z" },
+    ]);
+  });
+
+  it("flags failed 1H and 4H retrieval explicitly", () => {
+    const result = summarizeScannerCadence([
+      { runKey: "trading-guard-scanner:31", taskUid: "external-cron-job", startedAt: "2026-08-27T23:45:00.000Z", status: "SUCCEEDED", marketData: "unavailable", error: "Twelve Data 1h unavailable: Request failed with status code 429 | Twelve Data 4h unavailable: Request failed with status code 429" },
+    ]);
+    expect(result.latestTimeframeHealth).toEqual([
+      { interval: "15min", status: "NOT_RECORDED", at: null },
+      { interval: "1h", status: "UNAVAILABLE", at: "2026-08-27T23:45:00.000Z" },
+      { interval: "4h", status: "UNAVAILABLE", at: "2026-08-27T23:45:00.000Z" },
+    ]);
+  });
+
   it("returns a safe empty state", () => {
-    expect(summarizeScannerCadence([])).toMatchObject({ receivedCycles: 0, skippedWindows: 0, providerUnavailableWindows: 0, duplicateSuppressed: 0, lastRunAt: null });
+    expect(summarizeScannerCadence([])).toMatchObject({ receivedCycles: 0, skippedWindows: 0, providerUnavailableWindows: 0, duplicateSuppressed: 0, lastRunAt: null, latestTimeframeHealth: [
+      { interval: "15min", status: "NOT_RECORDED", at: null },
+      { interval: "1h", status: "NOT_RECORDED", at: null },
+      { interval: "4h", status: "NOT_RECORDED", at: null },
+    ] });
   });
 });

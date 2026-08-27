@@ -1323,3 +1323,7 @@
 - [x] Add comprehensive tests for chat context, audit boundaries, persistence, branding, and v5 workflow isolation
 - [x] Update the Scanner terminology regression to expect Rose’s Eye On The Markets while preserving collector behavior assertions
 - [x] Register the Cherry AI route in the application shell so /cherry-ai renders the dedicated audit chat instead of a 404 page
+
+- [x] Make White AI and Cherry AI full-page dedicated chat workspaces without adjacent explanatory panels or competing dashboard controls
+- [x] Preserve essential chat actions in an unobtrusive workspace header and keep v5/Telegram workflow isolation intact
+- [x] Validate responsive desktop and mobile chat layouts with regression tests and visual checks

@@ -1107,131 +1107,79 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
           "Audit XAU/USD SELL with 1:2 risk/reward",
         ];
   return (
-    <>
+    <div className="flex min-h-[calc(100vh-4rem)] min-w-0 flex-col font-montserrat">
       {history.isError && (
-        <DataError text="Audit history could not be loaded. New conversations remain available after the connection recovers." />
+        <DataError text="Chat history could not be loaded. New conversations remain available after the connection recovers." />
       )}
-        <PageHeading
-        eyebrow={isCherry ? "Independent trade review" : "App-aware conversation"}
-        title={isCherry ? "Cherry AI" : "White AI"}
-        description={isCherry ? "Audit any proposed trade signal or setup with live context, the stored forex document, and clear paper-only reasoning." : "Ask White AI why v5 acted or waited, how the scanner and zones work, what the app is tracking, or ask general forex questions grounded in the stored trading document."}
-      />
-      <div className="grid min-w-0 gap-6 overflow-hidden xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className={`min-w-0 overflow-hidden ${isCherry ? "font-montserrat" : "font-montserrat"}`}>
-          <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-wrap gap-2">
-              {!isCherry && <Button
-                type="button"
-                size="sm"
-                variant={mode === "ASK" ? "default" : "outline"}
-                onClick={() => setMode("ASK")}
-              >
-                <MessageSquareText className="mr-2 h-4 w-4" />
-                Ask
-              </Button>}
-              {!isCherry && <Button
-                type="button"
-                size="sm"
-                variant={mode === "AUDIT" ? "default" : "outline"}
-                onClick={() => setMode("AUDIT")}
-              >
-                <ShieldCheck className="mr-2 h-4 w-4" />
-                Audit
-              </Button>}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={exportConversation}
-                disabled={!combined.length}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Export
+      <header className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-1 pb-4 backdrop-blur">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
+            {isCherry ? "Independent trade review" : "App-aware conversation"}
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">
+            {isCherry ? "Cherry AI" : "White AI"}
+          </h1>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            {isCherry
+              ? "Audit app-generated or external trade ideas without creating or sending a v5 signal."
+              : "Ask why v5 acted or waited, how the scanner and zones work, what the app is tracking, or ask grounded forex questions."}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {!isCherry && (
+            <div className="flex rounded-lg border bg-muted/30 p-1">
+              <Button type="button" size="sm" variant={mode === "ASK" ? "default" : "ghost"} onClick={() => setMode("ASK")}>
+                <MessageSquareText className="mr-2 h-4 w-4" /> Ask
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  window.confirm(
-                    `Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted trade-audit records will remain.`
-                  ) &&       clearConversation.mutate({ channel: assistant })
-                }
-                disabled={isPending}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Clear
+              <Button type="button" size="sm" variant={mode === "AUDIT" ? "default" : "ghost"} onClick={() => setMode("AUDIT")}>
+                <ShieldCheck className="mr-2 h-4 w-4" /> Audit
               </Button>
             </div>
-          </div>
-          <Suspense
-            fallback={
-              <div className="flex min-h-[240px] items-center justify-center rounded-lg border bg-card p-6 text-sm text-muted-foreground">
-                Loading the trading assistant…
-              </div>
+          )}
+          <Button type="button" size="sm" variant="outline" onClick={exportConversation} disabled={!combined.length}>
+            <Download className="mr-2 h-4 w-4" /> Export
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              window.confirm(`Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted audit records remain.`) && clearConversation.mutate({ channel: assistant })
             }
+            disabled={isPending}
           >
-            <AIChatBox
-              messages={combined}
-              onSendMessage={handleMessage}
-              isLoading={isPending}
-              height="min(650px, calc(100vh - 220px))"
-              className="w-full min-w-0 max-w-full overflow-hidden"
-              placeholder={
-                isCherry
-                  ? "Paste a trade signal or setup to audit…"
-                  : mode === "ASK"
-                    ? "Ask White AI about v5, the scanner, zones, or forex…"
-                    : "Describe a trade idea to audit…"
-              }
-              assistantName={isCherry ? "Cherry AI" : "White AI"}
-              assistantTagline={isCherry ? "Independent paper-only trade review" : "Grounded app explanations and forex education"}
-              suggestedPrompts={prompts}
-            />
-          </Suspense>
+            <Trash2 className="mr-2 h-4 w-4" /> Clear
+          </Button>
         </div>
-        <div className="min-w-0 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-display text-lg">
-                {isCherry ? "Audit a trade with Cherry AI" : mode === "ASK" ? "Ask White AI" : "Audit a trade"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <Protocol
-                icon={MessageSquareText}
-                title={isCherry ? "Independent review" : "Ask"}
-                text={isCherry ? "Review app-generated or externally proposed trades without creating a v5 signal." : "Discuss v5 behavior, scanner state, market structure, risk, assets, sessions, and stored paper outcomes."}
-              />
-              <Protocol
-                icon={Gauge}
-                title="Grounded context"
-                text="The assistant uses current app records and the stored forex document when available, and identifies missing information plainly."
-              />
-              <Protocol
-                icon={ShieldCheck}
-                title="Guardrails"
-                text="Live observations remain analysis only; every decision is paper-only and UNVALIDATED."
-              />
-            </CardContent>
-          </Card>
-          <Card className="bg-primary text-primary-foreground">
-            <CardContent className="p-5">
-              <Sparkles className="h-5 w-5" />
-              <p className="mt-4 font-display text-lg font-semibold">
-                Interactive, not impulsive.
-              </p>
-              <p className="mt-2 text-sm leading-6 text-primary-foreground/75">
-                The assistant answers from your ingested rules and available app
-                context, and clearly identifies when live data is unavailable.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </>
+      </header>
+      <main className="flex min-h-0 flex-1 flex-col pt-4">
+        <Suspense
+          fallback={
+            <div className="flex min-h-[50vh] flex-1 items-center justify-center rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
+              Loading {isCherry ? "Cherry AI" : "White AI"}…
+            </div>
+          }
+        >
+          <AIChatBox
+            messages={combined}
+            onSendMessage={handleMessage}
+            isLoading={isPending}
+            height="calc(100vh - 190px)"
+            className="min-h-[520px] w-full min-w-0 flex-1 overflow-hidden rounded-2xl shadow-sm"
+            placeholder={
+              isCherry
+                ? "Paste a trade signal or setup to audit…"
+                : mode === "ASK"
+                  ? "Ask White AI about v5, the scanner, zones, or forex…"
+                  : "Describe a trade idea to audit…"
+            }
+            assistantName={isCherry ? "Cherry AI" : "White AI"}
+            assistantTagline={isCherry ? "Independent paper-only trade review" : "Grounded app explanations and forex education"}
+            suggestedPrompts={prompts}
+          />
+        </Suspense>
+      </main>
+    </div>
   );
 }
 function Protocol({

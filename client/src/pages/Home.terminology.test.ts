@@ -38,7 +38,7 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain('assistant="WHITE"');
     expect(homeSource).toContain('assistant="CHERRY"');
     expect(homeSource).toContain('path === "/cherry-ai"');
-    expect(homeSource).toContain('title={isCherry ? "Cherry AI" : "White AI"}');
+    expect(homeSource).toContain('{isCherry ? "Cherry AI" : "White AI"}');
     expect(homeSource).toContain("font-montserrat");
     expect(homeSource).toContain('assistantName={isCherry ? "Cherry AI" : "White AI"}');
   });

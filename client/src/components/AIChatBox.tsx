@@ -62,6 +62,9 @@ export type AIChatBoxProps = {
   /** Branded identity shown above the conversation. */
   assistantName?: string;
   assistantTagline?: string;
+
+  /** Hide the internal identity header when a parent owns the fixed workspace header. */
+  showHeader?: boolean;
 };
 
 /**
@@ -126,6 +129,7 @@ export function AIChatBox({
   suggestedPrompts,
   assistantName = "AI assistant",
   assistantTagline = "Grounded conversation with clear paper-trading boundaries.",
+  showHeader = true,
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -211,16 +215,18 @@ export function AIChatBox({
       )}
       style={{ height }}
     >
-      <div className="flex items-center justify-between gap-3 border-b bg-background/70 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Sparkles className="size-4" /></div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{assistantName}</p>
-            <p className="truncate text-xs text-muted-foreground">{assistantTagline}</p>
+      {showHeader && (
+        <div className="flex items-center justify-between gap-3 border-b bg-background/70 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Sparkles className="size-4" /></div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{assistantName}</p>
+              <p className="truncate text-xs text-muted-foreground">{assistantTagline}</p>
+            </div>
           </div>
+          <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">Paper only</span>
         </div>
-        <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">Paper only</span>
-      </div>
+      )}
 
       {/* Messages Area */}
       <div ref={scrollAreaRef} className="min-w-0 max-w-full flex-1 overflow-hidden">

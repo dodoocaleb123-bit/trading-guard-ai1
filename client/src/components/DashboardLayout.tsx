@@ -46,8 +46,10 @@ const MAX_WIDTH = 480;
 
 export default function DashboardLayout({
   children,
+  immersiveChat = false,
 }: {
   children: React.ReactNode;
+  immersiveChat?: boolean;
 }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
@@ -95,7 +97,7 @@ export default function DashboardLayout({
         } as CSSProperties
       }
     >
-      <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
+      <DashboardLayoutContent setSidebarWidth={setSidebarWidth} immersiveChat={immersiveChat}>
         {children}
       </DashboardLayoutContent>
     </SidebarProvider>
@@ -105,11 +107,13 @@ export default function DashboardLayout({
 type DashboardLayoutContentProps = {
   children: React.ReactNode;
   setSidebarWidth: (width: number) => void;
+  immersiveChat: boolean;
 };
 
 function DashboardLayoutContent({
   children,
   setSidebarWidth,
+  immersiveChat,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
@@ -248,7 +252,7 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
-        {isMobile && (
+        {isMobile && !immersiveChat && (
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
@@ -262,7 +266,7 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className={immersiveChat ? "flex-1 p-0" : "flex-1 p-4"}>{children}</main>
       </SidebarInset>
     </>
   );

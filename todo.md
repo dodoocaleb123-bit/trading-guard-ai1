@@ -1327,3 +1327,12 @@
 - [x] Make White AI and Cherry AI full-page dedicated chat workspaces without adjacent explanatory panels or competing dashboard controls
 - [x] Preserve essential chat actions in an unobtrusive workspace header and keep v5/Telegram workflow isolation intact
 - [x] Validate responsive desktop and mobile chat layouts with regression tests and visual checks
+
+- [x] Inspect the supplied phone and laptop recordings and map their fixed chat-shell behavior to White AI and Cherry AI
+- [x] Make the phone chat edge-to-edge with fixed top panel and composer, right-aligned user messages, and left-aligned AI messages
+- [x] Make the laptop chat use a tab sidebar with fixed top panel and composer, matching the reference controls and white-gray theme
+- [x] Replace chat header controls with a tab-panel button plus icon-only Export and Clear controls; remove Ask/Audit and explanatory copy
+- [x] Render White AI and Cherry AI names with their requested uppercase subtitles in the fixed top panel
+- [x] Add responsive tests and visual verification without changing v5 signal generation, Telegram delivery, locks, or tracking
+- [x] Remove the duplicate mobile page bar above White AI and Cherry AI so the fixed chat header is the only chat identity panel
+- [x] Tune immersive chat height so the fixed composer reaches the bottom edge of the phone viewport without unused lower space

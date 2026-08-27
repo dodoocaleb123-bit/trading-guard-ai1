@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { cn } from "@/lib/utils";
 import {
   BookOpen,
   CheckCircle2,
@@ -23,6 +24,7 @@ import {
   LockKeyhole,
   MessageSquareText,
   Paperclip,
+  PanelLeft,
   Radar,
   RefreshCw,
   ShieldCheck,
@@ -1089,6 +1091,13 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
     link.click();
     URL.revokeObjectURL(url);
   };
+  const [, navigate] = useLocation();
+  const workspaceTabs = [
+    { label: "Overview", path: "/", icon: Radar },
+    { label: "White AI", path: "/chat-audit", icon: MessageSquareText },
+    { label: "Cherry AI", path: "/cherry-ai", icon: ShieldCheck },
+    { label: "Scanner", path: "/scanner", icon: Zap },
+  ];
   const prompts = isCherry
     ? [
         "Audit EUR/USD BUY on 15MIN with 1:2 risk/reward",
@@ -1106,79 +1115,73 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
           "Explain why this v5 plan was skipped",
           "Audit XAU/USD SELL with 1:2 risk/reward",
         ];
+  const [panelOpen, setPanelOpen] = useState(false);
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] min-w-0 flex-col font-montserrat">
-      {history.isError && (
-        <DataError text="Chat history could not be loaded. New conversations remain available after the connection recovers." />
-      )}
-      <header className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b bg-background/95 px-1 pb-4 backdrop-blur">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">
-            {isCherry ? "Independent trade review" : "App-aware conversation"}
-          </p>
-          <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight">
-            {isCherry ? "Cherry AI" : "White AI"}
-          </h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            {isCherry
-              ? "Audit app-generated or external trade ideas without creating or sending a v5 signal."
-              : "Ask why v5 acted or waited, how the scanner and zones work, what the app is tracking, or ask grounded forex questions."}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {!isCherry && (
-            <div className="flex rounded-lg border bg-muted/30 p-1">
-              <Button type="button" size="sm" variant={mode === "ASK" ? "default" : "ghost"} onClick={() => setMode("ASK")}>
-                <MessageSquareText className="mr-2 h-4 w-4" /> Ask
+    <div className="-mx-4 -my-6 flex min-h-[100dvh] min-w-0 flex-col overflow-hidden bg-background font-montserrat sm:mx-0 sm:my-0 sm:min-h-[calc(100vh-4rem)] sm:rounded-2xl sm:border">
+      <div className="flex min-h-0 flex-1">
+        <aside className={cn("fixed inset-y-0 left-0 z-40 w-72 border-r bg-card p-4 shadow-xl transition-transform duration-200 sm:static sm:w-56 sm:shrink-0 sm:translate-x-0 sm:shadow-none", panelOpen ? "translate-x-0" : "-translate-x-full")}>
+          <div className="mb-5 flex items-center justify-between sm:hidden">
+            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">App tabs</span>
+            <Button type="button" variant="ghost" size="icon" onClick={() => setPanelOpen(false)} aria-label="Close app tabs">
+              <PanelLeft className="size-4" />
+            </Button>
+          </div>
+          <nav className="space-y-1" aria-label="Chat workspace tabs">
+            {workspaceTabs.map(tab => {
+              const Icon = tab.icon;
+              const active = tab.path === (isCherry ? "/cherry-ai" : "/chat-audit");
+              return (
+                <button
+                  key={tab.path}
+                  type="button"
+                  onClick={() => { navigate(tab.path); setPanelOpen(false); }}
+                  className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition-colors", active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
+                >
+                  <Icon className="size-4 shrink-0" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+        {panelOpen && <button type="button" aria-label="Close app tabs" className="fixed inset-0 z-30 bg-black/20 sm:hidden" onClick={() => setPanelOpen(false)} />}
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {history.isError && <DataError text="Chat history could not be loaded. New conversations remain available after the connection recovers." />}
+          <header className="sticky top-0 z-20 flex min-h-20 shrink-0 items-center gap-3 border-b bg-background px-4 py-3 sm:px-6">
+            <Button type="button" variant="ghost" size="icon" onClick={() => setPanelOpen(value => !value)} aria-label="Open app tabs" className="shrink-0">
+              <PanelLeft className="size-5" />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base font-semibold tracking-tight">{isCherry ? "Cherry AI" : "White AI"}</p>
+              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{isCherry ? "INDEPENDENT TRADE REVIEW" : "APP-AWARE CONVERSATIONS"}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button type="button" variant="ghost" size="icon" onClick={exportConversation} disabled={!combined.length} aria-label="Export conversation" title="Export conversation">
+                <Download className="size-4" />
               </Button>
-              <Button type="button" size="sm" variant={mode === "AUDIT" ? "default" : "ghost"} onClick={() => setMode("AUDIT")}>
-                <ShieldCheck className="mr-2 h-4 w-4" /> Audit
+              <Button type="button" variant="ghost" size="icon" onClick={() => window.confirm(`Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted audit records remain.`) && clearConversation.mutate({ channel: assistant })} disabled={isPending} aria-label="Clear conversation" title="Clear conversation">
+                <Trash2 className="size-4" />
               </Button>
             </div>
-          )}
-          <Button type="button" size="sm" variant="outline" onClick={exportConversation} disabled={!combined.length}>
-            <Download className="mr-2 h-4 w-4" /> Export
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              window.confirm(`Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted audit records remain.`) && clearConversation.mutate({ channel: assistant })
-            }
-            disabled={isPending}
-          >
-            <Trash2 className="mr-2 h-4 w-4" /> Clear
-          </Button>
-        </div>
-      </header>
-      <main className="flex min-h-0 flex-1 flex-col pt-4">
-        <Suspense
-          fallback={
-            <div className="flex min-h-[50vh] flex-1 items-center justify-center rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
-              Loading {isCherry ? "Cherry AI" : "White AI"}…
-            </div>
-          }
-        >
-          <AIChatBox
-            messages={combined}
-            onSendMessage={handleMessage}
-            isLoading={isPending}
-            height="calc(100vh - 190px)"
-            className="min-h-[520px] w-full min-w-0 flex-1 overflow-hidden rounded-2xl shadow-sm"
-            placeholder={
-              isCherry
-                ? "Paste a trade signal or setup to audit…"
-                : mode === "ASK"
-                  ? "Ask White AI about v5, the scanner, zones, or forex…"
-                  : "Describe a trade idea to audit…"
-            }
-            assistantName={isCherry ? "Cherry AI" : "White AI"}
-            assistantTagline={isCherry ? "Independent paper-only trade review" : "Grounded app explanations and forex education"}
-            suggestedPrompts={prompts}
-          />
-        </Suspense>
-      </main>
+          </header>
+          <main className="min-h-0 flex-1 p-0">
+            <Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center p-6 text-sm text-muted-foreground">Loading {isCherry ? "Cherry AI" : "White AI"}…</div>}>
+              <AIChatBox
+                messages={combined}
+                onSendMessage={handleMessage}
+                isLoading={isPending}
+                height="calc(100dvh - 5rem)"
+                className="min-h-[calc(100dvh-5rem)] w-full min-w-0 flex-1 rounded-none border-0 shadow-none sm:min-h-[calc(100vh-5rem)] sm:rounded-none"
+                placeholder={isCherry ? "Paste a trade signal or setup to audit…" : "Ask White AI about v5, the scanner, zones, or forex…"}
+                assistantName={isCherry ? "Cherry AI" : "White AI"}
+                assistantTagline={isCherry ? "Independent paper-only trade review" : "Grounded app explanations and forex education"}
+                showHeader={false}
+                suggestedPrompts={prompts}
+              />
+            </Suspense>
+          </main>
+        </section>
+      </div>
     </div>
   );
 }
@@ -4020,9 +4023,10 @@ export default function Home() {
     ) : (
       <Overview />
     );
+  const immersiveChat = path === "/chat-audit" || path === "/cherry-ai";
   return (
-    <DashboardLayout>
-      <div className="mx-auto w-full max-w-[1500px]">{page}</div>
+    <DashboardLayout immersiveChat={immersiveChat}>
+      <div className={immersiveChat ? "w-full" : "mx-auto w-full max-w-[1500px]"}>{page}</div>
     </DashboardLayout>
   );
 }

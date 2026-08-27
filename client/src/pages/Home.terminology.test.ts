@@ -41,6 +41,14 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain('{isCherry ? "Cherry AI" : "White AI"}');
     expect(homeSource).toContain("font-montserrat");
     expect(homeSource).toContain('assistantName={isCherry ? "Cherry AI" : "White AI"}');
+    expect(homeSource).toContain('immersiveChat = path === "/chat-audit" || path === "/cherry-ai"');
+    expect(homeSource).toContain('APP-AWARE CONVERSATIONS');
+    expect(homeSource).toContain('INDEPENDENT TRADE REVIEW');
+    expect(homeSource).toContain('aria-label="Open app tabs"');
+    expect(homeSource).toContain('aria-label="Export conversation"');
+    expect(homeSource).toContain('aria-label="Clear conversation"');
+    expect(homeSource).not.toContain('Ask</Button>');
+    expect(homeSource).not.toContain('Audit</Button>');
   });
 
   it("exposes the latest successful scanner-cycle freshness indicator", () => {

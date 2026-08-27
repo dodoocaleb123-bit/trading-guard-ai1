@@ -2836,6 +2836,12 @@ function ScannerPage() {
   const modelAvailable = settings.data?.strategyEngineStatus === "AVAILABLE";
   const modelUnavailable =
     settings.data?.strategyEngineStatus === "UNAVAILABLE";
+  const providerIssue = cadence.data?.latestProviderIssue;
+  const providerOutageActive = Boolean(
+    providerIssue &&
+    (!cadence.data?.latestSuccessfulAt ||
+      new Date(providerIssue.at).getTime() > new Date(cadence.data.latestSuccessfulAt).getTime())
+  );
 
   return (
     <>
@@ -2882,6 +2888,22 @@ function ScannerPage() {
           </Card>
         );
       })()}
+      {providerOutageActive && providerIssue ? (
+        <Card role="alert" className="mb-6 border-amber-500/25 bg-amber-500/[0.04]">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-800">Twelve Data quota or rate-limit warning</p>
+              <p className="mt-1 text-sm font-semibold text-amber-950">The latest scanner cycle could not obtain all required market data.</p>
+              <p className="mt-1 text-xs leading-5 text-amber-900/80">
+                The {providerIssue.intervals.join(", ")} data request was rejected at {formatDateTime(providerIssue.at)} with provider status {providerIssue.statusCode ?? "unavailable"}. No new v5 signal is emitted from an incomplete cycle.
+              </p>
+            </div>
+            <div className="shrink-0 rounded-lg bg-amber-100/70 px-3 py-2 text-xs text-amber-900">
+              Check the configured Twelve Data failover keys
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
       <AdaptiveGeometryDiagnostics />
       <V5SmokeStatusCard />
       <V5ZoneMap />

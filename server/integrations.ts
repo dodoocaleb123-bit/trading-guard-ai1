@@ -113,6 +113,12 @@ export function normalizeAsset(asset: string) {
 
 let twelveDataCursor = 0;
 
+export function reserveTwelveDataKeyStart(keyCount: number, cursor: number) {
+  if (keyCount <= 0) return { startIndex: 0, nextCursor: 0 };
+  const startIndex = ((cursor % keyCount) + keyCount) % keyCount;
+  return { startIndex, nextCursor: (startIndex + 1) % keyCount };
+}
+
 export function isTwelveDataFailoverError(error: unknown, payload?: any) {
   const status = (error as any)?.response?.status ?? (error as any)?.status;
   const code = payload?.code ?? (error as any)?.response?.data?.code;
@@ -125,8 +131,10 @@ async function requestTwelveData(path: string, params: Record<string, string | n
   const keys = ENV.twelveDataApiKeys.length ? ENV.twelveDataApiKeys : [ENV.twelveDataApiKey].filter(Boolean);
   if (!keys.length) throw new Error("Twelve Data is not configured");
   let lastError: unknown;
+  const reservation = reserveTwelveDataKeyStart(keys.length, twelveDataCursor);
+  twelveDataCursor = reservation.nextCursor;
   for (let attempt = 0; attempt < keys.length; attempt += 1) {
-    const index = (twelveDataCursor + attempt) % keys.length;
+    const index = (reservation.startIndex + attempt) % keys.length;
     const key = keys[index];
     try {
       const response = await axios.get(path, { params: { ...params, apikey: key }, timeout });
@@ -134,7 +142,6 @@ async function requestTwelveData(path: string, params: Record<string, string | n
         lastError = new Error(response.data?.message ?? `Twelve Data key ${index + 1} unavailable`);
         continue;
       }
-      twelveDataCursor = (index + 1) % keys.length;
       return response;
     } catch (error) {
       if (!isTwelveDataFailoverError(error)) throw error;

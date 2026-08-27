@@ -63,7 +63,7 @@ export type ScannerProviderIssue = {
 function providerIssueFromRun(run: ScannerCadenceRun): ScannerProviderIssue | null {
   if (run.marketData !== "unavailable") return null;
   const error = String(run.error ?? "").trim();
-  const intervals = Array.from(new Set(Array.from(error.matchAll(/Twelve Data (15min|1h) unavailable/gi)).map((match) => match[1].toLowerCase())));
+  const intervals = Array.from(new Set(Array.from(error.matchAll(/Twelve Data (5min|15min|1h|4h) unavailable/gi)).map((match) => match[1].toLowerCase())));
   const statusCodeMatch = error.match(/status code (\d{3})/i);
   const statusCode = statusCodeMatch ? Number(statusCodeMatch[1]) : undefined;
   return {

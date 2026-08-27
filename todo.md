@@ -1359,3 +1359,8 @@
 - [x] Diagnose the current absence of Telegram v5 signals from recent scanner cycles, v5 judgments, locks, and delivery records; fix only a confirmed defect
 - [x] Replace the exhausted Twelve Data failover key through a secure secret input and validate provider access before resuming scanner reliance
 - [x] Diagnose and correct the dashboard showing stale 2:10–2:15 PM v5 updates despite later scanner activity
+- [ ] Verify a post-publication production scanner cycle and confirm the dashboard timestamp advances after a successful provider response
+- [x] Add a visible Scanner-page warning that identifies Twelve Data quota/rate-limit unavailability and explains why no v5 signal is emitted
+- [x] Audit Twelve Data key-slot presence, failover behavior, and provider response status without exposing credentials
+- [x] Correct cadence provider-issue interval parsing so required 4H failures are reported accurately in the Scanner warning
+- [x] Make Twelve Data failover concurrency-safe so parallel timeframe batches reserve different key slots instead of hammering one key and causing avoidable 429 responses

@@ -1,0 +1,54 @@
+--- latest scanner ledger ---
+{
+  "actor_user_id": "310519663872528516",
+  "jobs": [
+    {
+      "callback_method": "POST",
+      "callback_path": "/api/scheduled/trading-guard-scanner",
+      "callback_payload": "",
+      "created_at": "2026-08-24T17:08:29Z",
+      "cron_expression": "0 */5 * * * *",
+      "description": "Trading Guard AI five-minute v4 paper-only market scanner and Telegram delivery",
+      "is_enable": false,
+      "name": "trading-guard-scanner-recovery-20260824-v3",
+      "task_uid": "SwMUMZfyCR9bj2LCohYYLj",
+      "user_id": "310519663872528516"
+    },
+    {
+      "callback_method": "POST",
+      "callback_path": "/api/scheduled/trading-guard-scanner",
+      "callback_payload": "",
+      "created_at": "2026-08-23T15:52:16Z",
+      "cron_expression": "0 */5 * * * *",
+      "description": "Trading Guard AI five-minute v4 paper-only market scanner and Telegram delivery",
+      "is_enable": true,
+      "last_executed_at": "2026-08-27T21:00:52Z",
+      "name": "trading-guard-scanner-recovery-20260823-v2",
+      "next_execution_at": "2026-08-27T21:05:00Z",
+      "task_uid": "AT5B22VvwY2SzvHTVoauP4",
+      "user_id": "310519663872528516"
+    },
+    {
+      "callback_method": "POST",
+      "callback_path": "/api/scheduled/weekly-strategy-summary",
+      "callback_payload": "",
+      "created_at": "2026-08-18T23:04:55Z",
+      "cron_expression": "0 0 18 * * 0",
+      "description": "Weekly Trading Guard AI strategy-engine judgment summary delivered to Telegram",
+      "is_enable": true,
+      "last_executed_at": "2026-08-23T18:09:40Z",
+      "name": "weekly-strategy-summary",
+      "next_execution_at": "2026-08-30T18:00:00Z",
+      "task_uid": "NuHvnxtr2LLaJ23tKLdLoD",
+      "user_id": "310519663872528516"
+    }
+  ],
+  "total": 3
+}
+--- key slots ---
+TWELVE_DATA_API_KEY=<configured>
+TWELVE_DATA_API_KEY_2=<configured>
+TWELVE_DATA_API_KEY_3=<configured>
+TWELVE_DATA_API_KEY_4=<configured>
+TWELVE_DATA_API_KEY_5=<configured>
+TWELVE_DATA_API_KEY_6=<configured>

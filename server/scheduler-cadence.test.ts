@@ -34,12 +34,12 @@ describe("scanner cadence diagnostics", () => {
 
   it("classifies the latest Twelve Data quota issue by interval and source", () => {
     const result = summarizeScannerCadence([
-      { id: 10, runKey: "trading-guard-scanner:10", taskUid: "external-cron-job", startedAt: "2026-08-25T17:00:00.000Z", status: "SUCCEEDED", marketData: "unavailable", error: "Twelve Data 15min unavailable: Request failed with status code 429 | Twelve Data 1h unavailable: Request failed with status code 429" },
+      { id: 10, runKey: "trading-guard-scanner:10", taskUid: "external-cron-job", startedAt: "2026-08-25T17:00:00.000Z", status: "SUCCEEDED", marketData: "unavailable", error: "Twelve Data 15min unavailable: Request failed with status code 429 | Twelve Data 1h unavailable: Request failed with status code 429 | Twelve Data 4h unavailable: Request failed with status code 429" },
     ]);
     expect(result.providerUnavailableCycles).toBe(1);
     expect(result.providerUnavailableWindows).toBe(1);
     expect(result.runs[0].classification).toBe("PROVIDER_UNAVAILABLE");
-    expect(result.latestProviderIssue).toMatchObject({ provider: "Twelve Data", intervals: ["15min", "1h"], at: "2026-08-25T17:00:00.000Z", source: "EXTERNAL_TRIGGER", statusCode: 429, severity: "QUOTA" });
+    expect(result.latestProviderIssue).toMatchObject({ provider: "Twelve Data", intervals: ["15min", "1h", "4h"], at: "2026-08-25T17:00:00.000Z", source: "EXTERNAL_TRIGGER", statusCode: 429, severity: "QUOTA" });
     expect(result.latestProviderIssue?.message).toContain("429");
   });
 

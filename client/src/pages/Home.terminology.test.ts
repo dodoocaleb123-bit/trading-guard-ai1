@@ -123,6 +123,14 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("and 5M are independent signal timeframes, and each lower timeframe");
   });
 
+  it("exposes the Scanner provider-quota warning when the latest cycle is unavailable", () => {
+    expect(homeSource).toContain("const providerIssue = cadence.data?.latestProviderIssue");
+    expect(homeSource).toContain("const providerOutageActive = Boolean(");
+    expect(homeSource).toContain("Twelve Data quota or rate-limit warning");
+    expect(homeSource).toContain("No new v5 signal is emitted from an incomplete cycle.");
+    expect(homeSource).toContain("Check the configured Twelve Data failover keys");
+  });
+
   it("exposes the latest scanner attempt separately from the last persisted v5 state", () => {
     expect(homeSource).toContain("const latestScannerAttempt = cadence.data?.lastRunAt");
     expect(homeSource).toContain("Latest scanner cycle:");

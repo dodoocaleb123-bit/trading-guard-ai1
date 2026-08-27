@@ -93,7 +93,7 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("trpc.scanner.v5Smoke.useQuery");
     expect(homeSource).toContain("V5 qualification trend · last 24 hours");
     expect(homeSource).toContain("V5 qualified and waiting decisions by hour");
-    expect(homeSource).toContain("4H and 1H provide context; 15M and 5M are the signal timeframes, with 15M zones drawn independently");
+    expect(homeSource).toContain("and 5M are independent signal timeframes, and each lower timeframe");
   });
 
   it("exposes signal delivery status and orphan-state warnings", () => {

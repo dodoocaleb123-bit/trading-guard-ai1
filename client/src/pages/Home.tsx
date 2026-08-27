@@ -749,9 +749,10 @@ function EntryLocatorCard() {
           V5 hierarchy execution states
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          V5 evaluates each scanner snapshot through its 4H → 1H → 15M
-          hierarchy. Entry Locator is the final execution-readiness gate; these
-          states show whether v5 has a qualified plan ready to emit.
+          V5 evaluates each scanner snapshot through 4H bias → 1H context →
+          independent 15M and 5M execution. Entry Locator is the final
+          execution-readiness gate; these states show whether v5 has a
+          qualified plan ready to emit.
         </p>
       </CardHeader>
       <CardContent>
@@ -2725,7 +2726,10 @@ function V5ZoneMap() {
       <CardHeader>
         <CardTitle className="font-display text-xl">V5 supply-and-demand zone map</CardTitle>
         <p className="text-xs leading-5 text-muted-foreground">
-          Latest persisted hierarchy evidence. 4H and 1H provide context; 15M and 5M are the signal timeframes, with 15M zones drawn independently for execution. Empty states mean no validated zone was found, not that a level was invented.
+          Latest persisted hierarchy evidence. 4H and 1H provide context; 15M
+          and 5M are independent signal timeframes, and each lower timeframe
+          is evaluated against the shared hierarchy. Empty states mean no
+          validated zone was found, not that a level was invented.
         </p>
       </CardHeader>
       <CardContent>
@@ -2886,7 +2890,7 @@ function ScannerPage() {
       <PageHeading
         eyebrow="Market-data collection"
         title="Market data collector"
-        description="The external scheduler triggers collection of raw EUR/USD, XAU/USD, GBP/USD, and BTC/USD data across 15-minute and 1-hour contexts. The strategy-rules algorithm analyzes that data and generates supported outcomes for tracking."
+        description="The external scheduler triggers collection of raw EUR/USD, XAU/USD, GBP/USD, and BTC/USD data for 4H bias, 1H context, and independent 15M and 5M signal evaluation. The strategy-rules algorithm analyzes that data and generates supported outcomes for tracking."
         action={
           <div className="flex flex-wrap gap-2">
             <Button

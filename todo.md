@@ -1299,3 +1299,7 @@
 - [x] Reject v5 plans with implausibly tight stop distance or extreme target-to-risk geometry before Entry Locator emission
 - [x] Add regression coverage for the reported XAU/USD 5M-style extreme-ratio geometry and preserve valid structural plans
 - [x] Reconcile the affected unresolved XAU/USD 5M signal safely without deleting its audit history
+
+- [x] Correct dashboard v5 hierarchy and zone-map copy so it accurately describes 15M and 5M as independent signal timeframes and does not imply 5M is absent
+- [x] Align the dashboard terminology regression with the corrected multi-line v5 hierarchy and zone-map copy
+- [x] Update Scanner page description to describe 4H/1H context with independent 15M/5M signal evaluation instead of the retired 15M/1H split

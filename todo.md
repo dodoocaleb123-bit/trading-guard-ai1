@@ -1352,3 +1352,7 @@
 - [x] Match the supplied header alignment with the panel icon and assistant identity on the left and icon-only Export/Clear controls on the right
 - [x] Match the supplied rounded gray bottom composer, black circular send button, and centered helper caption on phone and laptop
 - [x] Render escaped newline sequences in Cherry AI audit responses as actual line breaks so message formatting matches the reference chat behavior
+- [x] Correct mobile immersive-shell offsets so the fixed chat header has reference padding instead of touching the viewport edge
+- [x] Match phone and laptop composer width, height, helper-caption wrapping, and send-control sizing to the supplied references
+- [x] Replace blue user message bubbles with the supplied ash-gray message treatment while preserving chat behavior
+- [x] Re-run visual and regression validation for the exact-reference correction without changing v5 workflows

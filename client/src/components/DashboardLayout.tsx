@@ -41,6 +41,7 @@ const menuItems = [
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
+const IMMERSIVE_CHAT_WIDTH = 340;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
 
@@ -52,14 +53,19 @@ export default function DashboardLayout({
   immersiveChat?: boolean;
 }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (immersiveChat) return IMMERSIVE_CHAT_WIDTH;
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user } = useAuth();
 
   useEffect(() => {
+    if (immersiveChat && sidebarWidth !== IMMERSIVE_CHAT_WIDTH) {
+      setSidebarWidth(IMMERSIVE_CHAT_WIDTH);
+      return;
+    }
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
-  }, [sidebarWidth]);
+  }, [immersiveChat, sidebarWidth]);
 
   if (loading) {
     return <DashboardLayoutSkeleton />

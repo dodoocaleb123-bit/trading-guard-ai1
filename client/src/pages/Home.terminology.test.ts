@@ -147,3 +147,12 @@ describe("dashboard terminology", () => {
     expect(homeSource).not.toContain("<V2V3Comparison");
   });
 });
+
+
+describe("reference-matched chat shell", () => {
+  it("keeps the immersive shell white and uses ash message/composer surfaces", () => {
+    expect(homeSource).toContain("bg-white font-montserrat");
+    expect(homeSource).toContain("bg-white px-3 sm:h-20");
+    expect(homeSource).toContain("bg-black text-white");
+  });
+});

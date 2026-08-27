@@ -236,7 +236,7 @@ export function AIChatBox({
       <div ref={scrollAreaRef} className="min-w-0 max-w-full flex-1 overflow-hidden">
         {displayMessages.length === 0 ? (
           <div className="flex h-full items-center justify-center px-6 text-center">
-            <p className="max-w-[18ch] whitespace-pre-line text-3xl font-semibold leading-[0.98] tracking-tight text-muted-foreground/65 sm:text-4xl">
+            <p className="max-w-[18ch] whitespace-pre-line text-[1.8rem] font-bold leading-[0.98] tracking-tight text-[#9e9e9e] sm:text-[2.35rem]">
               {emptyStateMessage}
             </p>
           </div>
@@ -274,8 +274,8 @@ export function AIChatBox({
                       className={cn(
                         "min-w-0 max-w-[calc(100%_-_72px)] rounded-lg px-4 py-2.5 break-words [overflow-wrap:anywhere]",
                         message.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-foreground"
+                          ? "bg-[#c4c4c4] text-[#282828]"
+                          : "bg-[#efede5] text-[#282828]"
                       )}
                     >
                       {message.role === "assistant" ? (
@@ -324,23 +324,23 @@ export function AIChatBox({
       <form
         ref={inputAreaRef}
         onSubmit={handleSubmit}
-        className="flex w-full min-w-0 flex-col items-center gap-1 border-0 bg-background px-4 pb-3 pt-4"
+        className="flex w-full min-w-0 flex-col items-center gap-1 border-0 bg-white px-4 pb-3 pt-4"
       >
-        <div className="flex w-full min-w-0 items-center gap-2 rounded-full bg-[#c8c8c8] px-4 py-2.5">
+        <div className="flex w-[calc(100%-28px)] min-w-0 max-w-[914px] items-center gap-2 rounded-full bg-[#c3c3c3] px-4 py-2 sm:w-full sm:py-2.5">
           <Textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="min-h-8 flex-1 resize-none border-0 bg-transparent p-0 text-sm text-foreground shadow-none outline-none placeholder:text-[#8a8a8a] focus-visible:ring-0"
+                        className="min-h-6 flex-1 resize-none border-0 bg-transparent p-0 text-sm text-[#272727] shadow-none outline-none placeholder:text-[#9e9e9e] focus-visible:ring-0 sm:min-h-8"
             rows={1}
           />
           <Button
             type="submit"
             size="icon"
             disabled={!input.trim() || isLoading}
-            className="size-10 shrink-0 rounded-full bg-black text-white hover:bg-black/85 disabled:bg-black/40"
+            className="size-7 shrink-0 rounded-full bg-black text-white hover:bg-black/85 disabled:bg-black disabled:text-white disabled:opacity-100 sm:size-10"
           >
             {isLoading ? (
               <Loader2 className="size-4 animate-spin" />
@@ -349,7 +349,7 @@ export function AIChatBox({
             )}
           </Button>
         </div>
-        {composerHint && <p className="text-center text-[10px] leading-tight text-foreground">{composerHint}</p>}
+        {composerHint && <p className="w-full max-w-[230px] text-center text-[8px] leading-tight text-[#272727] sm:max-w-[914px] sm:text-[10px]">{composerHint}</p>}
       </form>
     </div>
   );

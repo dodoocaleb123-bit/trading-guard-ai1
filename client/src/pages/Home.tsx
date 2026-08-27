@@ -1095,24 +1095,24 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
           "Audit XAU/USD SELL with 1:2 risk/reward",
         ];
   return (
-    <div className="-mx-4 -my-6 flex min-h-[100dvh] min-w-0 flex-col overflow-hidden bg-background font-montserrat sm:mx-0 sm:my-0 sm:min-h-[calc(100vh-4rem)] sm:rounded-2xl sm:border">
+    <div className="flex h-[100dvh] w-full min-w-0 flex-col overflow-hidden bg-white font-montserrat sm:h-screen sm:border-0">
       <section className="flex min-h-0 min-w-0 flex-1 flex-col">
           {history.isError && <DataError text="Chat history could not be loaded. New conversations remain available after the connection recovers." />}
-          <header className="sticky top-0 z-20 flex min-h-20 shrink-0 items-center justify-between border-b bg-background px-4 py-3 sm:px-6">
-            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-              <Button type="button" variant="ghost" size="icon" onClick={toggleSidebar} aria-label="Open app navigation" title="Open app navigation" className="shrink-0 text-foreground">
+          <header className="sticky top-0 z-20 flex h-14 min-h-14 shrink-0 items-center justify-between bg-white px-3 sm:h-20 sm:min-h-20 sm:px-6">
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+              <Button type="button" variant="ghost" size="icon" onClick={toggleSidebar} aria-label="Open app navigation" title="Open app navigation" className="size-8 shrink-0 text-foreground sm:size-9">
                 <PanelLeft className="size-5" />
               </Button>
               <div className="min-w-0">
-                <p className="truncate text-base font-semibold tracking-tight">{isCherry ? "Cherry AI" : "White AI"}</p>
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground">{isCherry ? "INDEPENDENT TRADE REVIEW" : "APP-AWARE CONVERSATIONS"}</p>
+                <p className="truncate text-base font-semibold tracking-tight sm:text-xl">{isCherry ? "Cherry AI" : "White AI"}</p>
+                <p className="truncate text-[8px] font-semibold uppercase tracking-[0.12em] text-foreground sm:text-[10px]">{isCherry ? "INDEPENDENT TRADE REVIEW" : "APP-AWARE CONVERSATIONS"}</p>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button type="button" variant="ghost" size="icon" onClick={exportConversation} disabled={!combined.length} aria-label="Export conversation" title="Export conversation" className="rounded-full bg-black text-white hover:bg-black/85">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-2">
+              <Button type="button" variant="ghost" size="icon" onClick={exportConversation} disabled={!combined.length} aria-label="Export conversation" title="Export conversation" className="size-6 rounded-full bg-black text-white hover:bg-black/85 sm:size-9">
                 <Download className="size-4" />
               </Button>
-              <Button type="button" variant="ghost" size="icon" onClick={() => window.confirm(`Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted audit records remain.`) && clearConversation.mutate({ channel: assistant })} disabled={isPending} aria-label="Clear conversation" title="Clear conversation" className="rounded-full bg-black text-white hover:bg-black/85">
+              <Button type="button" variant="ghost" size="icon" onClick={() => window.confirm(`Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted audit records remain.`) && clearConversation.mutate({ channel: assistant })} disabled={isPending} aria-label="Clear conversation" title="Clear conversation" className="size-6 rounded-full bg-black text-white hover:bg-black/85 sm:size-9">
                 <Trash2 className="size-4" />
               </Button>
             </div>
@@ -1123,8 +1123,8 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
                 messages={combined}
                 onSendMessage={handleMessage}
                 isLoading={isPending}
-                height="calc(100dvh - 5rem)"
-                className="min-h-[calc(100dvh-5rem)] w-full min-w-0 flex-1 rounded-none border-0 bg-white shadow-none sm:min-h-[calc(100vh-5rem)] sm:rounded-none"
+                height="100%"
+                className="h-full w-full min-w-0 flex-1 rounded-none border-0 bg-white shadow-none"
                 composerHint={isCherry ? "Audit your trade signals with Cherry AI" : "Ask White AI what you want to know about Trading and how trades are taken"}
                 placeholder={isCherry ? "Ask Cherry" : "Ask White"}
                 emptyStateMessage={isCherry ? "What trade signal\ndo you want to audit?" : "Ask me any\nthing about trading"}

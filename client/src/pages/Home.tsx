@@ -786,6 +786,9 @@ function EntryLocatorCard() {
               : " · cycle recorded"}
           </p>
         ) : null}
+        <p className="mt-1 text-xs text-muted-foreground">
+          Latest complete market-data cycle for 15M + 1H + 4H: <span className="font-medium text-foreground">{formatDateTime(cadence.data?.latestSuccessfulAt)}</span>
+        </p>
       </CardHeader>
       <CardContent>
         {states.length ? (

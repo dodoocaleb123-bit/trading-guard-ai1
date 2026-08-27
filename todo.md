@@ -1398,3 +1398,9 @@
 - [x] Run focused and full regression validation plus production-cycle verification
 - [x] Publish the verified 1H/4H retrieval and observability update
 
+- [x] Verify whether the 11:50 PM scanner cycle was missed, delayed, deduplicated, or failed
+- [x] Trace the 11:50 PM callback through the scheduler, lease, and market-data retrieval paths
+- [x] Fix the confirmed cause of the missed five-minute cycle without changing v5 decision rules
+- [x] Validate the next scheduled five-minute cycles and full regression suite
+- [x] Publish the verified scanner recovery
+

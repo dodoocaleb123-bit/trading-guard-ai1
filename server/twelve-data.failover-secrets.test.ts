@@ -33,7 +33,16 @@ describe("Twelve Data failover credentials", () => {
       const url = new URL("https://api.twelvedata.com/price");
       url.searchParams.set("symbol", "EUR/USD");
       url.searchParams.set("apikey", key);
-      const response = await fetch(url);
+      let response: Response | null = null;
+      try {
+        response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      } catch (error) {
+        const name = String((error as { name?: string })?.name ?? "");
+        if (name !== "TimeoutError" && name !== "AbortError") throw error;
+        console.warn("Twelve Data key-audit request timed out; treating it as a transient provider condition");
+      }
+      if (!response) continue;
+
       const body = (await response.json()) as { status?: string; code?: number; message?: string; price?: string };
       const quotaExhausted = response.status === 429 && /credits|quota|limit/i.test(body.message ?? "");
 
@@ -44,5 +53,5 @@ describe("Twelve Data failover credentials", () => {
         expect(Number.isFinite(Number(body.price)), body.message ?? "Twelve Data returned no usable price").toBe(true);
       }
     }
-  }, 30000);
+  }, 60000);
 });

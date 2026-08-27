@@ -203,9 +203,11 @@ describe("scanner paper routing with shared quality gate", () => {
     const result = await scanAllUsers();
 
     expect(result.users).toBe(2);
-    expect(fetchMarketSeriesBatch).toHaveBeenCalledTimes(4);
-    expect(fetchMarketSeriesBatch).toHaveBeenCalledWith(expect.anything(), "5min");
-    expect(fetchMarketSeriesBatch).toHaveBeenCalledWith(expect.anything(), "4h");
+    expect(fetchMarketSeriesBatch).toHaveBeenCalledTimes(8);
+    expect(fetchMarketSeriesBatch).toHaveBeenCalledWith(["EUR/USD", "XAU/USD"], "5min");
+    expect(fetchMarketSeriesBatch).toHaveBeenCalledWith(["GBP/USD", "BTC/USD"], "5min");
+    expect(fetchMarketSeriesBatch).toHaveBeenCalledWith(["EUR/USD", "XAU/USD"], "4h");
+    expect(fetchMarketSeriesBatch).toHaveBeenCalledWith(["GBP/USD", "BTC/USD"], "4h");
   });
 
   it("forwards every retrieved raw snapshot without scanner-side trend or cooldown filtering", async () => {
@@ -288,7 +290,7 @@ describe("scanner unavailable-market behavior", () => {
     expect(result.marketDataError).toContain("Twelve Data market-data window failed");
     expect(result.marketDataError).toContain("15min unavailable");
     expect(result.marketDataError).toContain("1h unavailable");
-    expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "UNAVAILABLE", error: "Twelve Data 15min unavailable: Twelve Data quota exhausted | Twelve Data 1h unavailable: Twelve Data quota exhausted | Twelve Data 4h unavailable: Twelve Data quota exhausted" });
+    expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "UNAVAILABLE", error: "Twelve Data 15min unavailable: Twelve Data EUR_XAU group unavailable: Twelve Data quota exhausted | Twelve Data GBP_BTC group unavailable: Twelve Data quota exhausted | Twelve Data 1h unavailable: Twelve Data EUR_XAU group unavailable: Twelve Data quota exhausted | Twelve Data GBP_BTC group unavailable: Twelve Data quota exhausted | Twelve Data 4h unavailable: Twelve Data EUR_XAU group unavailable: Twelve Data quota exhausted | Twelve Data GBP_BTC group unavailable: Twelve Data quota exhausted" });
     expect(recordStrategyEngineHealth).toHaveBeenCalledWith(1, { snapshots: 0, completeResponses: 0, retries: 1, unavailableCycle: true });
     expect(insert).not.toHaveBeenCalled();
   });

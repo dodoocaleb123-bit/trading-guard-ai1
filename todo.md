@@ -1364,3 +1364,10 @@
 - [x] Audit Twelve Data key-slot presence, failover behavior, and provider response status without exposing credentials
 - [x] Correct cadence provider-issue interval parsing so required 4H failures are reported accurately in the Scanner warning
 - [x] Make Twelve Data failover concurrency-safe so parallel timeframe batches reserve different key slots instead of hammering one key and causing avoidable 429 responses
+- [x] Assess whether the scanner can safely retrieve parallel timeframe data using keys from separate Twelve Data accounts
+- [x] If justified and supported, implement account-aware key grouping without changing v5 signal rules or exposing credentials
+- [x] Validate multi-account retrieval behavior and document any required secret or provider setup
+- [x] Route Twelve Data keys 1–3 to EUR/USD and XAU/USD, and keys 4–6 to GBP/USD and BTC/USD, with each asset group’s timeframe requests distributed within its assigned pool
+- [x] Add regression coverage proving grouped requests never use keys outside their assigned asset pool and preserve complete v5 market-data assembly
+- [x] Validate and publish the grouped scanner routing without exposing key values or changing v5 decision rules
+- [x] Harden the live Twelve Data key-audit test with bounded per-key requests so provider stalls cannot block full regression validation

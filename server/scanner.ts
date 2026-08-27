@@ -14,6 +14,10 @@ import { fetchMarketSeries, fetchMarketSeriesBatch, fetchMarketSnapshot, fetchSt
 import { notifyOwner } from "./_core/notification";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
+export const TWELVE_DATA_ASSET_GROUPS = [
+  ["EUR/USD", "XAU/USD"],
+  ["GBP/USD", "BTC/USD"],
+] as const;
 export const V5_SIGNAL_TIMEFRAMES = ["15MIN", "5MIN"] as const;
 export function isV5SignalTimeframe(timeframe: string): timeframe is (typeof V5_SIGNAL_TIMEFRAMES)[number] {
   return (V5_SIGNAL_TIMEFRAMES as readonly string[]).includes(timeframe);
@@ -136,14 +140,23 @@ type ScanUserResult = { created: number; tracked: number; adjustments: number; m
 type SharedMarketData = { series5m: Map<string, MarketSeries>; series15m: Map<string, MarketSeries>; series1h: Map<string, MarketSeries>; series4h: Map<string, MarketSeries> };
 type ScanUserInput = { marketData?: SharedMarketData; marketDataError?: string | null };
 
+async function fetchGroupedMarketSeriesBatch(interval: "5min" | "15min" | "1h" | "4h") {
+  const groupedResults = await Promise.allSettled(TWELVE_DATA_ASSET_GROUPS.map((assets) => fetchMarketSeriesBatch(assets, interval)));
+  const failures = groupedResults.flatMap((result, index) => result.status === "rejected" ? [{ group: index === 0 ? "EUR_XAU" : "GBP_BTC", message: result.reason instanceof Error ? result.reason.message : String(result.reason) }] : []);
+  if (failures.length) throw new Error(failures.map((failure) => `Twelve Data ${failure.group} group unavailable: ${failure.message}`).join(" | "));
+  const merged = new Map<string, MarketSeries>();
+  for (const result of groupedResults) (result as PromiseFulfilledResult<Map<string, MarketSeries>>).value.forEach((series, symbol) => merged.set(symbol, series));
+  return merged;
+}
+
 async function fetchSharedMarketData(): Promise<SharedMarketData> {
   const startedAt = Date.now();
   console.info(`[Scanner] Shared market-data window started at=${new Date(startedAt).toISOString()}`);
   const batchResults = await Promise.allSettled([
-    fetchMarketSeriesBatch(WATCHLIST, "5min"),
-    fetchMarketSeriesBatch(WATCHLIST, "15min"),
-    fetchMarketSeriesBatch(WATCHLIST, "1h"),
-    fetchMarketSeriesBatch(WATCHLIST, "4h"),
+    fetchGroupedMarketSeriesBatch("5min"),
+    fetchGroupedMarketSeriesBatch("15min"),
+    fetchGroupedMarketSeriesBatch("1h"),
+    fetchGroupedMarketSeriesBatch("4h"),
   ]);
   const batchLabels = ["5min", "15min", "1h", "4h"] as const;
   const optional5m = batchResults[0];

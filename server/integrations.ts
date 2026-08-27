@@ -111,7 +111,41 @@ export function normalizeAsset(asset: string) {
   return symbolMap[key] ?? symbolMap[asset.toUpperCase()] ?? asset.toUpperCase();
 }
 
-let twelveDataCursor = 0;
+export type TwelveDataAssetGroup = "EUR_XAU" | "GBP_BTC" | "ALL";
+
+export function twelveDataAssetGroupForAsset(asset: string): TwelveDataAssetGroup {
+  const normalized = normalizeAsset(asset);
+  if (normalized === "EUR/USD" || normalized === "XAU/USD") return "EUR_XAU";
+  if (normalized === "GBP/USD" || normalized === "BTC/USD") return "GBP_BTC";
+  return "ALL";
+}
+
+export function twelveDataAssetGroupForAssets(assets: readonly string[]): TwelveDataAssetGroup {
+  const groups = new Set(assets.map(twelveDataAssetGroupForAsset));
+  if (groups.size === 1) return Array.from(groups)[0] ?? "ALL";
+  return "ALL";
+}
+
+export function twelveDataKeySlotIndexesForGroup(group: TwelveDataAssetGroup): number[] {
+  if (group === "EUR_XAU") return [0, 1, 2];
+  if (group === "GBP_BTC") return [3, 4, 5];
+  return [0, 1, 2, 3, 4, 5];
+}
+
+export function twelveDataKeySlotIndexesForAssets(assets: readonly string[]): number[] {
+  return twelveDataKeySlotIndexesForGroup(twelveDataAssetGroupForAssets(assets));
+}
+
+function twelveDataKeyPoolForAssets(assets: readonly string[]) {
+  const group = twelveDataAssetGroupForAssets(assets);
+  const slots = ENV.twelveDataApiKeySlots ?? [];
+  const selected = twelveDataKeySlotIndexesForAssets(assets).map((index) => slots[index]).filter((key): key is string => Boolean(key));
+  if (selected.length) return selected;
+  if (group !== "ALL") throw new Error(`Twelve Data ${group} key pool is not configured`);
+  return ENV.twelveDataApiKeys.length ? ENV.twelveDataApiKeys : [ENV.twelveDataApiKey].filter(Boolean);
+}
+
+let twelveDataCursorByPool: Record<TwelveDataAssetGroup, number> = { EUR_XAU: 0, GBP_BTC: 0, ALL: 0 };
 
 export function reserveTwelveDataKeyStart(keyCount: number, cursor: number) {
   if (keyCount <= 0) return { startIndex: 0, nextCursor: 0 };
@@ -127,12 +161,13 @@ export function isTwelveDataFailoverError(error: unknown, payload?: any) {
   return status === 401 || status === 403 || status === 429 || code === 401 || code === 403 || code === 429 || errorCode === "ECONNABORTED" || errorCode === "ETIMEDOUT" || /credit|quota|rate.?limit|too many requests|timeout/i.test(message);
 }
 
-async function requestTwelveData(path: string, params: Record<string, string | number>, timeout: number) {
-  const keys = ENV.twelveDataApiKeys.length ? ENV.twelveDataApiKeys : [ENV.twelveDataApiKey].filter(Boolean);
+async function requestTwelveData(path: string, params: Record<string, string | number>, timeout: number, assets: readonly string[] = []) {
+  const keys = twelveDataKeyPoolForAssets(assets);
   if (!keys.length) throw new Error("Twelve Data is not configured");
   let lastError: unknown;
-  const reservation = reserveTwelveDataKeyStart(keys.length, twelveDataCursor);
-  twelveDataCursor = reservation.nextCursor;
+  const pool = twelveDataAssetGroupForAssets(assets);
+  const reservation = reserveTwelveDataKeyStart(keys.length, twelveDataCursorByPool[pool]);
+  twelveDataCursorByPool[pool] = reservation.nextCursor;
   for (let attempt = 0; attempt < keys.length; attempt += 1) {
     const index = (reservation.startIndex + attempt) % keys.length;
     const key = keys[index];
@@ -153,7 +188,7 @@ async function requestTwelveData(path: string, params: Record<string, string | n
 
 export async function fetchMarketSnapshot(asset: string, interval = "15min") {
   const symbol = normalizeAsset(asset);
-  const response = await requestTwelveData("https://api.twelvedata.com/quote", { symbol, interval }, 15000);
+  const response = await requestTwelveData("https://api.twelvedata.com/quote", { symbol, interval }, 15000, [symbol]);
   if (response.data?.status === "error") throw new Error(response.data.message ?? "Market data unavailable");
   const quote = response.data;
   const price = Number(quote.close ?? quote.price ?? quote.previous_close);
@@ -194,7 +229,7 @@ function parseMarketSeries(symbol: string, interval: "5min" | "15min" | "1h" | "
 
 export async function fetchMarketSeries(asset: string, interval: "5min" | "15min" | "1h" | "4h") {
   const symbol = normalizeAsset(asset);
-  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol, interval, outputsize: 200, order: "ASC", timezone: "UTC" }, 15000);
+  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol, interval, outputsize: 200, order: "ASC", timezone: "UTC" }, 15000, [symbol]);
   return parseMarketSeries(symbol, interval, response.data);
 }
 
@@ -203,7 +238,7 @@ export async function fetchMarketSeriesBatch(assets: readonly string[], interval
   const startedAt = Date.now();
   console.info(`[Market] Twelve Data batch started interval=${interval} assets=${symbols.length} at=${new Date(startedAt).toISOString()}`);
   try {
-    const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 200, order: "ASC", timezone: "UTC" }, 20000);
+    const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 200, order: "ASC", timezone: "UTC" }, 20000, symbols);
     if (response.data?.status === "error") throw new Error(response.data.message ?? "OHLCV batch unavailable");
     const result = new Map<string, MarketSeries>();
     for (const symbol of symbols) {

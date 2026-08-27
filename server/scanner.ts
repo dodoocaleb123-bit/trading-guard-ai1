@@ -14,7 +14,11 @@ import { fetchMarketSeries, fetchMarketSeriesBatch, fetchMarketSnapshot, fetchSt
 import { notifyOwner } from "./_core/notification";
 
 const WATCHLIST = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
-const TIMEFRAMES = ["15MIN", "1H"] as const;
+export const V5_SIGNAL_TIMEFRAMES = ["15MIN", "5MIN"] as const;
+export function isV5SignalTimeframe(timeframe: string): timeframe is (typeof V5_SIGNAL_TIMEFRAMES)[number] {
+  return (V5_SIGNAL_TIMEFRAMES as readonly string[]).includes(timeframe);
+}
+const TIMEFRAMES = V5_SIGNAL_TIMEFRAMES;
 
 function precision(asset: string) {
   return asset === "BTC/USD" ? 2 : asset === "XAU/USD" ? 4 : 5;
@@ -223,7 +227,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
     await updateStrategyEngineStatus(userId, { status: "UNAVAILABLE", error: message });
     await recordStrategyEngineHealth(userId, { snapshots: 0, completeResponses: 0, retries: 1, unavailableCycle: true });
     console.warn("[Scanner] Market batch unavailable; no signals created:", message);
-    return { created: 0, tracked: 0, adjustments: 0, marketData: "unavailable", marketDataError: `Twelve Data market-data window failed for required 15min/1h/4h series: ${message}` };
+    return { created: 0, tracked: 0, adjustments: 0, marketData: "unavailable", marketDataError: `Twelve Data market-data window failed for required 15min/1h/4h hierarchy series: ${message}` };
   }
   const seriesCache = new Map<string, MarketSeries>();
   series5m.forEach((series, symbol) => seriesCache.set(`${symbol}:5MIN`, series));

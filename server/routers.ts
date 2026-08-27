@@ -112,8 +112,8 @@ export const appRouter = router({
     }),
     replacementOutcomeStats: protectedProcedure.query(({ ctx }) => getReplacementOutcomeStats(ctx.user.id)),
     locatorV5OutcomeStats: protectedProcedure.query(({ ctx }) => getLocatorV5OutcomeStats(ctx.user.id)),
-    adaptiveRatioStats: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "1H"]).optional() }).optional()).query(({ ctx, input }) => getAdaptiveRatioStats(ctx.user.id, input ?? {})),
-    v5SourceStats: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "1H"]).optional(), source: z.enum(["ENTRY_LOCATOR"]).optional() }).optional()).query(({ ctx, input }) => getV5SourceStats(ctx.user.id, input ?? {})),
+    adaptiveRatioStats: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "5MIN", "1H"]).optional() }).optional()).query(({ ctx, input }) => getAdaptiveRatioStats(ctx.user.id, input ?? {})),
+    v5SourceStats: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "5MIN", "1H"]).optional(), source: z.enum(["ENTRY_LOCATOR"]).optional() }).optional()).query(({ ctx, input }) => getV5SourceStats(ctx.user.id, input ?? {})),
     v5Monitoring: protectedProcedure.query(({ ctx }) => getV5MonitoringStats(ctx.user.id)),
     entryLocator: protectedProcedure.query(({ ctx }) => listEntryLocatorStates(ctx.user.id)),
     winningRateStats: protectedProcedure.query(({ ctx }) => getWinningRateStats(ctx.user.id)),
@@ -238,8 +238,8 @@ Matched strategy rules:\n${rulesText || "No matching rule excerpt was found."}\n
   scanner: router({
     status: protectedProcedure.query(({ ctx }) => getSettings(ctx.user.id)),
     marketPulse: protectedProcedure.query(({ ctx }) => getLiveMarketPulse(ctx.user.id)),
-    decisions: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "1H"]).optional(), verdict: z.enum(["APPROVED", "DENIED", "SKIPPED", "UNAVAILABLE"]).optional() }).optional()).query(({ ctx, input }) => listStrategyDecisions(ctx.user.id, input ?? {})),
-    export: protectedProcedure.input(z.object({ format: z.enum(["csv", "json"]), asset: z.string().optional(), timeframe: z.enum(["15MIN", "1H"]).optional(), verdict: z.enum(["APPROVED", "DENIED", "SKIPPED", "UNAVAILABLE"]).optional() })).query(async ({ ctx, input }) => {
+    decisions: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "5MIN", "1H"]).optional(), verdict: z.enum(["APPROVED", "DENIED", "SKIPPED", "UNAVAILABLE"]).optional() }).optional()).query(({ ctx, input }) => listStrategyDecisions(ctx.user.id, input ?? {})),
+    export: protectedProcedure.input(z.object({ format: z.enum(["csv", "json"]), asset: z.string().optional(), timeframe: z.enum(["15MIN", "5MIN", "1H"]).optional(), verdict: z.enum(["APPROVED", "DENIED", "SKIPPED", "UNAVAILABLE"]).optional() })).query(async ({ ctx, input }) => {
       const rows = await listStrategyDecisions(ctx.user.id, { asset: input.asset, timeframe: input.timeframe, verdict: input.verdict });
       return { format: input.format, filename: `strategy-decisions-${new Date().toISOString().slice(0, 10)}.${input.format}`, content: input.format === "csv" ? serializeDecisionLedgerCsv(rows) : serializeDecisionLedgerJson(rows) };
     }),

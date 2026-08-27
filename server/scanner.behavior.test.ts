@@ -92,7 +92,7 @@ vi.mock("./integrations", () => ({
 
 import { attachSetupIndicators, compactStrategyContext, isEligibleContradictoryReplacement, safelyEvaluateBaselineIntelligence, scanAllUsers, scanUser, shouldNotifyScannerSignal } from "./scanner";
 
-const series = (symbol: string, interval: "15min" | "1h") => {
+const series = (symbol: string, interval: "5min" | "15min" | "1h" | "4h") => {
   const values = [{ open: "0.9", high: "1.1", low: "0.8", close: "1" }, { open: "1.9", high: "2.1", low: "1.8", close: "2" }, { open: "2.9", high: "3.1", low: "2.8", close: "3" }];
   return { symbol, interval, values, close: 3, trend: "UP" as const, marketContext: calculateMarketContext(values), fetchedAt: new Date().toISOString() };
 };
@@ -291,5 +291,15 @@ describe("scanner unavailable-market behavior", () => {
     expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "UNAVAILABLE", error: "Twelve Data 15min unavailable: Twelve Data quota exhausted | Twelve Data 1h unavailable: Twelve Data quota exhausted | Twelve Data 4h unavailable: Twelve Data quota exhausted" });
     expect(recordStrategyEngineHealth).toHaveBeenCalledWith(1, { snapshots: 0, completeResponses: 0, retries: 1, unavailableCycle: true });
     expect(insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("v5 signal timeframe policy", () => {
+  it("emits only on 15MIN and 5MIN while keeping 1H context-only", async () => {
+    const { V5_SIGNAL_TIMEFRAMES, isV5SignalTimeframe } = await import("./scanner");
+    expect(V5_SIGNAL_TIMEFRAMES).toEqual(["15MIN", "5MIN"]);
+    expect(isV5SignalTimeframe("15MIN")).toBe(true);
+    expect(isV5SignalTimeframe("5MIN")).toBe(true);
+    expect(isV5SignalTimeframe("1H")).toBe(false);
   });
 });

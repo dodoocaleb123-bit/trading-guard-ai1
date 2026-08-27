@@ -164,7 +164,8 @@ export function evaluateHierarchicalWorkflow(input: { asset: string; timeframe: 
   const zones = hierarchy.flatMap((series) => detectZones(series, input.asset));
   const currentPrice = input.primary.close;
   const activeZone = zones.filter((zone) => !zone.weakFor.includes(workingDirection) && currentPrice >= zone.lower && currentPrice <= zone.upper).sort((left, right) => (left.timeframe === input.timeframe ? -1 : 1) - (right.timeframe === input.timeframe ? -1 : 1))[0] ?? null;
-  const confirmationSeries = input.timeframe === "1h" ? input.series15m ?? input.primary : input.series5m ?? input.series15m ?? input.primary;
+  const normalizedTimeframe = input.timeframe.toUpperCase();
+  const confirmationSeries = normalizedTimeframe === "1H" ? input.series15m ?? input.primary : input.series5m ?? input.series15m ?? input.primary;
   const confirmation = detectConfirmation(confirmationSeries, workingDirection, confirmationSeries.interval);
   const targetZones = zones.filter((zone) => zone.kind === (workingDirection === "BUY" ? "SUPPLY" : "DEMAND") && !zone.weakFor.includes(workingDirection) && (workingDirection === "BUY" ? zone.lower > currentPrice : zone.upper < currentPrice)).sort((left, right) => Math.abs((workingDirection === "BUY" ? left.lower : left.upper) - currentPrice) - Math.abs((workingDirection === "BUY" ? right.lower : right.upper) - currentPrice));
   const targetZone = targetZones[0] ?? null;

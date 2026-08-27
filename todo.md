@@ -1284,3 +1284,14 @@
 - [x] Remove Entry Forger from the dashboard interface, scanner fallback orchestration, active persistence/query paths, and related tests without deleting historical v5 records. The unused legacy database table/columns remain only for migration compatibility and are not imported or queried by the application.
 - [x] Preserve Entry Locator as the v5 execution-readiness gate with strict locks, confidence/confluence thresholds, paper-only mode, UNVALIDATED status, and outcome tracking.
 - [x] Add regression coverage and run full tests, typecheck, build, production reconciliation, and responsive UI verification before publishing. Focused v5 tests passed 28 tests; full suite, TypeScript, production build, and Scanner desktop/mobile verification passed.
+
+## v5 lower-timeframe signal policy
+
+- [x] Allow qualified 15M and 5M v5 plans to emit independently, each with its own strict asset/timeframe lock and outcome tracking.
+- [x] Keep 1H as hierarchy context/refinement only and prevent 1H strategy decisions from becoming emitted trade signals.
+- [x] Update scanner, dashboard filters, audit copy, Telegram labels, and tests to reflect 15M/5M signal timeframes and 1H context-only status.
+- [x] Validate both lower-timeframe emission paths, 1H blocking, shared 4H/1H hierarchy, delivery, locks, tracking, responsive UI, and publish the release.
+
+- [x] Finalize the v5 signal-timeframe transition so 15M and 5M can emit independently while 1H remains context-only
+- [x] Update scanner and hierarchy regression fixtures/tests for 5M candidates and no 1H emission
+- [x] Run the full test suite, TypeScript check, and production build for the v5 timeframe transition

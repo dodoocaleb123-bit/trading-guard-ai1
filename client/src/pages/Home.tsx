@@ -1083,7 +1083,7 @@ function ChatAudit() {
       : [
           "Audit EUR/USD BUY on 15MIN with 1:2 risk/reward",
           "Audit XAU/USD SELL and flag any adjustments",
-          "Audit BTC/USD BUY on 1H",
+          "Audit BTC/USD BUY on 5MIN",
         ];
   return (
     <>
@@ -1615,7 +1615,7 @@ function UpgradeChainHistory() {
 
 function V5SourcePerformanceCard() {
   const [asset, setAsset] = useState("ALL");
-  const [timeframe, setTimeframe] = useState<"ALL" | "15MIN" | "1H">("ALL");
+  const [timeframe, setTimeframe] = useState<"ALL" | "15MIN" | "5MIN">("ALL");
   const sourceFilters = useMemo(
     () => ({
       asset: asset === "ALL" ? undefined : asset,
@@ -1659,13 +1659,13 @@ function V5SourcePerformanceCard() {
               aria-label="Filter source performance by timeframe"
               value={timeframe}
               onChange={event =>
-                setTimeframe(event.target.value as "ALL" | "15MIN" | "1H")
+                setTimeframe(event.target.value as "ALL" | "15MIN" | "5MIN")
               }
               className="h-9 rounded-md border bg-background px-2 text-xs"
             >
               <option value="ALL">All timeframes</option>
               <option value="15MIN">15MIN</option>
-              <option value="1H">1H</option>
+              <option value="5MIN">5MIN</option>
             </select>
             <Badge variant="outline" className="border-primary/30 text-primary">
               UNVALIDATED
@@ -1765,7 +1765,7 @@ function V5SourcePerformanceCard() {
 
 function AdaptiveRatioPerformanceCard() {
   const [asset, setAsset] = useState("ALL");
-  const [timeframe, setTimeframe] = useState<"ALL" | "15MIN" | "1H">("ALL");
+  const [timeframe, setTimeframe] = useState<"ALL" | "15MIN" | "5MIN">("ALL");
   const query = trpc.intelligence.adaptiveRatioStats.useQuery(
     {
       asset: asset === "ALL" ? undefined : asset,
@@ -1806,13 +1806,13 @@ function AdaptiveRatioPerformanceCard() {
               aria-label="Filter ratio performance by timeframe"
               value={timeframe}
               onChange={event =>
-                setTimeframe(event.target.value as "ALL" | "15MIN" | "1H")
+                setTimeframe(event.target.value as "ALL" | "15MIN" | "5MIN")
               }
               className="h-9 rounded-md border bg-background px-2 text-xs"
             >
               <option value="ALL">All timeframes</option>
               <option value="15MIN">15MIN</option>
-              <option value="1H">1H</option>
+              <option value="5MIN">5MIN</option>
             </select>
             <Badge variant="outline" className="border-primary/30 text-primary">
               UNVALIDATED
@@ -2725,7 +2725,7 @@ function V5ZoneMap() {
       <CardHeader>
         <CardTitle className="font-display text-xl">V5 supply-and-demand zone map</CardTitle>
         <p className="text-xs leading-5 text-muted-foreground">
-          Latest persisted hierarchy evidence. 4H and 1H provide context; 15M zones are drawn independently for execution. Empty states mean no validated zone was found, not that a level was invented.
+          Latest persisted hierarchy evidence. 4H and 1H provide context; 15M and 5M are the signal timeframes, with 15M zones drawn independently for execution. Empty states mean no validated zone was found, not that a level was invented.
         </p>
       </CardHeader>
       <CardContent>
@@ -2798,7 +2798,7 @@ function ScannerPage() {
       timeframe:
         timeframeFilter === "all"
           ? undefined
-          : (timeframeFilter as "15MIN" | "1H"),
+          : (timeframeFilter as "15MIN" | "5MIN"),
       verdict:
         verdictFilter === "all"
           ? undefined
@@ -2821,7 +2821,7 @@ function ScannerPage() {
           decision => decision.asset === item.symbol
         );
         const fast = rows.find(decision => decision.timeframe === "15MIN");
-        const slow = rows.find(decision => decision.timeframe === "1H");
+        const slow = rows.find(decision => decision.timeframe === "5MIN");
         const fastDirection = fast?.generatedDirection;
         const slowDirection = slow?.generatedDirection;
         return {
@@ -2950,7 +2950,7 @@ function ScannerPage() {
                   <div>
                     <p className="text-sm font-medium">{x.symbol}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      15MIN · 1H
+                      15MIN · 5MIN
                     </p>
                   </div>
                   <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -3080,7 +3080,7 @@ function ScannerPage() {
                   <div>
                     <p className="font-medium">{row.asset}</p>
                     <p className="text-xs text-muted-foreground">
-                      15MIN: {row.fast?.generatedDirection ?? "—"} · 1H:{" "}
+                      15MIN: {row.fast?.generatedDirection ?? "—"} · 5MIN:{" "}
                       {row.slow?.generatedDirection ?? "—"}
                     </p>
                   </div>
@@ -3141,7 +3141,7 @@ function ScannerPage() {
                 >
                   <option value="all">All timeframes</option>
                   <option value="15MIN">15MIN</option>
-                  <option value="1H">1H</option>
+                  <option value="5MIN">5MIN</option>
                 </select>
                 <select
                   aria-label="Filter ledger by verdict"

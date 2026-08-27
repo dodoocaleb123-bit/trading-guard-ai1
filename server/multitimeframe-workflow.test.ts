@@ -4,7 +4,7 @@ import { buildReplacementKnowledgeModelV5 } from "./replacement-intelligence";
 import { evaluateHierarchicalWorkflow } from "./multitimeframe-workflow";
 
 const candle = (open: number, high: number, low: number, close: number, datetime: string) => ({ open: String(open), high: String(high), low: String(low), close: String(close), datetime });
-const series = (interval: "4h" | "1h" | "15min", values: Array<Record<string, unknown>>) => ({ interval, values, close: Number(values.at(-1)?.close), marketContext: calculateMarketContext(values) });
+const series = (interval: "4h" | "1h" | "15min" | "5min", values: Array<Record<string, unknown>>) => ({ interval, values, close: Number(values.at(-1)?.close), marketContext: calculateMarketContext(values) });
 
 function risingContextValues(count = 40) {
   return Array.from({ length: count }, (_, index) => candle(90 + index, 91 + index, 89.5 + index, 90.8 + index, `2026-08-27 ${String(index).padStart(2, "0")}:00:00`));
@@ -44,6 +44,18 @@ describe("hierarchical supply-and-demand workflow", () => {
     expect(decision.stopLoss).not.toBeNull();
     expect(decision.riskReward).toBeGreaterThan(0);
     expect(decision.decisionTrace.levelDerivation.takeProfit).toContain("opposing supply");
+  });
+
+  it("uses 5M confirmation for 5M plans while 1H evaluation uses 15M context confirmation", () => {
+    const fourHour = series("4h", risingContextValues());
+    const oneHour = series("1h", risingContextValues());
+    const fifteenMinute = series("15min", qualifiedEntryValues());
+    const fiveMinute = series("5min", qualifiedEntryValues());
+    const fiveMinutePlan = evaluateHierarchicalWorkflow({ asset: "EUR/USD", timeframe: "5MIN", primary: fiveMinute, series4h: fourHour, series1h: oneHour, series15m: fifteenMinute, series5m: fiveMinute, acceptedLessons: [] }, buildReplacementKnowledgeModelV5());
+    const contextOnlyPlan = evaluateHierarchicalWorkflow({ asset: "EUR/USD", timeframe: "1H", primary: oneHour, series4h: fourHour, series1h: oneHour, series15m: fifteenMinute, series5m: fiveMinute, acceptedLessons: [] }, buildReplacementKnowledgeModelV5());
+
+    expect(fiveMinutePlan.workflow.confirmation.timeframe).toBe("5min");
+    expect(contextOnlyPlan.workflow.confirmation.timeframe).toBe("15min");
   });
 
   it("waits instead of forcing a trade when no validated opposing zone has 30-pip clearance", () => {

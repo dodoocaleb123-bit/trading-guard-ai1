@@ -107,6 +107,14 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("4H and 1H provide context; 15M zones are drawn independently");
   });
 
+  it("exposes signal delivery status and orphan-state warnings", () => {
+    expect(homeSource).toContain("Telegram delivery");
+    expect(homeSource).toContain("ORPHANED STATE");
+    expect(homeSource).toContain("No matching unresolved v5 signal exists; this state is not an active trade lock.");
+    expect(homeSource).toContain("Signal exists, but no Telegram delivery record is available.");
+    expect(homeSource).toContain("Delivered ${formatDateTime");
+  });
+
   it("hides empty legacy analytics histories after the purge", () => {
     expect(homeSource).toContain("const visibleVersions = (stats.data?.versions ?? []).filter(");
     expect(homeSource).toContain("version.overall.generated > 0");

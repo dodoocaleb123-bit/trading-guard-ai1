@@ -813,6 +813,37 @@ function EntryLocatorCard() {
                       })()
                     : "State recorded."}
                 </p>
+                <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2 text-[11px]">
+                  <span className="text-muted-foreground">Telegram delivery</span>
+                  <span className={
+                    state.orphanedEmission
+                      ? "font-semibold text-amber-700"
+                      : state.telegramDelivery?.status === "DELIVERED"
+                        ? "font-semibold text-emerald-700"
+                        : state.telegramDelivery?.status === "FAILED"
+                          ? "font-semibold text-rose-700"
+                          : "font-semibold text-muted-foreground"
+                  }>
+                    {state.orphanedEmission
+                      ? "ORPHANED STATE"
+                      : state.telegramDelivery?.status ?? (state.matchingSignal ? "NOT RECORDED" : "NO SIGNAL")}
+                  </span>
+                </div>
+                {state.orphanedEmission ? (
+                  <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] leading-4 text-amber-800">
+                    No matching unresolved v5 signal exists; this state is not an active trade lock.
+                  </p>
+                ) : state.telegramDelivery ? (
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    {state.telegramDelivery.status === "DELIVERED"
+                      ? `Delivered ${formatDateTime(state.telegramDelivery.deliveredAt ?? state.telegramDelivery.createdAt)}`
+                      : state.telegramDelivery.error ?? "Telegram delivery failed."}
+                  </p>
+                ) : state.matchingSignal ? (
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Signal exists, but no Telegram delivery record is available.
+                  </p>
+                ) : null}
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   Updated {formatDateTime(state.updatedAt)}
                 </p>

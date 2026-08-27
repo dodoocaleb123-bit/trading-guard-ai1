@@ -283,7 +283,21 @@ export async function saveEntryLocatorState(input: { userId: number; asset: stri
 export async function listEntryLocatorStates(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(entryLocatorStates).where(eq(entryLocatorStates.userId, userId)).orderBy(desc(entryLocatorStates.updatedAt));
+  const [states, signals, deliveries] = await Promise.all([
+    db.select().from(entryLocatorStates).where(eq(entryLocatorStates.userId, userId)).orderBy(desc(entryLocatorStates.updatedAt)),
+    db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v5"), eq(generatedSignals.status, "PENDING"))).orderBy(desc(generatedSignals.openedAt)),
+    db.select().from(telegramDeliveries).where(eq(telegramDeliveries.userId, userId)),
+  ]);
+  return states.map((state) => {
+    const matchingSignal = signals.find((signal) => signal.asset === state.asset && signal.timeframe === state.timeframe) ?? null;
+    const telegramDelivery = matchingSignal ? deliveries.find((delivery) => delivery.kind === "SIGNAL" && delivery.signalId === matchingSignal.id) ?? null : null;
+    return {
+      ...state,
+      matchingSignal: matchingSignal ? { id: matchingSignal.id, direction: matchingSignal.direction, status: matchingSignal.status, openedAt: matchingSignal.openedAt, riskReward: matchingSignal.riskReward } : null,
+      telegramDelivery: telegramDelivery ? { id: telegramDelivery.id, status: telegramDelivery.status, createdAt: telegramDelivery.createdAt, deliveredAt: telegramDelivery.deliveredAt, error: telegramDelivery.error } : null,
+      orphanedEmission: state.status === "EMITTED" && !matchingSignal,
+    };
+  });
 }
 
 export async function getEntryForgerState(userId: number, asset: string, timeframe: string) {

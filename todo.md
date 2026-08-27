@@ -1268,3 +1268,11 @@
 - [x] Determine whether the displayed EMITTED states are valid unresolved locks or a stale UI/state persistence defect. Confirmed orphaned persisted Locator state caused the false locks.
 - [x] Repair any confirmed v5 emission, delivery-status, outcome-tracking, or UI synchronization defect without closing valid paper trades. Scanner now marks Locator EMITTED only for an approved v5 judgment with complete levels; orphan states were safely reset to WAITING while snapshots were preserved.
 - [x] Add regression coverage and rerun full tests, typecheck, build, production reconciliation, and responsive UI verification. Added scanner.emission-gate.test.ts; 56 files / 225 tests passed, TypeScript and build passed, database reconciliation passed, and Scanner UI was verified.
+
+## v5 delivery observability follow-up
+
+- [x] Monitor two fresh production scanner cycles and reconcile their v5 decisions, generated signals, and Telegram delivery outcomes. Cycles at 04:55 and 05:00 UTC succeeded with market data available; both produced zero signals and zero deliveries because all persisted decisions were SKIPPED.
+- [x] Add an explicit orphan Entry Locator warning when an EMITTED state has no matching unresolved v5 signal.
+- [x] Add per-signal Telegram delivery status and timestamp indicators to the relevant dashboard view.
+- [x] Add regression coverage for orphan-state detection and delivery-status rendering.
+- [x] Run full tests, typecheck, build, responsive UI verification, and publish the observability correction. Focused tests passed 30 tests; full suite passed 56 files / 225 tests; TypeScript, production build, and mobile Scanner verification passed.

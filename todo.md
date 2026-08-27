@@ -1358,4 +1358,4 @@
 - [x] Re-run visual and regression validation for the exact-reference correction without changing v5 workflows
 - [x] Diagnose the current absence of Telegram v5 signals from recent scanner cycles, v5 judgments, locks, and delivery records; fix only a confirmed defect
 - [x] Replace the exhausted Twelve Data failover key through a secure secret input and validate provider access before resuming scanner reliance
-- [ ] Diagnose and correct the dashboard showing stale 2:10–2:15 PM v5 updates despite later scanner activity
+- [x] Diagnose and correct the dashboard showing stale 2:10–2:15 PM v5 updates despite later scanner activity

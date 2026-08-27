@@ -123,6 +123,14 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("and 5M are independent signal timeframes, and each lower timeframe");
   });
 
+  it("exposes the latest scanner attempt separately from the last persisted v5 state", () => {
+    expect(homeSource).toContain("const latestScannerAttempt = cadence.data?.lastRunAt");
+    expect(homeSource).toContain("Latest scanner cycle:");
+    expect(homeSource).toContain("Last v5 state update");
+    expect(homeSource).toContain("did not write a new v5 snapshot");
+    expect(homeSource).toContain("provider data was unavailable.");
+  });
+
   it("keeps White AI and Cherry AI chat channels separate", () => {
     expect(homeSource).toContain("trpc.audit.history.useQuery({ channel: assistant }");
     expect(homeSource).toContain("clearConversation.mutate({ channel: assistant })");

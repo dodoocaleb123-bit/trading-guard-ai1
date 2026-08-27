@@ -753,7 +753,18 @@ function EntryLocatorCard() {
     undefined,
     LIVE_QUERY_OPTIONS
   );
+  const cadence = trpc.scanner.cadence.useQuery(undefined, LIVE_QUERY_OPTIONS);
   const states = query.data ?? [];
+  const latestScannerAttempt = cadence.data?.lastRunAt;
+  const latestSnapshotAt = states.reduce<Date | string | null>((latest, state) => {
+    if (!state.updatedAt) return latest;
+    if (!latest) return state.updatedAt;
+    return new Date(state.updatedAt).getTime() > new Date(latest).getTime() ? state.updatedAt : latest;
+  }, null);
+  const scannerAttemptIsNewer = Boolean(
+    latestScannerAttempt &&
+    (!latestSnapshotAt || new Date(latestScannerAttempt).getTime() > new Date(latestSnapshotAt).getTime())
+  );
   return (
     <Card className="mt-6">
       <CardHeader>
@@ -766,6 +777,14 @@ function EntryLocatorCard() {
           execution-readiness gate; these states show whether v5 has a
           qualified plan ready to emit.
         </p>
+        {latestScannerAttempt ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Latest scanner cycle: <span className="font-medium text-foreground">{formatDateTime(latestScannerAttempt)}</span>
+            {cadence.data?.latestProviderIssue
+              ? ` · ${cadence.data.latestProviderIssue.provider} data unavailable (${cadence.data.latestProviderIssue.statusCode ?? "provider error"})`
+              : " · cycle recorded"}
+          </p>
+        ) : null}
       </CardHeader>
       <CardContent>
         {states.length ? (
@@ -858,8 +877,14 @@ function EntryLocatorCard() {
                   </p>
                 ) : null}
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  Updated {formatDateTime(state.updatedAt)}
+                  Last v5 state update {formatDateTime(state.updatedAt)}
                 </p>
+                {scannerAttemptIsNewer ? (
+                  <p className="mt-1 text-[11px] leading-4 text-amber-700">
+                    Latest scanner cycle {formatDateTime(latestScannerAttempt)} did not write a new v5 snapshot
+                    {cadence.data?.latestProviderIssue ? " because provider data was unavailable." : "."}
+                  </p>
+                ) : null}
               </div>
             ))}
           </div>

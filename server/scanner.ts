@@ -25,6 +25,10 @@ export function shouldNotifyScannerSignal(verdict: string) {
   return verdict === "APPROVED";
 }
 
+export function canEmitV5Locator(input: { locatorReady: boolean; strategyApproved: boolean; levelsComplete: boolean }) {
+  return input.locatorReady && input.strategyApproved && input.levelsComplete;
+}
+
 export function shouldCreateCandidate(ruleCount: number, series: { close?: number; trend?: string } | null) {
   return ruleCount > 0 && Boolean(series && Number.isFinite(series.close) && (series.trend === "UP" || series.trend === "DOWN"));
 }
@@ -353,17 +357,30 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
     const paperSignalQualityApproved = hasMinimumPaperSignalQuality(gated.confidence, gated.confluenceScore);
     const paperSignalQualityReason = describePaperSignalQuality(gated.confidence, gated.confluenceScore);
     const locatorReadyForEmission = locatorResult.ready && paperSignalQualityApproved;
-    gated.entryLocatorReady = locatorReadyForEmission;
-    gated.entryLocatorReason = !paperSignalQualityApproved && locatorResult.ready ? `Entry Locator blocked emission: ${paperSignalQualityReason}` : locatorResult.reason;
+    const v5LevelsComplete = gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null;
+    const strategyApproved = shouldNotifyScannerSignal(gated.verdict);
+    const executableLocatorEmission = canEmitV5Locator({ locatorReady: locatorReadyForEmission, strategyApproved, levelsComplete: v5LevelsComplete });
+    gated.entryLocatorReady = executableLocatorEmission;
+    gated.entryLocatorReason = !paperSignalQualityApproved && locatorResult.ready
+      ? `Entry Locator blocked emission: ${paperSignalQualityReason}`
+      : !strategyApproved
+        ? `Entry Locator is not emitted because the v5 hierarchy judgment is ${gated.verdict}; waiting for a qualified structural plan.`
+        : !v5LevelsComplete
+          ? "Entry Locator is not emitted because the v5 plan does not contain complete executable levels."
+          : locatorResult.reason;
     const activeSignal = activeCurrentSignals.find((signal) => signal.asset === asset && signal.timeframe === timeframe);
     const upgradeLocatorResult = activeSignal
       ? advanceEntryLocator({ previous: previousLocator ? { ...previousLocator, status: "WAITING" } : null, observation, hasOpenSignal: false })
       : null;
     gated.contradictionLocatorReady = activeSignal ? Boolean(upgradeLocatorResult?.ready && paperSignalQualityApproved) : locatorReadyForEmission;
     gated.contradictionLocatorReason = activeSignal ? (paperSignalQualityApproved ? upgradeLocatorResult?.reason ?? locatorResult.reason : `Contradiction monitor blocked: ${paperSignalQualityReason}`) : gated.entryLocatorReason;
-    const qualitySafeLocatorState = !paperSignalQualityApproved && locatorResult.ready ? { ...locatorResult.state, status: "WAITING" as const, waitReason: `Entry Locator blocked emission: ${paperSignalQualityReason}` } : locatorResult.state;
-    const locatorState = locatorReadyForEmission ? markEntryLocatorEmitted(qualitySafeLocatorState, observation.fingerprint) : qualitySafeLocatorState;
-    await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null,       lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify(locatorState), lastEmittedAt: locatorReadyForEmission ? new Date() : storedLocator?.lastEmittedAt ?? null });
+    const qualitySafeLocatorState = !paperSignalQualityApproved && locatorResult.ready
+      ? { ...locatorResult.state, status: "WAITING" as const, waitReason: `Entry Locator blocked emission: ${paperSignalQualityReason}` }
+      : !strategyApproved || !v5LevelsComplete
+        ? { ...locatorResult.state, status: "WAITING" as const, waitReason: gated.entryLocatorReason }
+        : locatorResult.state;
+    const locatorState = executableLocatorEmission ? markEntryLocatorEmitted(qualitySafeLocatorState, observation.fingerprint) : qualitySafeLocatorState;
+    await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null,       lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify(locatorState), lastEmittedAt: executableLocatorEmission ? new Date() : storedLocator?.lastEmittedAt ?? null });
     if (hasBreakoutConfirmationTransition(previousLocator, observation)) {
       const dedupeKey = `BREAKOUT_CONFIRMED:${userId}:${asset}:${timeframe}:${observation.fingerprint}`;
       const content = `${asset} ${timeframe} has transitioned to a confirmed ${observation.direction} breakout. Geometry mode: ${observation.geometryMode ?? "UNKNOWN"}. Next opposing zone: ${observation.direction === "BUY" ? observation.nextResistance ?? "not recorded" : observation.nextSupport ?? "not recorded"}. This is an operational paper-trading alert; it is not a guarantee and does not itself emit a signal.`;
@@ -376,8 +393,8 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
     }
     const strongIndicatorCount = countStrongSetupIndicators(observation.supportingComponents);
     const indicatorBucket = strongIndicatorCount === 1 ? "ONE_STRONG" : strongIndicatorCount >= 2 ? "TWO_PLUS" : "NONE";
-    const locatorMarket = { ...market, entryLocator: { status: locatorState.status, ready: locatorReadyForEmission, reason: gated.entryLocatorReason, snapshotCount: locatorState.snapshotCount, fingerprint: observation.fingerprint, strongIndicatorCount, indicatorBucket } };
-    const decisionVerdict = locatorReadyForEmission ? gated.verdict : "SKIPPED" as const;
+    const locatorMarket = { ...market, entryLocator: { status: locatorState.status, ready: executableLocatorEmission, reason: gated.entryLocatorReason, snapshotCount: locatorState.snapshotCount, fingerprint: observation.fingerprint, strongIndicatorCount, indicatorBucket } };
+    const decisionVerdict = executableLocatorEmission ? gated.verdict : "SKIPPED" as const;
     const executableDecision = decisionVerdict === "APPROVED";
     await createStrategyDecision({
       userId,
@@ -402,8 +419,8 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         await saveEntryForgerState({ userId, asset, timeframe, status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null, lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), reason, targetBoundary: observation.targetBoundary, targetDistance: details.targetDistance ?? null, riskReward: details.riskReward ?? null, stateJson: JSON.stringify(dashboardState) });
       };
       const locatorGeometryDenied = /no allowed ratio fits|no allowed adaptive ratio|adaptive target geometry did not qualify/i.test(`${gated.adjustments ?? ""} ${locatorResult.reason}`);
-      const eligibleForgerFallback = canUseEntryForgerFallback({ locatorReady: locatorReadyForEmission, geometryDenied: locatorGeometryDenied, v5Active: replacementModel.id.endsWith("v5"), strategyApproved: shouldNotifyScannerSignal(gated.verdict), qualityApproved: paperSignalQualityApproved, hasCompleteLevels: gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null, activeSignal: Boolean(activeSignal) });
-      if (!locatorReadyForEmission && !eligibleForgerFallback) {
+      const eligibleForgerFallback = canUseEntryForgerFallback({ locatorReady: executableLocatorEmission, geometryDenied: locatorGeometryDenied, v5Active: replacementModel.id.endsWith("v5"), strategyApproved, qualityApproved: paperSignalQualityApproved, hasCompleteLevels: v5LevelsComplete, activeSignal: Boolean(activeSignal) });
+      if (!executableLocatorEmission && !eligibleForgerFallback) {
         const forgerStatus = !paperSignalQualityApproved || !shouldNotifyScannerSignal(gated.verdict) || !(gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null) ? "REJECTED" as const : "WAITING" as const;
         const forgerReason = !paperSignalQualityApproved
           ? `Entry Forger rejected by the shared quality gate: ${paperSignalQualityReason}`
@@ -420,7 +437,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
       }
       if (eligibleForgerFallback) {
         await saveForgerState("READY", "Entry Locator denied only the allowed geometry; Entry Forger is eligible to evaluate a target-first fallback.");
-      } else if (locatorReadyForEmission) {
+      } else if (executableLocatorEmission) {
         await saveForgerState("WAITING", "Entry Locator qualified this setup; Entry Forger remains inactive because Locator has precedence.");
       }
       if (!shouldNotifyScannerSignal(gated.verdict)) {

@@ -1261,3 +1261,10 @@
 - [x] Add a 24-hour qualified-versus-waiting trend view using persisted v5 decision-ledger data only.
 - [x] Re-audit and test the v5 hierarchy → Entry Locator → Entry Forger path, including shared quality gates, strict locks, paper-only status, and actual-ratio reporting. The scanner path confirms hierarchy first, Locator precedence, Forger geometry-denial fallback, shared gates, strict locks, and v5 generation labels.
 - [x] Run full tests, typecheck, build, responsive UI verification, production-cycle checks, and publish the follow-up release. Focused validation passed 40 tests; full validation passed 56 files / 222 tests; TypeScript, build, desktop/mobile Scanner screenshots, and fresh production-cycle checks passed.
+
+## v5 emitted-lock reconciliation
+
+- [x] Reconcile GBP/USD 15M and EUR/USD 1H Entry Locator EMITTED states with their v5 signal rows, Telegram delivery ledger, timestamps, and outcomes. Both pairs had EMITTED Locator state but no corresponding v5 generated-signal rows; no Telegram signal delivery could be linked.
+- [x] Determine whether the displayed EMITTED states are valid unresolved locks or a stale UI/state persistence defect. Confirmed orphaned persisted Locator state caused the false locks.
+- [x] Repair any confirmed v5 emission, delivery-status, outcome-tracking, or UI synchronization defect without closing valid paper trades. Scanner now marks Locator EMITTED only for an approved v5 judgment with complete levels; orphan states were safely reset to WAITING while snapshots were preserved.
+- [x] Add regression coverage and rerun full tests, typecheck, build, production reconciliation, and responsive UI verification. Added scanner.emission-gate.test.ts; 56 files / 225 tests passed, TypeScript and build passed, database reconciliation passed, and Scanner UI was verified.

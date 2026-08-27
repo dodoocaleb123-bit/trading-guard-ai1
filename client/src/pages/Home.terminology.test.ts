@@ -17,8 +17,8 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("strategy-engine judgments");
   });
 
-  it("exposes the v4 source comparison controls and provenance labels", () => {
-    expect(homeSource).toContain("V4 source performance");
+  it("exposes the v5 source comparison controls and provenance labels", () => {
+    expect(homeSource).toContain("V5 source performance");
     expect(homeSource).toContain("Filter source performance by asset");
     expect(homeSource).toContain("Filter source performance by timeframe");
     expect(homeSource).toContain("Filter source performance by signal source");

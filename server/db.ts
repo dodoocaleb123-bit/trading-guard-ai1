@@ -217,7 +217,7 @@ export async function listGeneratedSignalsSince(userId: number, since: Date, lim
 export async function listPaperTradeUpgradeChains(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  const signals = await db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE))).orderBy(desc(generatedSignals.openedAt)).limit(250);
+  const signals = await db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v5"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V5_GENERATION_MODE))).orderBy(desc(generatedSignals.openedAt)).limit(250);
   const adjustments = await db.select().from(paperTradeAdjustments).where(and(eq(paperTradeAdjustments.userId, userId), eq(paperTradeAdjustments.action, "UPGRADE_PAPER_SETUP"))).orderBy(desc(paperTradeAdjustments.createdAt)).limit(250);
   const deliveries = await db.select().from(telegramDeliveries).where(eq(telegramDeliveries.userId, userId));
   const byId = new Map(signals.map((signal) => [signal.id, signal]));
@@ -235,7 +235,7 @@ export async function getPaperTradeUpgradeSummary(userId: number) {
   const db = await getDb();
   if (!db) return { upgradeCount: 0, sourceTheses: 0, replacementTheses: 0, frequencyPercent: null as number | null };
   const [signals, adjustments] = await Promise.all([
-    db.select({ id: generatedSignals.id }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE))),
+    db.select({ id: generatedSignals.id }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v5"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V5_GENERATION_MODE))),
     db.select({ signalId: paperTradeAdjustments.signalId, replacementSignalId: paperTradeAdjustments.replacementSignalId }).from(paperTradeAdjustments).where(and(eq(paperTradeAdjustments.userId, userId), eq(paperTradeAdjustments.action, "UPGRADE_PAPER_SETUP"))),
   ]);
   const replacementIds = new Set(adjustments.map((adjustment) => adjustment.replacementSignalId).filter((id): id is number => id != null));
@@ -244,8 +244,8 @@ export async function getPaperTradeUpgradeSummary(userId: number) {
   return { upgradeCount, sourceTheses, replacementTheses: replacementIds.size, frequencyPercent: sourceTheses ? Math.round((upgradeCount / sourceTheses) * 100) : null };
 }
 
-export const ENTRY_LOCATOR_V4_GENERATION_MODE = "ENTRY_LOCATOR_V4" as const;
-export const ENTRY_FORGER_V4_GENERATION_MODE = "ENTRY_FORGER_V4" as const;
+export const ENTRY_LOCATOR_V5_GENERATION_MODE = "ENTRY_LOCATOR_V5" as const;
+export const ENTRY_FORGER_V5_GENERATION_MODE = "ENTRY_FORGER_V5" as const;
 
 export function isEntryForgerBlockingSignal(signal: { status: string; blocksEntryForger?: boolean }) {
   return signal.status === "PENDING";
@@ -337,10 +337,10 @@ export async function listPaperTradeAdjustments(userId: number, limit = 100) {
   return rows.map((row) => ({ ...row, telegramDelivery: deliveries.find((delivery) => delivery.kind === "ADJUSTMENT" && delivery.dedupeKey === row.dedupeKey) ?? null }));
 }
 
-export async function listOpenCurrentV4Signals(userId: number) {
+export async function listOpenCurrentV5Signals(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), inArray(generatedSignals.generationMode, [ENTRY_LOCATOR_V4_GENERATION_MODE, ENTRY_FORGER_V4_GENERATION_MODE]))).orderBy(desc(generatedSignals.openedAt));
+  return db.select().from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.status, "PENDING"), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v5"), inArray(generatedSignals.generationMode, [ENTRY_LOCATOR_V5_GENERATION_MODE, ENTRY_FORGER_V5_GENERATION_MODE]))).orderBy(desc(generatedSignals.openedAt));
 }
 
 export const OUTCOME_RETRY_WINDOW_MINUTES = 20;
@@ -728,7 +728,7 @@ export async function getRelevantRulesText(userId: number, query: string, maxCha
 
 type ReplacementOutcomeRow = { status: string; intelligenceComponents: string | null; marketRegime: string | null; confidence?: string | number | null };
 type ReplacementOutcomeBucket = { key: string; total: number; wins: number; losses: number; pending: number; invalidated: number; superseded: number };
-export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], version: "replacement-forex-v2" | "replacement-forex-v3" | "replacement-forex-v4" | "replacement-forex-v4-locator" = "replacement-forex-v2") {
+export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], version: "replacement-forex-v2" | "replacement-forex-v3" | "replacement-forex-v5" | "replacement-forex-v5-locator" = "replacement-forex-v2") {
   const componentMap = new Map<string, ReplacementOutcomeBucket>();
   const regimeMap = new Map<string, ReplacementOutcomeBucket>();
   const confidenceMap = new Map<string, ReplacementOutcomeBucket>();
@@ -760,15 +760,15 @@ export function summarizeReplacementOutcomes(rows: ReplacementOutcomeRow[], vers
 export async function getReplacementOutcomeStats(userId: number) {
   const db = await getDb();
   if (!db) return summarizeReplacementOutcomes([]);
-  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4")));
-  return summarizeReplacementOutcomes(rows, "replacement-forex-v4");
+  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v5")));
+  return summarizeReplacementOutcomes(rows, "replacement-forex-v5");
 }
 
-export async function getLocatorV4OutcomeStats(userId: number) {
+export async function getLocatorV5OutcomeStats(userId: number) {
   const db = await getDb();
-  if (!db) return summarizeReplacementOutcomes([], "replacement-forex-v4-locator");
-  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE)));
-  return summarizeReplacementOutcomes(rows, "replacement-forex-v4-locator");
+  if (!db) return summarizeReplacementOutcomes([], "replacement-forex-v5-locator");
+  const rows = await db.select({ status: generatedSignals.status, intelligenceComponents: generatedSignals.intelligenceComponents, marketRegime: generatedSignals.marketRegime, confidence: generatedSignals.confidence }).from(generatedSignals).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v5"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V5_GENERATION_MODE)));
+  return summarizeReplacementOutcomes(rows, "replacement-forex-v5-locator");
 }
 
 type WinningRateRow = { version: string; asset: string; timeframe: string; confidence: string | number | null; status: string };
@@ -777,7 +777,7 @@ export type WinningRateBucket = WinningRateMetric & { key: string };
 const WINNING_RATE_ASSETS = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"] as const;
 const WINNING_RATE_TIMEFRAMES = ["15MIN", "1H"] as const;
 const WINNING_RATE_BANDS = ["100-90", "89-80", "79-70", "69-60", "59-40"] as const;
-const WINNING_RATE_VERSIONS = ["replacement-forex-v1", "forex-trading-combined-document-v2", "forex-trading-combined-document-v3", "forex-trading-combined-document-v4"] as const;
+const WINNING_RATE_VERSIONS = ["replacement-forex-v1", "forex-trading-combined-document-v2", "forex-trading-combined-document-v3", "forex-trading-combined-document-v5"] as const;
 
 function emptyWinningRateMetric(): WinningRateMetric { return { generated: 0, resolved: 0, wins: 0, losses: 0, winRate: null }; }
 function updateWinningRateMetric(metric: WinningRateMetric, status: string) {
@@ -826,34 +826,34 @@ export function summarizeAdaptiveRatioStats(rows: Array<{ riskReward: string | n
     return { ratio, generated: matching.length, resolved, wins, losses, winRate: resolved ? Math.round((wins / resolved) * 100) : null };
   });
 }
-export type V4SourceMetric = { source: "ENTRY_LOCATOR" | "ENTRY_FORGER"; generated: number; resolved: number; wins: number; losses: number; winRate: number | null };
-const V4_SOURCE_MODES = [ENTRY_LOCATOR_V4_GENERATION_MODE, ENTRY_FORGER_V4_GENERATION_MODE] as const;
+export type V5SourceMetric = { source: "ENTRY_LOCATOR" | "ENTRY_FORGER"; generated: number; resolved: number; wins: number; losses: number; winRate: number | null };
+const V5_SOURCE_MODES = [ENTRY_LOCATOR_V5_GENERATION_MODE, ENTRY_FORGER_V5_GENERATION_MODE] as const;
 
-export function summarizeV4SourceStats(rows: Array<{ generationMode: string | null; status: string }>): V4SourceMetric[] {
-  return V4_SOURCE_MODES.map((mode) => {
+export function summarizeV5SourceStats(rows: Array<{ generationMode: string | null; status: string }>): V5SourceMetric[] {
+  return V5_SOURCE_MODES.map((mode) => {
     const matching = rows.filter((row) => row.generationMode === mode);
     const wins = matching.filter((row) => row.status === "WIN").length;
     const losses = matching.filter((row) => row.status === "LOSS").length;
     const resolved = wins + losses;
-    return { source: mode === ENTRY_LOCATOR_V4_GENERATION_MODE ? "ENTRY_LOCATOR" : "ENTRY_FORGER", generated: matching.length, resolved, wins, losses, winRate: resolved ? Math.round((wins / resolved) * 100) : null };
+    return { source: mode === ENTRY_LOCATOR_V5_GENERATION_MODE ? "ENTRY_LOCATOR" : "ENTRY_FORGER", generated: matching.length, resolved, wins, losses, winRate: resolved ? Math.round((wins / resolved) * 100) : null };
   });
 }
 
-export async function getV4SourceStats(userId: number, filters: { asset?: string; timeframe?: string; source?: "ENTRY_LOCATOR" | "ENTRY_FORGER" } = {}) {
+export async function getV5SourceStats(userId: number, filters: { asset?: string; timeframe?: string; source?: "ENTRY_LOCATOR" | "ENTRY_FORGER" } = {}) {
   const db = await getDb();
-  const selectedMode = filters.source === "ENTRY_LOCATOR" ? ENTRY_LOCATOR_V4_GENERATION_MODE : filters.source === "ENTRY_FORGER" ? ENTRY_FORGER_V4_GENERATION_MODE : undefined;
-  if (!db) return { sources: summarizeV4SourceStats([]), generatedAt: new Date(), asset: filters.asset ?? "ALL", timeframe: filters.timeframe ?? "ALL", source: filters.source ?? "ALL" };
-  const predicates = [eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), selectedMode ? eq(generatedSignals.generationMode, selectedMode) : inArray(generatedSignals.generationMode, [...V4_SOURCE_MODES])];
+  const selectedMode = filters.source === "ENTRY_LOCATOR" ? ENTRY_LOCATOR_V5_GENERATION_MODE : filters.source === "ENTRY_FORGER" ? ENTRY_FORGER_V5_GENERATION_MODE : undefined;
+  if (!db) return { sources: summarizeV5SourceStats([]), generatedAt: new Date(), asset: filters.asset ?? "ALL", timeframe: filters.timeframe ?? "ALL", source: filters.source ?? "ALL" };
+  const predicates = [eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v5"), selectedMode ? eq(generatedSignals.generationMode, selectedMode) : inArray(generatedSignals.generationMode, [...V5_SOURCE_MODES])];
   if (filters.asset) predicates.push(eq(generatedSignals.asset, filters.asset));
   if (filters.timeframe) predicates.push(eq(generatedSignals.timeframe, filters.timeframe));
   const rows = await db.select({ generationMode: generatedSignals.generationMode, status: generatedSignals.status }).from(generatedSignals).where(and(...predicates));
-  return { sources: summarizeV4SourceStats(rows), generatedAt: new Date(), asset: filters.asset ?? "ALL", timeframe: filters.timeframe ?? "ALL", source: filters.source ?? "ALL" };
+  return { sources: summarizeV5SourceStats(rows), generatedAt: new Date(), asset: filters.asset ?? "ALL", timeframe: filters.timeframe ?? "ALL", source: filters.source ?? "ALL" };
 }
 
 export async function getAdaptiveRatioStats(userId: number, filters: { asset?: string; timeframe?: string } = {}) {
   const db = await getDb();
   if (!db) return { ratios: summarizeAdaptiveRatioStats([]), generatedAt: new Date(), asset: filters.asset ?? "ALL", timeframe: filters.timeframe ?? "ALL" };
-  const predicates = [eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V4_GENERATION_MODE)];
+  const predicates = [eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v5"), eq(generatedSignals.generationMode, ENTRY_LOCATOR_V5_GENERATION_MODE)];
   if (filters.asset) predicates.push(eq(generatedSignals.asset, filters.asset));
   if (filters.timeframe) predicates.push(eq(generatedSignals.timeframe, filters.timeframe));
   const rows = await db.select({ riskReward: generatedSignals.riskReward, status: generatedSignals.status }).from(generatedSignals).where(and(...predicates));
@@ -916,22 +916,22 @@ export async function getBestTimeToTradeStats(userId: number) { return summarize
 export async function getBestDaysToTradeStats(userId: number) { return summarizeBestDaysToTrade((await getTimingStats(userId)).map((row) => ({ ...row, version: row.version ?? "" }))); }
 
 
-export type V4MonitoringMetric = { key: string; generated: number; resolved: number; wins: number; losses: number; winRate: number | null };
+export type V5MonitoringMetric = { key: string; generated: number; resolved: number; wins: number; losses: number; winRate: number | null };
 
-function emptyV4MonitoringMetric(key: string): V4MonitoringMetric { return { key, generated: 0, resolved: 0, wins: 0, losses: 0, winRate: null }; }
-function updateV4MonitoringMetric(metric: V4MonitoringMetric, status: string) {
+function emptyV5MonitoringMetric(key: string): V5MonitoringMetric { return { key, generated: 0, resolved: 0, wins: 0, losses: 0, winRate: null }; }
+function updateV5MonitoringMetric(metric: V5MonitoringMetric, status: string) {
   metric.generated += 1;
   if (status === "WIN") { metric.wins += 1; metric.resolved += 1; }
   if (status === "LOSS") { metric.losses += 1; metric.resolved += 1; }
   metric.winRate = metric.resolved ? Math.round((metric.wins / metric.resolved) * 100) : null;
 }
 
-export function summarizeV4Monitoring(rows: Array<{ asset: string; timeframe: string; direction: string; status: string; marketSnapshot: string | null }>) {
-  const dimensions = new Map<string, Map<string, V4MonitoringMetric>>();
+export function summarizeV5Monitoring(rows: Array<{ asset: string; timeframe: string; direction: string; status: string; marketSnapshot: string | null }>) {
+  const dimensions = new Map<string, Map<string, V5MonitoringMetric>>();
   const ensure = (dimension: string, key: string) => {
     if (!dimensions.has(dimension)) dimensions.set(dimension, new Map());
     const map = dimensions.get(dimension)!;
-    if (!map.has(key)) map.set(key, emptyV4MonitoringMetric(key));
+    if (!map.has(key)) map.set(key, emptyV5MonitoringMetric(key));
     return map.get(key)!;
   };
   for (const row of rows) {
@@ -948,19 +948,19 @@ export function summarizeV4Monitoring(rows: Array<{ asset: string; timeframe: st
     } catch {
       // Older snapshots remain classified as UNKNOWN/STANDARD rather than inferred.
     }
-    updateV4MonitoringMetric(ensure("asset", row.asset), row.status);
-    updateV4MonitoringMetric(ensure("timeframe", row.timeframe), row.status);
-    updateV4MonitoringMetric(ensure("direction", row.direction), row.status);
-    updateV4MonitoringMetric(ensure("eventRisk", String(eventRisk)), row.status);
-    updateV4MonitoringMetric(ensure("geometry", geometry), row.status);
-    updateV4MonitoringMetric(ensure("indicatorCount", indicatorCount), row.status);
+    updateV5MonitoringMetric(ensure("asset", row.asset), row.status);
+    updateV5MonitoringMetric(ensure("timeframe", row.timeframe), row.status);
+    updateV5MonitoringMetric(ensure("direction", row.direction), row.status);
+    updateV5MonitoringMetric(ensure("eventRisk", String(eventRisk)), row.status);
+    updateV5MonitoringMetric(ensure("geometry", geometry), row.status);
+    updateV5MonitoringMetric(ensure("indicatorCount", indicatorCount), row.status);
   }
   return Object.fromEntries(Array.from(dimensions.entries()).map(([dimension, values]) => [dimension, Array.from(values.values()).sort((a, b) => a.key.localeCompare(b.key))]));
 }
 
-export async function getV4MonitoringStats(userId: number) {
+export async function getV5MonitoringStats(userId: number) {
   const db = await getDb();
-  if (!db) return summarizeV4Monitoring([]);
-  const rows = await db.select({ asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, direction: generatedSignals.direction, status: generatedSignals.status, marketSnapshot: strategyDecisionLedger.marketSnapshot }).from(generatedSignals).leftJoin(strategyDecisionLedger, and(eq(strategyDecisionLedger.userId, generatedSignals.userId), eq(strategyDecisionLedger.asset, generatedSignals.asset), eq(strategyDecisionLedger.timeframe, generatedSignals.timeframe), eq(strategyDecisionLedger.generatedDirection, generatedSignals.direction), eq(strategyDecisionLedger.generatedEntry, generatedSignals.entry))).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v4")));
-  return summarizeV4Monitoring(rows.map((row) => ({ ...row, marketSnapshot: row.marketSnapshot ?? null })));
+  if (!db) return summarizeV5Monitoring([]);
+  const rows = await db.select({ asset: generatedSignals.asset, timeframe: generatedSignals.timeframe, direction: generatedSignals.direction, status: generatedSignals.status, marketSnapshot: strategyDecisionLedger.marketSnapshot }).from(generatedSignals).leftJoin(strategyDecisionLedger, and(eq(strategyDecisionLedger.userId, generatedSignals.userId), eq(strategyDecisionLedger.asset, generatedSignals.asset), eq(strategyDecisionLedger.timeframe, generatedSignals.timeframe), eq(strategyDecisionLedger.generatedDirection, generatedSignals.direction), eq(strategyDecisionLedger.generatedEntry, generatedSignals.entry))).where(and(eq(generatedSignals.userId, userId), eq(generatedSignals.intelligenceVersion, "forex-trading-combined-document-v5")));
+  return summarizeV5Monitoring(rows.map((row) => ({ ...row, marketSnapshot: row.marketSnapshot ?? null })));
 }

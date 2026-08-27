@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateMarketContext } from "./market-context";
 import { detectDocumentPatternIndicators } from "./pattern-detectors";
-import { buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, detectSetupIndicators } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV5, detectSetupIndicators } from "./replacement-intelligence";
 
 const bullishEngulfingValues = [
   { open: 1.1000, high: 1.1020, low: 1.0980, close: 1.1005, volume: 1000 },
@@ -24,18 +24,18 @@ describe("document pattern detectors", () => {
     expect(detectDocumentPatternIndicators(values, context)).toEqual([]);
   });
 
-  it("adds pattern evidence to v4 but leaves the v3 baseline unchanged", () => {
+  it("adds pattern evidence to v5 but leaves the v3 baseline unchanged", () => {
     const context = calculateMarketContext(bullishEngulfingValues)!;
     const v3 = detectSetupIndicators({ market: { asset: "EUR/USD", close: 1.1005, interval: "15min", values: bullishEngulfingValues }, context }, buildReplacementKnowledgeModelV3());
-    const v4 = detectSetupIndicators({ market: { asset: "EUR/USD", close: 1.1005, interval: "15min", values: bullishEngulfingValues }, context }, buildReplacementKnowledgeModelV4());
+    const v5 = detectSetupIndicators({ market: { asset: "EUR/USD", close: 1.1005, interval: "15min", values: bullishEngulfingValues }, context }, buildReplacementKnowledgeModelV5());
     expect(v3.some((indicator) => indicator.id === "bullish-engulfing")).toBe(false);
-    expect(v4.some((indicator) => indicator.id === "bullish-engulfing")).toBe(true);
-    expect(v4.find((indicator) => indicator.id === "bullish-engulfing")?.source.document).toBe("Forex trading.docx");
+    expect(v5.some((indicator) => indicator.id === "bullish-engulfing")).toBe(true);
+    expect(v5.find((indicator) => indicator.id === "bullish-engulfing")?.source.document).toBe("Forex trading.docx");
   });
 
-  it("bounds total directional pattern contribution so patterns cannot dominate v4", () => {
+  it("bounds total directional pattern contribution so patterns cannot dominate v5", () => {
     const context = calculateMarketContext(bullishEngulfingValues)!;
-    const indicators = detectSetupIndicators({ market: { asset: "EUR/USD", close: 1.1005, interval: "15min", values: bullishEngulfingValues }, context }, buildReplacementKnowledgeModelV4());
+    const indicators = detectSetupIndicators({ market: { asset: "EUR/USD", close: 1.1005, interval: "15min", values: bullishEngulfingValues }, context }, buildReplacementKnowledgeModelV5());
     for (const direction of ["BUY", "SELL"] as const) {
       const total = indicators.filter((indicator) => indicator.family === "PATTERN" && indicator.direction === direction).reduce((sum, indicator) => sum + indicator.contribution, 0);
       expect(total).toBeLessThanOrEqual(3);

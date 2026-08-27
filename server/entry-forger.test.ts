@@ -46,7 +46,7 @@ describe("Entry Forger", () => {
   });
 
   it("only enables fallback after a geometry denial and preserves lock and gate safeguards", () => {
-    const base = { locatorReady: false, geometryDenied: true, v4Active: true, strategyApproved: true, qualityApproved: true, hasCompleteLevels: true, activeSignal: false };
+    const base = { locatorReady: false, geometryDenied: true, v5Active: true, strategyApproved: true, qualityApproved: true, hasCompleteLevels: true, activeSignal: false };
     expect(canUseEntryForgerFallback(base)).toBe(true);
     expect(canUseEntryForgerFallback({ ...base, locatorReady: true })).toBe(false);
     expect(canUseEntryForgerFallback({ ...base, geometryDenied: false })).toBe(false);

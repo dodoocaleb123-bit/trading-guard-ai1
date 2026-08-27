@@ -369,8 +369,8 @@ function ReplacementStatsCard() {
   );
 }
 
-function V4MonitoringCard() {
-  const query = trpc.intelligence.v4Monitoring.useQuery(
+function V5MonitoringCard() {
+  const query = trpc.intelligence.v5Monitoring.useQuery(
     undefined,
     LIVE_QUERY_OPTIONS
   );
@@ -430,7 +430,7 @@ function V4MonitoringCard() {
                 ))
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  No v4 signals recorded yet.
+                  No v5 signals recorded yet.
                 </p>
               )}
             </div>
@@ -729,7 +729,6 @@ function Overview() {
           </CardContent>
         </Card>
       </div>
-      <V4MonitoringCard />
       <EntryLocatorCard />
       <EntryForgerCard />
       <div className="mt-6">
@@ -1382,7 +1381,7 @@ function AdjustmentHistory() {
             </CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
               Automatic contradiction replies linked to unresolved current Entry
-              Locator v4 signals.
+              Locator v5 signals.
             </p>
           </div>
           <Badge
@@ -1511,7 +1510,7 @@ function AdjustmentHistory() {
         ) : (
           <div className="p-8 text-center text-sm text-muted-foreground">
             No contradiction adjustments have been recorded. The monitor only
-            replies when a strong, opposing v4 direction is detected while a
+            replies when a strong, opposing v5 direction is detected while a
             signal is unresolved.
           </div>
         )}
@@ -1718,7 +1717,7 @@ function UpgradeChainHistory() {
           <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
             No stronger setup upgrades have been recorded yet. The monitor will
             show the first linked replacement after a materially better
-            qualified v4 thesis appears.
+            qualified v5 thesis appears.
           </div>
         )}
       </CardContent>
@@ -1726,7 +1725,7 @@ function UpgradeChainHistory() {
   );
 }
 
-function V4SourcePerformanceCard() {
+function V5SourcePerformanceCard() {
   const [asset, setAsset] = useState("ALL");
   const [timeframe, setTimeframe] = useState<"ALL" | "15MIN" | "1H">("ALL");
   const [source, setSource] = useState<
@@ -1740,7 +1739,7 @@ function V4SourcePerformanceCard() {
     }),
     [asset, source, timeframe]
   );
-  const query = trpc.intelligence.v4SourceStats.useQuery(sourceFilters, {
+  const query = trpc.intelligence.v5SourceStats.useQuery(sourceFilters, {
     refetchInterval: 60_000,
   });
   const rows = query.data?.sources ?? [];
@@ -1752,7 +1751,7 @@ function V4SourcePerformanceCard() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <CardTitle className="font-display text-xl">
-              V4 source performance
+              V5 source performance
             </CardTitle>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               Compare how often the strict Entry Locator and fallback Entry
@@ -1888,7 +1887,7 @@ function V4SourcePerformanceCard() {
           !query.isError &&
           !visibleRows.some(row => row.generated > 0) && (
             <p className="mt-4 rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
-              No v4 signals match the selected source, asset, or timeframe yet.
+              No v5 signals match the selected source, asset, or timeframe yet.
               Empty results are shown as zero; no outcome is fabricated.
             </p>
           )}
@@ -1918,11 +1917,11 @@ function AdaptiveRatioPerformanceCard() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <CardTitle className="font-display text-xl">
-              V4 adaptive ratio performance
+              V5 adaptive ratio performance
             </CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              Authoritative Entry Locator v4 paper outcomes grouped by selected
-              risk/reward ratio. Active v4 selection is limited to 1:3 and 1:2;
+              Authoritative Entry Locator v5 paper outcomes grouped by selected
+              risk/reward ratio. Active v5 selection is limited to 1:3 and 1:2;
               historical 1:1 and 1:1.5 records remain visible for audit.
               Refreshes every minute.
             </p>
@@ -2021,8 +2020,6 @@ function TradeHistory() {
         title="Trade history"
         description="Review every generated signal and audited idea with its sent date/time, outcome, and Telegram delivery status."
       />
-      <V4SourcePerformanceCard />
-      <AdaptiveRatioPerformanceCard />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Metric
           label="Generated signals"
@@ -2246,19 +2243,19 @@ function TradeHistory() {
                       <Badge
                         variant="outline"
                         className={
-                          s.generationMode === "ENTRY_LOCATOR_V4"
+                          s.generationMode === "ENTRY_LOCATOR_V5"
                             ? "border-primary/30 text-primary"
-                            : s.generationMode === "ENTRY_FORGER_V4"
+                            : s.generationMode === "ENTRY_FORGER_V5"
                               ? "border-amber-500/35 text-amber-700"
                               : "border-slate-400/40 text-slate-600"
                         }
                       >
-                        {s.generationMode === "ENTRY_LOCATOR_V4"
-                          ? "V4 · Entry Locator"
-                          : s.generationMode === "ENTRY_FORGER_V4"
-                            ? "V4 · Entry Forger"
-                            : s.intelligenceVersion?.includes("v4")
-                              ? "V4 · Legacy snapshot"
+                        {s.generationMode === "ENTRY_LOCATOR_V5"
+                          ? "V5 · Entry Locator"
+                          : s.generationMode === "ENTRY_FORGER_V5"
+                            ? "V5 · Entry Forger"
+                            : s.intelligenceVersion?.includes("v5")
+                              ? "V5 · Legacy snapshot"
                               : intelligenceVersionLabel(
                                   s.intelligenceVersion ?? ""
                                 )}
@@ -2623,7 +2620,7 @@ function ScannerCadenceDiagnostics() {
                   .
                 </p>
                 <p className="mt-1 text-xs leading-5">
-                  This cycle could not supply market data, so v4 did not
+                  This cycle could not supply market data, so v5 did not
                   evaluate setups and no Entry Locator or Entry Forger signal
                   was created. Unavailable provider cycles in the last 24 hours:{" "}
                   {data.providerUnavailableCycles ?? 0}.{" "}
@@ -2737,6 +2734,75 @@ function ScannerCadenceDiagnostics() {
               </p>
             )}
           </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function V5ZoneMap() {
+  const decisions = trpc.scanner.decisions.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const latestByAsset = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const decision of decisions.data ?? []) {
+      const current = map.get(decision.asset);
+      if (!current || new Date(decision.createdAt).getTime() > new Date(current.createdAt).getTime()) {
+        map.set(decision.asset, decision);
+      }
+    }
+    return map;
+  }, [decisions.data]);
+  const formatZone = (zone: any) => {
+    if (!zone) return "No qualifying zone";
+    return `${zone.kind} ${Number(zone.lower).toFixed(5)}–${Number(zone.upper).toFixed(5)}`;
+  };
+  return (
+    <Card className="mb-6 border-primary/15 bg-primary/[0.025]">
+      <CardHeader>
+        <CardTitle className="font-display text-xl">V5 supply-and-demand zone map</CardTitle>
+        <p className="text-xs leading-5 text-muted-foreground">
+          Latest persisted hierarchy evidence. 4H and 1H provide context; 15M zones are drawn independently for execution. Empty states mean no validated zone was found, not that a level was invented.
+        </p>
+      </CardHeader>
+      <CardContent>
+        {decisions.isError ? (
+          <DataError text="The v5 zone map could not be loaded. Refresh after the decision ledger recovers." />
+        ) : decisions.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading persisted zones…</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {WATCHLIST.map(item => {
+              const decision = latestByAsset.get(item.symbol);
+              const snapshot = decision ? parseStoredJson(decision.marketSnapshot) : null;
+              const workflow = snapshot && typeof snapshot === "object" ? (snapshot as { replacementIntelligence?: { workflow?: any } }).replacementIntelligence?.workflow : null;
+              const zones = Array.isArray(workflow?.zones) ? workflow.zones : [];
+              return (
+                <div key={item.symbol} className="rounded-xl border bg-background p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">{item.symbol}</p>
+                    <Badge variant="outline" className="text-[10px]">{workflow?.status ?? "NO DATA"}</Badge>
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {decision ? `Updated ${formatDateTime(decision.createdAt)}` : "Awaiting persisted hierarchy data"}
+                  </p>
+                  <div className="mt-4 space-y-3 text-xs">
+                    {(["4h", "1h", "15min"] as const).map(interval => {
+                      const timeframeZones = zones.filter((zone: any) => String(zone.timeframe).toLowerCase() === interval);
+                      const active = timeframeZones.find((zone: any) => zone === workflow?.activeZone && zone.timeframe) ?? timeframeZones.find((zone: any) => Number(zone.lower) <= Number(snapshot?.price ?? decision?.generatedEntry ?? 0) && Number(zone.upper) >= Number(snapshot?.price ?? decision?.generatedEntry ?? 0));
+                      const opposing = timeframeZones.find((zone: any) => zone === workflow?.targetZone) ?? timeframeZones.find((zone: any) => zone !== active);
+                      return (
+                        <div key={interval} className="rounded-lg bg-muted/30 p-3">
+                          <p className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">{interval === "15min" ? "15M" : interval.toUpperCase()}</p>
+                          <p className="mt-2"><span className="text-muted-foreground">Active:</span> {formatZone(active)}</p>
+                          <p className="mt-1"><span className="text-muted-foreground">Opposing:</span> {formatZone(opposing)}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -2858,6 +2924,7 @@ function ScannerPage() {
         }
       />
       <AdaptiveGeometryDiagnostics />
+      <V5ZoneMap />
       <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
         <Card>
           <CardHeader>
@@ -3462,7 +3529,7 @@ function WinningRateVersionCard({
         ? "Replacement Intelligence v2"
         : version.version === "forex-trading-combined-document-v3"
           ? "Replacement Intelligence v3"
-          : "Replacement Intelligence v4";
+          : "Replacement Intelligence v5";
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-4 rounded-2xl border bg-card p-5 sm:flex-row sm:items-end sm:justify-between">
@@ -3530,7 +3597,7 @@ function MacroStatusPanel() {
           Official macro layer
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Free official-source context available to active v4. Missing or stale
+          Free official-source context available to active v5. Missing or stale
           data never overrides the full v2 foundation.
         </p>
       </CardHeader>
@@ -3563,8 +3630,8 @@ function V2V3Comparison({ versions }: { versions: WinningRateVersionView[] }) {
   const v3 = versions.find(
     version => version.version === "forex-trading-combined-document-v3"
   );
-  const v4 = versions.find(
-    version => version.version === "forex-trading-combined-document-v4"
+  const v5 = versions.find(
+    version => version.version === "forex-trading-combined-document-v5"
   );
   if (!v2 && !v3) return null;
   return (
@@ -3575,7 +3642,7 @@ function V2V3Comparison({ versions }: { versions: WinningRateVersionView[] }) {
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           These are descriptive paper records, not proof that a newer version is
-          more accurate. V4 is now the active paper-signal model. Compare it
+          more accurate. V5 is now the active paper-signal model. Compare it
           with historical v3 records, but do not treat the comparison as proof
           of profitability.
         </p>
@@ -3627,22 +3694,22 @@ function V2V3Comparison({ versions }: { versions: WinningRateVersionView[] }) {
         </div>
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
-            Replacement Intelligence v4 · active
+            Replacement Intelligence v5 · active
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <SummaryStat
               label="Generated"
-              value={v4?.overall.generated ?? 0}
+              value={v5?.overall.generated ?? 0}
               tone="neutral"
             />
             <SummaryStat
               label="Resolved"
-              value={v4?.overall.resolved ?? 0}
+              value={v5?.overall.resolved ?? 0}
               tone="neutral"
             />
             <SummaryStat
               label="Win rate"
-              value={v4?.overall.winRate ?? 0}
+              value={v5?.overall.winRate ?? 0}
               tone="neutral"
             />
           </div>
@@ -3689,10 +3756,10 @@ function intelligenceVersionLabel(version: string) {
       ? "Replacement Intelligence v2"
       : version === "forex-trading-combined-document-v3"
         ? "Replacement Intelligence v3"
-        : "Replacement Intelligence v4";
+        : "Replacement Intelligence v5";
 }
 function LocatorOutcomeReviewCard() {
-  const stats = trpc.intelligence.locatorV4OutcomeStats.useQuery(
+  const stats = trpc.intelligence.locatorV5OutcomeStats.useQuery(
     undefined,
     LIVE_QUERY_OPTIONS
   );
@@ -3703,7 +3770,7 @@ function LocatorOutcomeReviewCard() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle className="font-display text-lg">
-              Current Entry Locator v4 review
+              Current Entry Locator v5 review
             </CardTitle>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               Outcome evidence scoped only to signals emitted after the stateful
@@ -3711,7 +3778,7 @@ function LocatorOutcomeReviewCard() {
             </p>
           </div>
           <Badge className="border-primary/25 bg-primary/10 text-primary">
-            ENTRY_LOCATOR_V4
+            ENTRY_LOCATOR_V5
           </Badge>
         </div>
       </CardHeader>

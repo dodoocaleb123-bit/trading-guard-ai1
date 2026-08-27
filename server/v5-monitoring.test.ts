@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { summarizeV4Monitoring } from "./db";
+import { summarizeV5Monitoring } from "./db";
 
-describe("v4 outcome monitoring", () => {
+describe("v5 outcome monitoring", () => {
   it("groups paper outcomes by asset, timeframe, direction, event risk, and geometry", () => {
-    const rows = summarizeV4Monitoring([
+    const rows = summarizeV5Monitoring([
       {
         asset: "EUR/USD",
         timeframe: "1H",
@@ -38,7 +38,7 @@ describe("v4 outcome monitoring", () => {
   });
 
   it("does not infer event risk or geometry from malformed snapshots", () => {
-    const rows = summarizeV4Monitoring([{ asset: "BTC/USD", timeframe: "15MIN", direction: "SELL", status: "PENDING", marketSnapshot: "not-json" }]);
+    const rows = summarizeV5Monitoring([{ asset: "BTC/USD", timeframe: "15MIN", direction: "SELL", status: "PENDING", marketSnapshot: "not-json" }]);
     expect(rows.eventRisk).toEqual([expect.objectContaining({ key: "UNKNOWN", generated: 1, resolved: 0, winRate: null })]);
     expect(rows.geometry).toEqual([expect.objectContaining({ key: "STANDARD", generated: 1 })]);
     expect(rows.indicatorCount).toEqual([expect.objectContaining({ key: "UNKNOWN", generated: 1 })]);
@@ -46,7 +46,7 @@ describe("v4 outcome monitoring", () => {
 });
 
 describe("adaptive ratio performance", () => {
-  it("groups authoritative v4 outcomes by selected adaptive ratio", async () => {
+  it("groups authoritative v5 outcomes by selected adaptive ratio", async () => {
     const { summarizeAdaptiveRatioStats } = await import("./db");
     const rows = summarizeAdaptiveRatioStats([
       { riskReward: "3", status: "WIN" },

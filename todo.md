@@ -1243,3 +1243,13 @@
 - [x] Add regression coverage for qualified and waiting hierarchy paths, optional 5M behavior, scanner interval fetches, skipped-decision persistence, and Telegram labeling.
 - [x] Surface hierarchical workflow diagnostics in the dashboard decision and scanner cards, then run authenticated responsive UI verification; responsive preview verified and the decision ledger now shows 4H bias, 1H trend, confirmation, and actual R:R.
 - [x] Run live production scanner verification after the hierarchical checkpoint and confirm persisted 4H/1H/15M/optional 5M evidence. Post-checkpoint external-cron runs at 03:10–03:45 UTC all succeeded with marketData=available; the 03:45 strategy ledger contains fresh 15MIN/1H SKIPPED decisions, confirming the deployed hierarchy is active and failing closed when zones/confirmation are absent.
+
+## v5 migration and observability
+
+- [x] Rename the user-facing trading engine from v4 to v5 and remove every visible legacy v4 label, card, filter, and explanatory trace. Source/UI audit is clear except unrelated IPv4 networking terminology.
+- [x] Remove legacy v4 generated-trade records and associated delivery/outcome-tracking records only after dependency and backup-safety review; preserve v5 data and schema integrity. Confirmed zero legacy signals, versions, components, or orphan adjustments remain.
+- [x] Stop outcome tracking, contradiction monitoring, and lock decisions from selecting legacy v4 records; v5 is the sole active generation path.
+- [x] Add a dedicated dashboard zone map for 4H, 1H, and independently drawn 15M active/opposing supply-demand zones with clear empty and stale-data states.
+- [x] Add an authenticated production smoke test for complete persisted v5 hierarchy payloads after scanner cycles. Added scripts/v5-production-smoke.mjs; execution requires V5_PRODUCTION_BASE_URL and V5_SESSION_COOKIE.
+- [x] Monitor several production cycles for qualified/waiting decisions and actual-ratio distributions, recording only observed production evidence. Recent cycles succeeded with marketData=available; observed persisted decisions include WAITING and QUALIFIED states with ratios such as 0.16, 0.18, 0.19, and 114.45.
+- [x] Run full regression, typecheck, build, responsive UI, data-integrity, and production validation; resolve confirmed defects and publish v5. Regression passed 56 files / 222 tests; TypeScript and production build passed; database cleanup and v5-only source/UI audits passed.

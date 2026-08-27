@@ -1,10 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_FORGER_V4_GENERATION_MODE, ENTRY_LOCATOR_V4_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, claimOwnerAlert, listAcceptedStrategyLessons, listFailedOutcomeDeliveries, listIntelligenceComponents, listOpenCurrentV4Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryForgerState, saveEntryLocatorState, markOwnerAlertNotified, supersedeGeneratedSignal, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_FORGER_V5_GENERATION_MODE, ENTRY_LOCATOR_V5_GENERATION_MODE, getActiveIntelligenceVersion, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, claimOwnerAlert, listAcceptedStrategyLessons, listFailedOutcomeDeliveries, listIntelligenceComponents, listOpenCurrentV5Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryForgerState, saveEntryLocatorState, markOwnerAlertNotified, supersedeGeneratedSignal, updateStrategyEngineStatus } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
-import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
+import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV5, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { advanceEntryLocator, countStrongSetupIndicators, hasBreakoutConfirmationTransition, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
 import { buildEntryForgerDashboardState, canUseEntryForgerFallback, deriveEntryForgerLevels } from "./entry-forger";
 import { evaluateHierarchicalWorkflow } from "./multitimeframe-workflow";
@@ -176,9 +176,9 @@ async function retryFailedOutcomeDeliveries(userId: number) {
 
 async function ensureReplacementIntelligenceVersion(userId: number) {
   const active = await getActiveIntelligenceVersion(userId);
-  if (active?.versionLabel?.startsWith("forex-trading-combined-document-v4")) return active;
-  const model = buildReplacementKnowledgeModelV4();
-  const version = await createIntelligenceVersion({ userId, versionLabel: model.id, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: 0, algorithmJson: JSON.stringify(model), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Replacement intelligence v4 is active for paper signals by user instruction; forward validation remains ongoing." }), activatedAt: new Date() });
+  if (active?.versionLabel?.startsWith("forex-trading-combined-document-v5")) return active;
+  const model = buildReplacementKnowledgeModelV5();
+  const version = await createIntelligenceVersion({ userId, versionLabel: model.id, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: 0, algorithmJson: JSON.stringify(model), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Replacement intelligence v5 is active for paper signals by user instruction; forward validation remains ongoing." }), activatedAt: new Date() });
   const triggerFor = (family: string) => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : "CANDLE";
   for (const node of model.nodes) await createIntelligenceComponent({ userId, versionId: version.id, title: node.concept, sourceRuleIds: JSON.stringify([]), trigger: triggerFor(node.family) as any, stance: "NEUTRAL", conditionJson: JSON.stringify({ values: node.prerequisites, description: node.rule }), weight: "1", enabled: true });
   await activateIntelligenceVersion(userId, version.id);
@@ -232,7 +232,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
   const mirroredRules = await fetchStrategyRulesFromSupabase();
   const mirroredText = mirroredRules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, 6_000);
   await ensureReplacementIntelligenceVersion(userId);
-  const replacementModel = buildReplacementKnowledgeModelV4();
+  const replacementModel = buildReplacementKnowledgeModelV5();
   const replacementBaselineModel = buildReplacementKnowledgeModelV3();
   const acceptedLessons = await listAcceptedStrategyLessons(userId);
   const candidates = WATCHLIST.flatMap((asset) => TIMEFRAMES.map((timeframe) => ({ asset, timeframe, series: seriesCache.get(`${asset}:${timeframe}`) })) ).filter((candidate): candidate is { asset: typeof WATCHLIST[number]; timeframe: typeof TIMEFRAMES[number]; series: MarketSeries } => Boolean(candidate.series)).map((candidate) => ({ ...candidate, cooldownKey: `${candidate.asset}:${candidate.timeframe}:PENDING` }));
@@ -318,7 +318,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
     console.warn("[Scanner] Strategy engine unavailable; no new signals created:", message);
     return { created: 0, tracked: await trackOpenSignals(userId, seriesCache), adjustments: 0, marketData: "available" };
   }
-  const activeCurrentSignals = await listOpenCurrentV4Signals(userId);
+  const activeCurrentSignals = await listOpenCurrentV5Signals(userId);
   for (const gated of decisions) {
     const { asset, timeframe, market } = gated;
     const sourceCandidate = candidates.find((candidate) => candidate.asset === asset && candidate.timeframe === timeframe);
@@ -345,7 +345,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
       workflowQualified: Boolean((market.replacementIntelligence as any)?.workflow?.eligible),
       conflictingComponents: gated.decisionTrace?.conflictingComponents ?? [],
     };
-    const hasOpenSignal = await hasOpenGeneratedSignal(userId, asset, timeframe, replacementModel.id, ENTRY_LOCATOR_V4_GENERATION_MODE);
+    const hasOpenSignal = await hasOpenGeneratedSignal(userId, asset, timeframe, replacementModel.id, ENTRY_LOCATOR_V5_GENERATION_MODE);
     const storedLocator = await getEntryLocatorState(userId, asset, timeframe);
     let previousLocator: Record<string, unknown> | null = null;
     try { previousLocator = storedLocator?.stateJson ? JSON.parse(storedLocator.stateJson) : null; } catch { previousLocator = null; }
@@ -402,7 +402,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         await saveEntryForgerState({ userId, asset, timeframe, status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null, lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), reason, targetBoundary: observation.targetBoundary, targetDistance: details.targetDistance ?? null, riskReward: details.riskReward ?? null, stateJson: JSON.stringify(dashboardState) });
       };
       const locatorGeometryDenied = /no allowed ratio fits|no allowed adaptive ratio|adaptive target geometry did not qualify/i.test(`${gated.adjustments ?? ""} ${locatorResult.reason}`);
-      const eligibleForgerFallback = canUseEntryForgerFallback({ locatorReady: locatorReadyForEmission, geometryDenied: locatorGeometryDenied, v4Active: replacementModel.id.endsWith("v4"), strategyApproved: shouldNotifyScannerSignal(gated.verdict), qualityApproved: paperSignalQualityApproved, hasCompleteLevels: gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null, activeSignal: Boolean(activeSignal) });
+      const eligibleForgerFallback = canUseEntryForgerFallback({ locatorReady: locatorReadyForEmission, geometryDenied: locatorGeometryDenied, v5Active: replacementModel.id.endsWith("v5"), strategyApproved: shouldNotifyScannerSignal(gated.verdict), qualityApproved: paperSignalQualityApproved, hasCompleteLevels: gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null, activeSignal: Boolean(activeSignal) });
       if (!locatorReadyForEmission && !eligibleForgerFallback) {
         const forgerStatus = !paperSignalQualityApproved || !shouldNotifyScannerSignal(gated.verdict) || !(gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null) ? "REJECTED" as const : "WAITING" as const;
         const forgerReason = !paperSignalQualityApproved
@@ -410,9 +410,9 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
           : !shouldNotifyScannerSignal(gated.verdict)
             ? `Entry Forger rejected because the strategy judgment was ${gated.verdict}; only APPROVED judgments can reach Telegram.`
             : activeSignal
-              ? "Entry Forger is waiting because this asset/timeframe already has an active v4 paper setup."
+              ? "Entry Forger is waiting because this asset/timeframe already has an active v5 paper setup."
               : !(gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null)
-                ? "Entry Forger rejected because the v4 candidate did not contain complete executable levels."
+                ? "Entry Forger rejected because the v5 candidate did not contain complete executable levels."
                 : `Entry Forger is waiting for an Entry Locator geometry denial before using the target-first fallback. ${locatorResult.reason}`;
         await saveForgerState(forgerStatus, forgerReason);
         console.info(`[Scanner] ${asset} ${timeframe} entry locator waiting: ${locatorResult.reason}`);
@@ -429,25 +429,25 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         continue;
       }
       if (!gated.direction || gated.entry == null || gated.stopLoss == null || gated.takeProfit == null) {
-        await saveForgerState("REJECTED", "Entry Forger rejected because the v4 candidate did not contain complete executable levels.");
+        await saveForgerState("REJECTED", "Entry Forger rejected because the v5 candidate did not contain complete executable levels.");
         console.info(`[Scanner] ${asset} ${timeframe} strategy engine returned an incomplete approved outcome; no signal sent.`);
         continue;
       }
       const hierarchicalQualified = Boolean((market.replacementIntelligence as any)?.workflow?.eligible);
-      const adaptiveV4 = replacementModel.id.endsWith("v4") && !hierarchicalQualified;
+      const adaptiveV5 = replacementModel.id.endsWith("v5") && !hierarchicalQualified;
       const traceRatio = gated.decisionTrace?.levelDerivation?.selectedRiskReward;
-      const selectedRiskReward = hierarchicalQualified ? Number(gated.riskReward ?? traceRatio ?? 0) : adaptiveV4 ? (traceRatio == null ? Number.NaN : Number(traceRatio)) : Number(gated.riskReward ?? 2);
-      const allowedRatios = hierarchicalQualified ? [selectedRiskReward] : adaptiveV4 ? (ALLOWED_RISK_REWARD_RATIOS as readonly number[]) : [2];
+      const selectedRiskReward = hierarchicalQualified ? Number(gated.riskReward ?? traceRatio ?? 0) : adaptiveV5 ? (traceRatio == null ? Number.NaN : Number(traceRatio)) : Number(gated.riskReward ?? 2);
+      const allowedRatios = hierarchicalQualified ? [selectedRiskReward] : adaptiveV5 ? (ALLOWED_RISK_REWARD_RATIOS as readonly number[]) : [2];
       if (!allowedRatios.includes(selectedRiskReward)) {
-        const canForge = adaptiveV4 && locatorGeometryDenied && paperSignalQualityApproved && !activeSignal && Boolean(gated.direction) && gated.entry != null;
+        const canForge = adaptiveV5 && locatorGeometryDenied && paperSignalQualityApproved && !activeSignal && Boolean(gated.direction) && gated.entry != null;
         const forged = canForge ? deriveEntryForgerLevels({ entry: Number(gated.entry), direction: gated.direction as "BUY" | "SELL", targetBoundary: observation.targetBoundary, atr: market.marketContext?.volatility.atr }) : { ready: false as const, reason: "Entry Forger not eligible until Entry Locator geometry denial." };
         if (forged.ready) {
           await saveForgerState("EMITTED", forged.reason, { targetDistance: forged.targetDistance, riskReward: forged.riskReward });
           const forgedLevels = { asset, timeframe, direction: gated.direction, entry: forged.entry, stopLoss: forged.stopLoss, takeProfit: forged.takeProfit, riskReward: forged.riskReward, confidence: gated.confidence };
           const forgedRationale = `${formatAuditResult(gated, market)} Entry Forger: ${forged.reason}`;
-          const [forgedResult] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: forgedLevels.direction as "BUY" | "SELL", entry: String(forgedLevels.entry), stopLoss: String(forgedLevels.stopLoss), takeProfit: String(forgedLevels.takeProfit), riskReward: forgedLevels.riskReward.toFixed(2), confidence: String(forgedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale: forgedRationale, intelligenceVersion: replacementModel.id, generationMode: ENTRY_FORGER_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify([...(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), "ENTRY FORGER: target-first fallback after Entry Locator geometry denial"]), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
+          const [forgedResult] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: forgedLevels.direction as "BUY" | "SELL", entry: String(forgedLevels.entry), stopLoss: String(forgedLevels.stopLoss), takeProfit: String(forgedLevels.takeProfit), riskReward: forgedLevels.riskReward.toFixed(2), confidence: String(forgedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale: forgedRationale, intelligenceVersion: replacementModel.id, generationMode: ENTRY_FORGER_V5_GENERATION_MODE, intelligenceComponents: JSON.stringify([...(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), "ENTRY FORGER: target-first fallback after Entry Locator geometry denial"]), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
           const forgedSignal = { id: Number(forgedResult.insertId), ...forgedLevels };
-          await mirrorToSupabase("generated_signals", { user_id: userId, ...forgedSignal, status: "PENDING", rationale: forgedRationale, generation_mode: ENTRY_FORGER_V4_GENERATION_MODE, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
+          await mirrorToSupabase("generated_signals", { user_id: userId, ...forgedSignal, status: "PENDING", rationale: forgedRationale, generation_mode: ENTRY_FORGER_V5_GENERATION_MODE, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
           const forgedDelivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: forgedLevels.direction, entry: forgedLevels.entry, stopLoss: forgedLevels.stopLoss, takeProfit: forgedLevels.takeProfit, confidence: forgedLevels.confidence, riskReward: forgedLevels.riskReward, adjustments: `${gated.adjustments ?? ""} Entry Locator denied the exact allowed geometry; Entry Forger selected the target-first fallback.`, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext, generationSource: "ENTRY_FORGER" }), asset);
           await recordTelegramDelivery({ userId, signalId: forgedSignal.id, kind: "SIGNAL", status: forgedDelivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: forgedDelivery.telegramMessageId, dedupeKey: buildSignalDeliveryDedupeKey(forgedSignal.id), error: forgedDelivery.error });
           created.push(forgedSignal);
@@ -465,7 +465,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
           ? compareStrongerSameDirectionSetup(activeSignal, { direction: gated.direction, confidence: gated.confidence, confluenceScore: gated.confluenceScore, entry: gated.entry, stopLoss: gated.stopLoss, takeProfit: gated.takeProfit, riskReward: approvedLevels.riskReward, marketRegime: gated.marketRegime, ruleEvidence: gated.ruleEvidence, decisionTrace: gated.decisionTrace })
           : null;
         if (!upgrade || !activeSignal) {
-          await saveForgerState("WAITING", "Entry Forger is waiting because an active v4 paper setup already occupies this asset/timeframe.");
+          await saveForgerState("WAITING", "Entry Forger is waiting because an active v5 paper setup already occupies this asset/timeframe.");
           console.info(`[Scanner] ${asset} ${timeframe} already has an active paper setup; current candidate evaluated immediately but duplicate suppressed.`);
           continue;
         }
@@ -475,7 +475,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
           console.info(`[Scanner] ${asset} ${timeframe} stronger setup upgrade already delivered; duplicate suppressed.`);
           continue;
         }
-        const [replacementResult] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: approvedLevels.riskReward.toFixed(2), confidence: String(approvedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale: formatAuditResult(gated, market), intelligenceVersion: replacementModel.id, generationMode: ENTRY_LOCATOR_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
+        const [replacementResult] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: approvedLevels.riskReward.toFixed(2), confidence: String(approvedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale: formatAuditResult(gated, market), intelligenceVersion: replacementModel.id, generationMode: ENTRY_LOCATOR_V5_GENERATION_MODE, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
         const replacementSignalId = Number(replacementResult.insertId);
         const upgradeReason = buildUpgradePaperAdjustmentReason(upgrade);
         await supersedeGeneratedSignal(activeSignal.id, replacementSignalId, upgradeReason);
@@ -492,7 +492,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         continue;
       }
       const rationale = formatAuditResult(gated, market);
-      const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: approvedLevels.riskReward.toFixed(2), confidence: String(approvedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale, intelligenceVersion: replacementModel.id, generationMode: ENTRY_LOCATOR_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
+      const [result] = await db.insert(generatedSignals).values({ userId, asset, timeframe, direction: approvedLevels.direction as "BUY" | "SELL", entry: String(approvedLevels.entry), stopLoss: String(approvedLevels.stopLoss), takeProfit: String(approvedLevels.takeProfit), riskReward: approvedLevels.riskReward.toFixed(2), confidence: String(approvedLevels.confidence), confluenceScore: String(gated.confluenceScore ?? 0), rationale, intelligenceVersion: replacementModel.id, generationMode: ENTRY_LOCATOR_V5_GENERATION_MODE, intelligenceComponents: JSON.stringify(gated.decisionTrace?.supportingComponents ?? gated.ruleEvidence ?? []), marketRegime: gated.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
       const signal = { id: Number(result.insertId), ...approvedLevels };
       await mirrorToSupabase("generated_signals", { user_id: userId, ...signal, status: "PENDING", rationale, rule_evidence: gated.ruleEvidence ?? [], confluence_score: gated.confluenceScore ?? 0 });
       const delivery = await sendTelegramMessage(formatApprovedTelegramMessage({ asset, timeframe, direction: approvedLevels.direction, entry: approvedLevels.entry, stopLoss: approvedLevels.stopLoss, takeProfit: approvedLevels.takeProfit, confidence: approvedLevels.confidence, riskReward: approvedLevels.riskReward, adjustments: gated.adjustments, ruleEvidence: gated.ruleEvidence, confluenceScore: gated.confluenceScore, decisionTrace: gated.decisionTrace, fundamentalContext: market.fundamentalContext, generationSource: "ENTRY_LOCATOR" }), asset);
@@ -514,7 +514,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
 async function monitorOpenSignalContradictions(userId: number, decisions: Array<any>, seriesCache: Map<string, MarketSeries>) {
   const db = await getDb();
   if (!db) return 0;
-  const openSignals = await listOpenCurrentV4Signals(userId);
+  const openSignals = await listOpenCurrentV5Signals(userId);
   let sent = 0;
   for (const signal of openSignals) {
     try {
@@ -534,7 +534,7 @@ async function monitorOpenSignalContradictions(userId: number, decisions: Array<
       let action: "REVIEW_DIRECTION" | "TIGHTEN_STOP" | "EXIT_PAPER_SETUP" | "UPGRADE_PAPER_SETUP" = contradiction.action;
       let reason = contradiction.reason;
       if (replacementReady) {
-        const [replacementResult] = await db.insert(generatedSignals).values({ userId, asset: signal.asset, timeframe: signal.timeframe, direction: contradiction.observedDirection, entry: String(decision.entry), stopLoss: String(decision.stopLoss), takeProfit: String(decision.takeProfit), riskReward: selectedRiskReward.toFixed(2), confidence: String(decision.confidence), confluenceScore: String(decision.confluenceScore), rationale: formatAuditResult(decision, market), intelligenceVersion: "forex-trading-combined-document-v4", generationMode: ENTRY_LOCATOR_V4_GENERATION_MODE, intelligenceComponents: JSON.stringify(decision.decisionTrace?.supportingComponents ?? decision.ruleEvidence ?? []), marketRegime: decision.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
+        const [replacementResult] = await db.insert(generatedSignals).values({ userId, asset: signal.asset, timeframe: signal.timeframe, direction: contradiction.observedDirection, entry: String(decision.entry), stopLoss: String(decision.stopLoss), takeProfit: String(decision.takeProfit), riskReward: selectedRiskReward.toFixed(2), confidence: String(decision.confidence), confluenceScore: String(decision.confluenceScore), rationale: formatAuditResult(decision, market), intelligenceVersion: "forex-trading-combined-document-v5", generationMode: ENTRY_LOCATOR_V5_GENERATION_MODE, intelligenceComponents: JSON.stringify(decision.decisionTrace?.supportingComponents ?? decision.ruleEvidence ?? []), marketRegime: decision.marketRegime ?? market.replacementMarketRegime ?? null, status: "PENDING" });
         replacementSignalId = Number(replacementResult.insertId);
         action = "UPGRADE_PAPER_SETUP";
         reason = `A contradictory ${contradiction.observedDirection} setup passed the Entry Locator with exact 1:${selectedRiskReward} geometry. The original ${signal.direction} paper setup is preserved for audit history and superseded by replacement signal #${replacementSignalId}.`;
@@ -570,7 +570,7 @@ export function shouldUseIntrabarRange(signalOpenedAt: Date | string, candleStar
 export async function trackOpenSignals(userId: number, seriesCache?: Map<string, MarketSeries>, excludedSignalIds: ReadonlySet<number> = new Set()) {
   const db = await getDb();
   if (!db) return 0;
-  const openRows = await listOpenCurrentV4Signals(userId);
+  const openRows = await listOpenCurrentV5Signals(userId);
   const open = selectOutcomeTrackingBatch(openRows);
   let tracked = 0;
   for (const signal of open) {
@@ -621,7 +621,7 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
       }
       await createStrategyLesson({ userId, signalId: signal.id, sourceVersionId: activeVersion?.id ?? null, outcome: status, status: "PROPOSED", observation: note, lessonJson: JSON.stringify(lesson) });
       const signalDelivery = await getTelegramDeliveryForSignal(userId, signal.id, "SIGNAL");
-      const delivery = await sendTelegramMessage(formatOutcomeTelegramMessage({ asset: signal.asset, timeframe: signal.timeframe, direction: signal.direction, status, entry: signal.entry, stopLoss: signal.stopLoss, takeProfit: signal.takeProfit, closePrice: price, signalId: signal.id, note, generationSource: signal.generationMode === ENTRY_FORGER_V4_GENERATION_MODE ? "ENTRY_FORGER" : "ENTRY_LOCATOR" }), signal.asset, { replyToMessageId: signalDelivery?.status === "DELIVERED" ? signalDelivery.telegramMessageId ?? undefined : undefined });
+      const delivery = await sendTelegramMessage(formatOutcomeTelegramMessage({ asset: signal.asset, timeframe: signal.timeframe, direction: signal.direction, status, entry: signal.entry, stopLoss: signal.stopLoss, takeProfit: signal.takeProfit, closePrice: price, signalId: signal.id, note, generationSource: signal.generationMode === ENTRY_FORGER_V5_GENERATION_MODE ? "ENTRY_FORGER" : "ENTRY_LOCATOR" }), signal.asset, { replyToMessageId: signalDelivery?.status === "DELIVERED" ? signalDelivery.telegramMessageId ?? undefined : undefined });
       await recordTelegramDelivery({ userId, signalId: signal.id, kind: "OUTCOME", status: delivery.delivered ? "DELIVERED" : "FAILED", telegramMessageId: delivery.telegramMessageId, dedupeKey: `outcome:${signal.id}:${status}`, error: delivery.error });
       tracked += 1;
     } catch (error) {

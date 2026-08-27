@@ -4,11 +4,11 @@ import { eq } from "drizzle-orm";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, listOpenCurrentV4Signals, getScannerCadenceDiagnostics, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV4OutcomeStats, getAdaptiveRatioStats, getV4SourceStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV4MonitoringStats, getLiveMarketPulse, listEntryLocatorStates, listEntryForgerStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, listOpenCurrentV5Signals, getScannerCadenceDiagnostics, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV5OutcomeStats, getAdaptiveRatioStats, getV5SourceStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV5MonitoringStats, getLiveMarketPulse, listEntryLocatorStates, listEntryForgerStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, resolveLessonPatternReview } from "./intelligence";
-import { buildReplacementKnowledgeModelV4, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModelV5, evaluateReplacementIntelligence, type ReplacementDecision } from "./replacement-intelligence";
 import { invokeLLM } from "./_core/llm";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { storagePut } from "./storage";
@@ -51,11 +51,11 @@ export function buildReplacementManualAuditResult(signal: string, asset: string,
   const directionMatches = !submittedDirection || submittedDirection === decision.direction;
   const directionReason = submittedDirection
     ? directionMatches
-      ? `Submitted ${submittedDirection} direction matches Replacement Intelligence v4.`
-      : `Submitted ${submittedDirection} direction conflicts with Replacement Intelligence v4 ${decision.direction} judgment.`
+      ? `Submitted ${submittedDirection} direction matches Replacement Intelligence v5.`
+      : `Submitted ${submittedDirection} direction conflicts with Replacement Intelligence v5 ${decision.direction} judgment.`
     : `No explicit direction was detected in the submitted signal; the audit uses the intelligence direction ${decision.direction}.`;
   const trace = `Score: BUY ${decision.score.buy} vs SELL ${decision.score.sell}; confluence ${decision.confluenceScore}%; market regime ${decision.marketRegime}. ${decision.conflicts.length ? `Conflicting components: ${decision.conflicts.join("; ")}.` : "No conflicting components were matched."}`;
-  const adjustments = `${directionReason} ${decision.explanation} ${trace} Additive source-linked replacement v4 is authoritative for this paper audit; it retains the complete v2 foundation and uses verified macro/fundamental evidence when available. Validation remains UNVALIDATED.`;
+  const adjustments = `${directionReason} ${decision.explanation} ${trace} Additive source-linked replacement v5 is authoritative for this paper audit; it retains the complete v2 foundation and uses verified macro/fundamental evidence when available. Validation remains UNVALIDATED.`;
   return {
     verdict: directionMatches ? "APPROVED" as const : "DENIED" as const,
     confidence: decision.confidence,
@@ -106,15 +106,15 @@ export const appRouter = router({
       return { active, versions, components, lessons, promotionPlan, acceptedLessonCount: lessons.filter((lesson) => lesson.status === "ACCEPTED").length };
     }),
     replacementPreview: protectedProcedure.query(async ({ ctx }) => {
-      const model = buildReplacementKnowledgeModelV4();
+      const model = buildReplacementKnowledgeModelV5();
       const active = await getActiveIntelligenceVersion(ctx.user.id);
       return { id: model.id, sourceDocument: model.sourceDocument, nodeCount: model.nodes.length, nodes: model.nodes, decisionPolicy: model.decisionPolicy, learningPolicy: model.learningPolicy, active: active?.versionLabel?.startsWith(model.id) ?? false, activeVersionId: active?.id ?? null };
     }),
     replacementOutcomeStats: protectedProcedure.query(({ ctx }) => getReplacementOutcomeStats(ctx.user.id)),
-    locatorV4OutcomeStats: protectedProcedure.query(({ ctx }) => getLocatorV4OutcomeStats(ctx.user.id)),
+    locatorV5OutcomeStats: protectedProcedure.query(({ ctx }) => getLocatorV5OutcomeStats(ctx.user.id)),
     adaptiveRatioStats: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "1H"]).optional() }).optional()).query(({ ctx, input }) => getAdaptiveRatioStats(ctx.user.id, input ?? {})),
-    v4SourceStats: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "1H"]).optional(), source: z.enum(["ENTRY_LOCATOR", "ENTRY_FORGER"]).optional() }).optional()).query(({ ctx, input }) => getV4SourceStats(ctx.user.id, input ?? {})),
-    v4Monitoring: protectedProcedure.query(({ ctx }) => getV4MonitoringStats(ctx.user.id)),
+    v5SourceStats: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["15MIN", "1H"]).optional(), source: z.enum(["ENTRY_LOCATOR", "ENTRY_FORGER"]).optional() }).optional()).query(({ ctx, input }) => getV5SourceStats(ctx.user.id, input ?? {})),
+    v5Monitoring: protectedProcedure.query(({ ctx }) => getV5MonitoringStats(ctx.user.id)),
     entryLocator: protectedProcedure.query(({ ctx }) => listEntryLocatorStates(ctx.user.id)),
     entryForger: protectedProcedure.query(({ ctx }) => listEntryForgerStates(ctx.user.id)),
     winningRateStats: protectedProcedure.query(({ ctx }) => getWinningRateStats(ctx.user.id)),
@@ -138,8 +138,8 @@ export const appRouter = router({
       const lessons = await listStrategyLessons(ctx.user.id);
       const plan = buildLessonPromotionPlan(lessons);
       if (plan.eligible.length === 0) return { promoted: false, ...plan };
-      const model = buildReplacementKnowledgeModelV4();
-      const version = await createIntelligenceVersion({ userId: ctx.user.id, versionLabel: `forex-trading-combined-document-v4-lessons-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: plan.eligible.length, algorithmJson: JSON.stringify({ ...model, promotedLessonIds: plan.eligible.map((lesson) => lesson.id), learning: { status: "paper-only", application: "accepted-lessons-are-applied-by-v4-with-pattern-matching" } }), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Accepted loss-learning adjustments remain paper-validation only and can be rolled back by retiring this version." }), activatedAt: new Date() });
+      const model = buildReplacementKnowledgeModelV5();
+      const version = await createIntelligenceVersion({ userId: ctx.user.id, versionLabel: `forex-trading-combined-document-v5-lessons-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`, status: "ACTIVE", sourceRuleCount: 0, componentCount: model.nodes.length, lessonCount: plan.eligible.length, algorithmJson: JSON.stringify({ ...model, promotedLessonIds: plan.eligible.map((lesson) => lesson.id), learning: { status: "paper-only", application: "accepted-lessons-are-applied-by-v5-with-pattern-matching" } }), validationJson: JSON.stringify({ status: "UNVALIDATED", reason: "Accepted loss-learning adjustments remain paper-validation only and can be rolled back by retiring this version." }), activatedAt: new Date() });
       const triggerFor = (family: string) => family === "STRUCTURE" ? "MARKET_STRUCTURE" : family === "LEVELS" ? "SUPPORT_RESISTANCE" : family === "PATTERN" ? "BREAKOUT" : family === "INDICATOR" ? "MOMENTUM" : family === "VOLUME" ? "VOLATILITY" : "CANDLE";
       for (const node of model.nodes) await createIntelligenceComponent({ userId: ctx.user.id, versionId: version.id, title: node.concept, sourceRuleIds: JSON.stringify([]), trigger: triggerFor(node.family) as any, stance: "NEUTRAL", conditionJson: JSON.stringify({ values: node.prerequisites, description: node.rule }), weight: "1", enabled: true });
       await activateIntelligenceVersion(ctx.user.id, version.id);
@@ -188,7 +188,7 @@ export const appRouter = router({
         const fundamentalContext = await fetchOfficialMacroContext(asset);
         const market: MarketSnapshot = { symbol: series.symbol, price: series.close, close: series.close, fetchedAt: series.fetchedAt, interval: timeframe === "1H" ? "1h" : "15min", trend: series.trend, values: series.values, marketContext: series.marketContext, fundamentalContext };
         const acceptedLessons = await listAcceptedStrategyLessons(ctx.user.id);
-        const decision = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: series.marketContext, fundamentalContext, acceptedLessons }, buildReplacementKnowledgeModelV4());
+        const decision = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: series.marketContext, fundamentalContext, acceptedLessons }, buildReplacementKnowledgeModelV5());
         const result = buildReplacementManualAuditResult(input.signal, asset, timeframe, market, decision);
         const assistantText = formatAuditResult(result, market);
         await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });
@@ -247,7 +247,7 @@ Matched strategy rules:\n${rulesText || "No matching rule excerpt was found."}\n
     summary: protectedProcedure.query(({ ctx }) => getStrategyDecisionSummary(ctx.user.id)),
     health: protectedProcedure.query(({ ctx }) => getStrategyEngineHealth(ctx.user.id)),
     cadence: protectedProcedure.query(({ ctx }) => getScannerCadenceDiagnostics(ctx.user.id)),
-    openCurrentSignals: protectedProcedure.query(({ ctx }) => listOpenCurrentV4Signals(ctx.user.id)),
+    openCurrentSignals: protectedProcedure.query(({ ctx }) => listOpenCurrentV5Signals(ctx.user.id)),
     callbackStatus: protectedProcedure.query(async ({ ctx }) => {
       const settings = await getSettings(ctx.user.id);
       const session = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";

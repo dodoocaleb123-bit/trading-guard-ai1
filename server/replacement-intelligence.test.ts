@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReplacementKnowledgeModel, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, deriveStructureAwareLevels, evaluateReplacementIntelligence, selectAdaptiveRiskReward } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModel, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV5, deriveStructureAwareLevels, evaluateReplacementIntelligence, selectAdaptiveRiskReward } from "./replacement-intelligence";
 import { calculateMarketContext } from "./market-context";
 
 describe("replacement PDF-derived intelligence", () => {
@@ -39,21 +39,21 @@ describe("replacement PDF-derived intelligence", () => {
     expect(available.sourceTrace.some((source) => source.document === "What_moves_the_currency_market.pdf")).toBe(true);
   });
 
-  it("builds v4 additively with document-derived provenance and bounded context", () => {
+  it("builds v5 additively with document-derived provenance and bounded context", () => {
     const v3 = buildReplacementKnowledgeModelV3();
-    const v4 = buildReplacementKnowledgeModelV4();
-    expect(v4.id).toBe("forex-trading-combined-document-v4");
-    expect(v4.nodes.length).toBeGreaterThan(v3.nodes.length);
-    expect(v4.sourceDocument).toContain("v4 normalized concept catalog");
-    expect(v4.nodes.find((node) => node.id === "v4-fibonacci-pullback")?.source.document).toBe("Forex trading.docx");
-    const decision = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext: calculateMarketContext(candles)! }, v4);
+    const v5 = buildReplacementKnowledgeModelV5();
+    expect(v5.id).toBe("forex-trading-combined-document-v5");
+    expect(v5.nodes.length).toBeGreaterThan(v3.nodes.length);
+    expect(v5.sourceDocument).toContain("v5 hierarchical concept catalog");
+    expect(v5.nodes.find((node) => node.id === "v5-fibonacci-pullback")?.source.document).toBe("Forex trading.docx");
+    const decision = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext: calculateMarketContext(candles)! }, v5);
     expect(decision.direction).toMatch(/BUY|SELL/);
-    expect(decision.matchedNodes.some((node) => node.id === "v4-intermarket-availability")).toBe(true);
+    expect(decision.matchedNodes.some((node) => node.id === "v5-intermarket-availability")).toBe(true);
     expect(decision.explanation).toContain("Correlated indicators are one evidence family");
   });
 
   it("constructs candidate evidence from explicit setup indicators first", () => {
-    const model = buildReplacementKnowledgeModelV4();
+    const model = buildReplacementKnowledgeModelV5();
     const decision = evaluateReplacementIntelligence({ asset: "EUR/USD", close: candles.at(-1)!.close, interval: "1h", marketContext: calculateMarketContext(candles)! }, model);
     expect(decision.setupIndicators.length).toBeGreaterThan(0);
     expect(decision.setupIndicators.every((indicator) => indicator.source.document === "Forex trading.docx" || indicator.source.document === "What_moves_the_currency_market.pdf")).toBe(true);
@@ -62,7 +62,7 @@ describe("replacement PDF-derived intelligence", () => {
   });
 
   it("does not construct a candidate when no setup-indicator catalog is available", () => {
-    const model = buildReplacementKnowledgeModelV4();
+    const model = buildReplacementKnowledgeModelV5();
     expect(() => evaluateReplacementIntelligence({ close: candles.at(-1)!.close, interval: "1h", marketContext: calculateMarketContext(candles)! }, { ...model, nodes: [] })).toThrow("No directional setup indicators detected");
   });
 

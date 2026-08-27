@@ -8,7 +8,7 @@ export type PaperSignalForAdjustment = {
   takeProfit: string | number;
 };
 
-export type CurrentV4DecisionForAdjustment = {
+export type CurrentV5DecisionForAdjustment = {
   direction: "BUY" | "SELL";
   confidence: number;
   confluenceScore: number;
@@ -35,7 +35,7 @@ export type PaperTradeContradiction = {
   fingerprint: string;
 };
 
-export function detectPaperTradeContradiction(signal: PaperSignalForAdjustment, currentPrice: number, decision: CurrentV4DecisionForAdjustment): PaperTradeContradiction | null {
+export function detectPaperTradeContradiction(signal: PaperSignalForAdjustment, currentPrice: number, decision: CurrentV5DecisionForAdjustment): PaperTradeContradiction | null {
   if (!Number.isFinite(currentPrice) || decision.direction === signal.direction) return null;
   const confidence = Number(decision.confidence);
   const confluenceScore = Number(decision.confluenceScore);
@@ -54,8 +54,8 @@ export function detectPaperTradeContradiction(signal: PaperSignalForAdjustment, 
   const strongReversal = confidence >= 75 && confluenceScore >= 70;
   const action = strongReversal ? "EXIT_PAPER_SETUP" : favorable ? "TIGHTEN_STOP" : "REVIEW_DIRECTION";
   const suggestedStopLoss = action === "TIGHTEN_STOP" ? entry : undefined;
-  const actionText = action === "EXIT_PAPER_SETUP" ? "Review exit of the original paper setup; the current v4 direction is strongly opposed." : action === "TIGHTEN_STOP" ? "Consider tightening the paper stop to the original entry because the setup has moved favorably while direction has contradicted." : "Reassess the original paper setup; do not add to the position while the current direction conflicts.";
-  const reason = `Current v4 indicates ${decision.direction}, contradicting the original ${signal.direction} paper signal. ${actionText}`;
+  const actionText = action === "EXIT_PAPER_SETUP" ? "Review exit of the original paper setup; the current v5 direction is strongly opposed." : action === "TIGHTEN_STOP" ? "Consider tightening the paper stop to the original entry because the setup has moved favorably while direction has contradicted." : "Reassess the original paper setup; do not add to the position while the current direction conflicts.";
+  const reason = `Current v5 indicates ${decision.direction}, contradicting the original ${signal.direction} paper signal. ${actionText}`;
   const supportingComponents = decision.decisionTrace?.supportingComponents ?? [];
   const conflictingComponents = decision.decisionTrace?.conflictingComponents ?? [];
   const fingerprint = `${signal.id}:${decision.direction}:${opposingIndicators.join(",")}:${action}`;

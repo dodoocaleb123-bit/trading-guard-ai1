@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculateMarketContext } from "./market-context";
 
-const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV4Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, saveEntryForgerState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db } = vi.hoisted(() => {
+const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV5Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, saveEntryForgerState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db } = vi.hoisted(() => {
   const fetchMarketSeriesBatch = vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); });
   const generateScannerDecisions = vi.fn();
   const createStrategyDecision = vi.fn(async (input: any) => ({ id: 99, ...input }));
   const getSettings = vi.fn(async () => ({ setupCooldownMinutes: 30 }));
   const hasRecentStrategyDecision = vi.fn(async () => false);
   const hasOpenGeneratedSignal = vi.fn(async () => false);
-  const listOpenCurrentV4Signals = vi.fn(async () => []);
+  const listOpenCurrentV5Signals = vi.fn(async () => []);
   const listFailedOutcomeDeliveries = vi.fn(async () => []);
   const hasTelegramDelivery = vi.fn(async () => false);
   const createPaperTradeAdjustment = vi.fn(async () => 1);
@@ -35,7 +35,7 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
     })),
   }));
   const db = { select, insert, update: vi.fn() };
-  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV4Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, saveEntryForgerState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db };
+  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV5Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, saveEntryForgerState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db };
 });
 
 vi.mock("./db", () => ({
@@ -43,8 +43,8 @@ vi.mock("./db", () => ({
   listStrategyRules,
   listAcceptedStrategyLessons,
   getActiveIntelligenceVersion,
-  ENTRY_LOCATOR_V4_GENERATION_MODE: "ENTRY_LOCATOR_V4",
-  ENTRY_FORGER_V4_GENERATION_MODE: "ENTRY_FORGER_V4",
+  ENTRY_LOCATOR_V5_GENERATION_MODE: "ENTRY_LOCATOR_V5",
+  ENTRY_FORGER_V5_GENERATION_MODE: "ENTRY_FORGER_V5",
   activateIntelligenceVersion,
   listIntelligenceComponents,
   createIntelligenceVersion,
@@ -64,7 +64,7 @@ vi.mock("./db", () => ({
   recordTelegramDelivery,
   createPaperTradeAdjustment,
   hasTelegramDelivery,
-  listOpenCurrentV4Signals,
+  listOpenCurrentV5Signals,
   listFailedOutcomeDeliveries,
   claimOwnerAlert,
   markOwnerAlertNotified,
@@ -122,7 +122,7 @@ describe("scanner context bounds", () => {
     expect(isEligibleContradictoryReplacement({ ...base, decisionTrace: { levelDerivation: { selectedRiskReward: 1 } } })).toBe(false);
   });
 
-  it("keeps a baseline no-direction result recoverable for the v4 cycle", () => {
+  it("keeps a baseline no-direction result recoverable for the v5 cycle", () => {
     const context = calculateMarketContext([
       { open: "0.9", high: "1.1", low: "0.8", close: "1" },
       { open: "1.9", high: "2.1", low: "1.8", close: "2" },
@@ -154,14 +154,14 @@ describe("scanner paper routing with shared quality gate", () => {
   it("requests all unresolved open signals for strict Entry Forger arbitration", async () => {
     fetchMarketSeriesBatch.mockResolvedValue(allSeries());
     generateScannerDecisions.mockResolvedValue([]);
-    listOpenCurrentV4Signals.mockClear();
+    listOpenCurrentV5Signals.mockClear();
 
     await scanUser(1);
 
-    expect(listOpenCurrentV4Signals).toHaveBeenCalledWith(1);
+    expect(listOpenCurrentV5Signals).toHaveBeenCalledWith(1);
   });
 
-  it("does not emit when an approved candidate lacks an explicit permitted v4 ratio", async () => {
+  it("does not emit when an approved candidate lacks an explicit permitted v5 ratio", async () => {
     fetchMarketSeriesBatch.mockResolvedValue(allSeries());
     generateScannerDecisions.mockImplementation(async ({ candidates }: any) => candidates.map((candidate: any) => ({
       verdict: "APPROVED",
@@ -243,9 +243,9 @@ describe("scanner paper routing with shared quality gate", () => {
     expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: expect.stringMatching(/APPROVED|SKIPPED/) }));
   });
 
-  it("ignores legacy v4 rows but suppresses overlapping current locator setups", async () => {
+  it("ignores legacy v5 rows but suppresses overlapping current locator setups", async () => {
     fetchMarketSeriesBatch.mockResolvedValue(allSeries());
-    hasOpenGeneratedSignal.mockImplementation(async (_userId: number, _asset: string, _timeframe: string, _version: string, generationMode?: string) => generationMode === "ENTRY_LOCATOR_V4");
+    hasOpenGeneratedSignal.mockImplementation(async (_userId: number, _asset: string, _timeframe: string, _version: string, generationMode?: string) => generationMode === "ENTRY_LOCATOR_V5");
     sendTelegramMessage.mockClear();
     insert.mockClear();
 
@@ -253,10 +253,10 @@ describe("scanner paper routing with shared quality gate", () => {
 
     expect(result.created).toBe(0);
     expect(hasOpenGeneratedSignal).toHaveBeenCalledTimes(8);
-    expect(hasOpenGeneratedSignal).toHaveBeenNthCalledWith(1, 1, expect.any(String), expect.any(String), "forex-trading-combined-document-v4", "ENTRY_LOCATOR_V4");
-    expect(hasOpenGeneratedSignal).toHaveBeenNthCalledWith(8, 1, expect.any(String), expect.any(String), "forex-trading-combined-document-v4", "ENTRY_LOCATOR_V4");
+    expect(hasOpenGeneratedSignal).toHaveBeenNthCalledWith(1, 1, expect.any(String), expect.any(String), "forex-trading-combined-document-v5", "ENTRY_LOCATOR_V5");
+    expect(hasOpenGeneratedSignal).toHaveBeenNthCalledWith(8, 1, expect.any(String), expect.any(String), "forex-trading-combined-document-v5", "ENTRY_LOCATOR_V5");
     expect(sendTelegramMessage).not.toHaveBeenCalled();
-    expect(hasOpenGeneratedSignal.mock.calls.every((call: unknown[]) => call[4] === "ENTRY_LOCATOR_V4")).toBe(true);
+    expect(hasOpenGeneratedSignal.mock.calls.every((call: unknown[]) => call[4] === "ENTRY_LOCATOR_V5")).toBe(true);
     hasOpenGeneratedSignal.mockResolvedValue(false);
   });
 

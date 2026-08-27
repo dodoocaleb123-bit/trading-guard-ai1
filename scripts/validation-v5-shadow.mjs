@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { calculateMarketContext } from "../server/market-context.ts";
-import { buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, evaluateReplacementIntelligence } from "../server/replacement-intelligence.ts";
+import { buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV5, evaluateReplacementIntelligence } from "../server/replacement-intelligence.ts";
 
 const keys = [process.env.TWELVE_DATA_API_KEY_2, process.env.TWELVE_DATA_API_KEY_3, process.env.TWELVE_DATA_API_KEY_4, process.env.TWELVE_DATA_API_KEY_5, process.env.TWELVE_DATA_API_KEY].filter(Boolean);
 const assets = ["EUR/USD", "XAU/USD", "GBP/USD", "BTC/USD"];
@@ -47,17 +47,17 @@ function addResult(bucket, decision, outcome) {
 }
 
 const v3 = buildReplacementKnowledgeModelV3();
-const v4 = buildReplacementKnowledgeModelV4();
+const v5 = buildReplacementKnowledgeModelV5();
 const comparison = [];
 for (const interval of intervals) {
   const batch = await fetchBatch(interval);
   for (const asset of assets) {
     const values = batch[asset]?.values ?? [];
     const v3Result = blank();
-    const v4Result = blank();
+    const v5Result = blank();
     let agreement = 0;
     let disagreements = 0;
-    let v4FibonacciMatches = 0;
+    let v5FibonacciMatches = 0;
     for (let i = 60; i < values.length - horizon; i += 1) {
       const history = values.slice(0, i + 1);
       const context = calculateMarketContext(history);
@@ -65,20 +65,20 @@ for (const interval of intervals) {
       if (!context || !Number.isFinite(close)) continue;
       const input = { asset, close, interval, marketContext: context, fundamentalContext: { status: "UNAVAILABLE", bias: "NEUTRAL", summary: "Fresh validation run without a verified macro snapshot; no macro direction fabricated.", eventRisk: "NORMAL" } };
       const v3Decision = evaluateReplacementIntelligence(input, v3);
-      const v4Decision = evaluateReplacementIntelligence(input, v4);
-      if (v3Decision.direction === v4Decision.direction) agreement += 1;
+      const v5Decision = evaluateReplacementIntelligence(input, v5);
+      if (v3Decision.direction === v5Decision.direction) agreement += 1;
       else disagreements += 1;
-      if (v4Decision.matchedNodes.some((node) => node.id === "v4-fibonacci-pullback")) v4FibonacciMatches += 1;
+      if (v5Decision.matchedNodes.some((node) => node.id === "v5-fibonacci-pullback")) v5FibonacciMatches += 1;
       const future = values.slice(i + 1, i + 1 + horizon);
       const firstV3 = future.map((candle) => outcomeFor(v3Decision, candle)).find((outcome) => outcome !== "PENDING") ?? "PENDING";
-      const firstV4 = future.map((candle) => outcomeFor(v4Decision, candle)).find((outcome) => outcome !== "PENDING") ?? "PENDING";
+      const firstV5 = future.map((candle) => outcomeFor(v5Decision, candle)).find((outcome) => outcome !== "PENDING") ?? "PENDING";
       addResult(v3Result, v3Decision, firstV3);
-      addResult(v4Result, v4Decision, firstV4);
+      addResult(v5Result, v5Decision, firstV5);
     }
-    comparison.push({ asset, interval, v3: v3Result, v4: v4Result, directionAgreement: agreement, directionDisagreements: disagreements, v4FibonacciMatches });
+    comparison.push({ asset, interval, v3: v3Result, v5: v5Result, directionAgreement: agreement, directionDisagreements: disagreements, v5FibonacciMatches });
   }
 }
-const report = { generatedAt: new Date().toISOString(), protocol: { assets, intervals, candlesPerSeries: 200, warmupCandles: 60, outcomeHorizon: horizon, mode: "paper-validation", macro: "UNAVAILABLE / neutral by design", scope: "walk-forward comparison of exact v3 and v4 deterministic evaluators; not a profitability claim" }, comparison };
+const report = { generatedAt: new Date().toISOString(), protocol: { assets, intervals, candlesPerSeries: 200, warmupCandles: 60, outcomeHorizon: horizon, mode: "paper-validation", macro: "UNAVAILABLE / neutral by design", scope: "walk-forward comparison of exact v3 and v5 deterministic evaluators; not a profitability claim" }, comparison };
 await fs.mkdir("reports", { recursive: true });
-await fs.writeFile("reports/latest-v4-shadow-validation.json", JSON.stringify(report, null, 2));
+await fs.writeFile("reports/latest-v5-shadow-validation.json", JSON.stringify(report, null, 2));
 console.log(JSON.stringify(report, null, 2));

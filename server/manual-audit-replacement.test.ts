@@ -25,19 +25,19 @@ const decision = (direction: "BUY" | "SELL"): ReplacementDecision => ({
   decisionTrace: {} as any,
 });
 
-describe("manual Replacement Intelligence v4 audit", () => {
+describe("manual Replacement Intelligence v5 audit", () => {
   it("approves a submitted direction matching the latest intelligence judgment", () => {
     const result = buildReplacementManualAuditResult("Asset: EUR/USD\nTimeframe: 15MIN\nDirection: BUY", "EUR/USD", "15MIN", market, decision("BUY"));
     expect(result.verdict).toBe("APPROVED");
     expect(result.validationStatus).toBe("UNVALIDATED");
-    expect(result.adjustments).toContain("Additive source-linked replacement v4");
+    expect(result.adjustments).toContain("Additive source-linked replacement v5");
     expect(result.ruleEvidence[0]).toContain("Chapter II");
   });
 
   it("denies a submitted direction that conflicts with the latest intelligence judgment", () => {
     const result = buildReplacementManualAuditResult("Asset: EUR/USD\nTimeframe: 1H\nDirection: SELL", "EUR/USD", "1H", market, decision("BUY"));
     expect(result.verdict).toBe("DENIED");
-    expect(result.adjustments).toContain("conflicts with Replacement Intelligence v4 BUY");
+    expect(result.adjustments).toContain("conflicts with Replacement Intelligence v5 BUY");
     expect(result.direction).toBe("BUY");
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateMarketContext } from "./market-context";
-import { buildReplacementKnowledgeModelV4 } from "./replacement-intelligence";
+import { buildReplacementKnowledgeModelV5 } from "./replacement-intelligence";
 import { evaluateHierarchicalWorkflow } from "./multitimeframe-workflow";
 
 const candle = (open: number, high: number, low: number, close: number, datetime: string) => ({ open: String(open), high: String(high), low: String(low), close: String(close), datetime });
@@ -31,7 +31,7 @@ describe("hierarchical supply-and-demand workflow", () => {
     const fourHour = series("4h", risingContextValues());
     const oneHour = series("1h", risingContextValues());
     const fifteenMinute = series("15min", qualifiedEntryValues());
-    const decision = evaluateHierarchicalWorkflow({ asset: "EUR/USD", timeframe: "15MIN", primary: fifteenMinute, series4h: fourHour, series1h: oneHour, series15m: fifteenMinute, fundamentalContext: undefined, acceptedLessons: [] }, buildReplacementKnowledgeModelV4());
+    const decision = evaluateHierarchicalWorkflow({ asset: "EUR/USD", timeframe: "15MIN", primary: fifteenMinute, series4h: fourHour, series1h: oneHour, series15m: fifteenMinute, fundamentalContext: undefined, acceptedLessons: [] }, buildReplacementKnowledgeModelV5());
 
     expect(decision.workflow.dominant4h).toBe("BUY");
     expect(decision.workflow.trend1h).toBe("BUY");
@@ -50,7 +50,7 @@ describe("hierarchical supply-and-demand workflow", () => {
     const fourHour = series("4h", risingContextValues());
     const oneHour = series("1h", risingContextValues());
     const entry = series("15min", qualifiedEntryValues().map((raw) => ({ ...raw, high: "100.10", low: "99.00" })));
-    const decision = evaluateHierarchicalWorkflow({ asset: "EUR/USD", timeframe: "15MIN", primary: entry, series4h: fourHour, series1h: oneHour, series15m: entry, fundamentalContext: undefined, acceptedLessons: [] }, buildReplacementKnowledgeModelV4());
+    const decision = evaluateHierarchicalWorkflow({ asset: "EUR/USD", timeframe: "15MIN", primary: entry, series4h: fourHour, series1h: oneHour, series15m: entry, fundamentalContext: undefined, acceptedLessons: [] }, buildReplacementKnowledgeModelV5());
 
     expect(decision.workflow.eligible).toBe(false);
     expect(decision.workflow.status).toBe("WAITING");

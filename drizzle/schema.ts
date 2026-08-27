@@ -59,11 +59,11 @@ export const generatedSignals = mysqlTable("generated_signals", {
   takeProfit: decimal("takeProfit", { precision: 18, scale: 8 }).notNull(),
   riskReward: decimal("riskReward", { precision: 8, scale: 2 }).notNull(),
   confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull(),
-  /** Nullable for legacy signals; populated for current v4 emissions and upgrades. */
+  /** Nullable for legacy signals; populated for current v5 emissions and upgrades. */
   confluenceScore: decimal("confluenceScore", { precision: 5, scale: 2 }),
   rationale: text("rationale"),
   intelligenceVersion: varchar("intelligenceVersion", { length: 64 }),
-  /** Null for legacy rows; ENTRY_LOCATOR_V4 for current stateful locator emissions. */
+  /** Null for legacy rows; ENTRY_LOCATOR_V5 for current stateful locator emissions. */
   generationMode: varchar("generationMode", { length: 32 }),
   intelligenceComponents: mediumtext("intelligenceComponents"),
   marketRegime: varchar("marketRegime", { length: 128 }),

@@ -1295,3 +1295,7 @@
 - [x] Finalize the v5 signal-timeframe transition so 15M and 5M can emit independently while 1H remains context-only
 - [x] Update scanner and hierarchy regression fixtures/tests for 5M candidates and no 1H emission
 - [x] Run the full test suite, TypeScript check, and production build for the v5 timeframe transition
+
+- [x] Reject v5 plans with implausibly tight stop distance or extreme target-to-risk geometry before Entry Locator emission
+- [x] Add regression coverage for the reported XAU/USD 5M-style extreme-ratio geometry and preserve valid structural plans
+- [x] Reconcile the affected unresolved XAU/USD 5M signal safely without deleting its audit history

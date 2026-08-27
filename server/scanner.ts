@@ -20,6 +20,10 @@ export function isV5SignalTimeframe(timeframe: string): timeframe is (typeof V5_
 }
 const TIMEFRAMES = V5_SIGNAL_TIMEFRAMES;
 
+export function marketIntervalForSignalTimeframe(timeframe: string): "5min" | "15min" | "1h" {
+  return timeframe === "1H" ? "1h" : timeframe === "5MIN" ? "5min" : "15min";
+}
+
 function precision(asset: string) {
   return asset === "BTC/USD" ? 2 : asset === "XAU/USD" ? 4 : 5;
 }
@@ -28,8 +32,8 @@ export function shouldNotifyScannerSignal(verdict: string) {
   return verdict === "APPROVED";
 }
 
-export function canEmitV5Locator(input: { locatorReady: boolean; strategyApproved: boolean; levelsComplete: boolean }) {
-  return input.locatorReady && input.strategyApproved && input.levelsComplete;
+export function canEmitV5Locator(input: { locatorReady: boolean; strategyApproved: boolean; levelsComplete: boolean; geometryValid?: boolean }) {
+  return input.locatorReady && input.strategyApproved && input.levelsComplete && input.geometryValid !== false;
 }
 
 export function shouldCreateCandidate(ruleCount: number, series: { close?: number; trend?: string } | null) {
@@ -361,8 +365,10 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
     const paperSignalQualityReason = describePaperSignalQuality(gated.confidence, gated.confluenceScore);
     const locatorReadyForEmission = locatorResult.ready && paperSignalQualityApproved;
     const v5LevelsComplete = gated.direction != null && gated.entry != null && gated.stopLoss != null && gated.takeProfit != null;
+    const v5GeometryValid = Boolean((market.replacementIntelligence as any)?.workflow?.geometryValid);
+    const v5GeometryReason = (market.replacementIntelligence as any)?.workflow?.geometryReason as string | undefined;
     const strategyApproved = shouldNotifyScannerSignal(gated.verdict);
-    const executableLocatorEmission = canEmitV5Locator({ locatorReady: locatorReadyForEmission, strategyApproved, levelsComplete: v5LevelsComplete });
+    const executableLocatorEmission = canEmitV5Locator({ locatorReady: locatorReadyForEmission, strategyApproved, levelsComplete: v5LevelsComplete, geometryValid: v5GeometryValid });
     gated.entryLocatorReady = executableLocatorEmission;
     gated.entryLocatorReason = !paperSignalQualityApproved && locatorResult.ready
       ? `Entry Locator blocked emission: ${paperSignalQualityReason}`
@@ -370,7 +376,9 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         ? `Entry Locator is not emitted because the v5 hierarchy judgment is ${gated.verdict}; waiting for a qualified structural plan.`
         : !v5LevelsComplete
           ? "Entry Locator is not emitted because the v5 plan does not contain complete executable levels."
-          : locatorResult.reason;
+          : !v5GeometryValid
+            ? `Entry Locator is not emitted because v5 geometry is invalid: ${v5GeometryReason ?? "the structural stop/target bounds failed."}`
+            : locatorResult.reason;
     const activeSignal = activeCurrentSignals.find((signal) => signal.asset === asset && signal.timeframe === timeframe);
     const upgradeLocatorResult = activeSignal
       ? advanceEntryLocator({ previous: previousLocator ? { ...previousLocator, status: "WAITING" } : null, observation, hasOpenSignal: false })
@@ -535,13 +543,13 @@ export async function trackOpenSignals(userId: number, seriesCache?: Map<string,
   for (const signal of open) {
     if (!shouldTrackOpenSignal(signal.id, excludedSignalIds)) continue;
     try {
-      const timeframe = signal.timeframe === "1H" ? "1H" : "15MIN";
+      const timeframe = signal.timeframe === "1H" ? "1H" : signal.timeframe === "5MIN" ? "5MIN" : "15MIN";
       const cached = seriesCache?.get(`${signal.asset}:${timeframe}`);
       let market: MarketSnapshot;
       if (cached) {
         market = { symbol: signal.asset, price: cached.close, close: cached.close, fetchedAt: cached.fetchedAt, values: cached.values };
       } else {
-        const series = await fetchMarketSeries(signal.asset, timeframe === "1H" ? "1h" : "15min");
+        const series = await fetchMarketSeries(signal.asset, marketIntervalForSignalTimeframe(timeframe));
         market = { ...series, price: series.close };
       }
       const price = market.price;

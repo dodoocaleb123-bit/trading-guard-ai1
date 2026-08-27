@@ -26,6 +26,8 @@ export type HierarchicalWorkflow = {
   riskReward: number | null;
   stopLoss: number | null;
   takeProfit: number | null;
+  geometryValid: boolean;
+  geometryReason: string;
   explanation: string;
 };
 
@@ -134,6 +136,32 @@ function enrichContext(context: MarketContext | null, series: WorkflowSeries[], 
   return { ...context, multiTimeframeAlignment: { companionInterval: series.filter((item) => item !== current).map((item) => item.interval).join(",") || "NONE", structure: aligned ? "ALIGNED" as const : nonNeutral.length ? "MIXED" as const : "UNAVAILABLE" as const, momentum: currentDirection === directionFromStructure(series[0]?.marketContext) ? "ALIGNED" as const : "MIXED" as const, breakout: "MIXED" as const } };
 }
 
+export type V5GeometryCheck = { valid: boolean; reason: string; riskDistance: number; targetDistance: number; riskReward: number | null };
+
+export function validateV5Geometry(asset: string, entry: number, direction: "BUY" | "SELL", levels: { stopLoss: number; takeProfit: number | null; riskDistance: number; targetDistance: number | null; riskReward: number | null }, atr: number): V5GeometryCheck {
+  const minimumRiskDistance = Math.max(pipSize(asset) * 10, atr * 0.25);
+  const maximumTargetDistance = Math.max(pipSize(asset) * 300, atr * 30);
+  const maximumRiskReward = 20;
+  const riskDistance = Math.abs(entry - levels.stopLoss);
+  const targetDistance = levels.takeProfit == null ? 0 : Math.abs(entry - levels.takeProfit);
+  const directionValid = direction === "BUY" ? levels.stopLoss < entry && (levels.takeProfit == null || levels.takeProfit > entry) : levels.stopLoss > entry && (levels.takeProfit == null || levels.takeProfit < entry);
+  const valid = directionValid && Number.isFinite(riskDistance) && riskDistance >= minimumRiskDistance && Number.isFinite(targetDistance) && targetDistance > 0 && targetDistance <= maximumTargetDistance && levels.riskReward != null && Number.isFinite(levels.riskReward) && levels.riskReward > 0 && levels.riskReward <= maximumRiskReward;
+  const reason = valid
+    ? "Structural geometry is directionally valid and within the configured volatility bounds."
+    : !directionValid
+      ? "Structural geometry is on the wrong side of the entry for the selected direction."
+      : riskDistance < minimumRiskDistance
+        ? `Stop distance ${Number(riskDistance.toFixed(4))} is too tight; minimum is ${Number(minimumRiskDistance.toFixed(4))} for current volatility.`
+        : targetDistance <= 0 || !Number.isFinite(targetDistance)
+          ? "Take-profit distance is missing or non-positive."
+          : targetDistance > maximumTargetDistance
+            ? `Target distance ${Number(targetDistance.toFixed(4))} is too far; maximum is ${Number(maximumTargetDistance.toFixed(4))} for current volatility.`
+            : levels.riskReward != null && levels.riskReward > maximumRiskReward
+              ? `Risk-to-reward ${levels.riskReward} is too extreme; maximum is 1:${maximumRiskReward}.`
+              : "Risk-to-reward geometry is not finite or positive.";
+  return { valid, reason, riskDistance, targetDistance, riskReward: levels.riskReward };
+}
+
 function buildLevels(asset: string, entry: number, direction: "BUY" | "SELL", activeZone: WorkflowZone, targetZone: WorkflowZone | null, confirmation: Confirmation, atr: number) {
   const p = precision(asset);
   const buffer = Math.max(atr * 0.15, entry * 0.0001);
@@ -152,7 +180,7 @@ function buildLevels(asset: string, entry: number, direction: "BUY" | "SELL", ac
 export function evaluateHierarchicalWorkflow(input: { asset: string; timeframe: string; primary: WorkflowSeries; series4h?: WorkflowSeries; series1h?: WorkflowSeries;   series15m?: WorkflowSeries;
   series5m?: WorkflowSeries;
   fundamentalContext?: FundamentalContext; acceptedLessons?: Array<{ id: number; outcome: "WIN" | "LOSS" | "INVALIDATED"; lessonJson: string }> }, model: ReplacementKnowledgeModel): ReplacementDecision & { workflow: HierarchicalWorkflow } {
-  const hierarchy = [input.series4h, input.series1h, input.series15m].filter((series): series is WorkflowSeries => Boolean(series));
+  const hierarchy = [input.series4h, input.series1h, input.series15m, input.timeframe.toUpperCase() === "5MIN" ? input.series5m : undefined].filter((series): series is WorkflowSeries => Boolean(series));
   const enrichedContext = enrichContext(input.primary.marketContext, hierarchy, input.primary);
   if (!enrichedContext) throw new Error(`No market context available for ${input.asset} ${input.timeframe}.`);
   const baseline = evaluateReplacementIntelligence({ asset: input.asset, close: input.primary.close, interval: input.primary.interval, values: input.primary.values, marketContext: enrichedContext, fundamentalContext: input.fundamentalContext, acceptedLessons: input.acceptedLessons }, model);
@@ -172,14 +200,15 @@ export function evaluateHierarchicalWorkflow(input: { asset: string; timeframe: 
   const minimumTargetDistance = pipSize(input.asset) * 30;
   const targetFarEnough = targetZone != null && Math.abs((workingDirection === "BUY" ? targetZone.lower : targetZone.upper) - currentPrice) >= minimumTargetDistance;
   const levels = activeZone && targetFarEnough ? buildLevels(input.asset, currentPrice, workingDirection, activeZone, targetZone, confirmation, enrichedContext.volatility.atr) : null;
+  const geometry = levels ? validateV5Geometry(input.asset, currentPrice, workingDirection, levels, enrichedContext.volatility.atr) : null;
   const confirmationReady = confirmation.direction === workingDirection && confirmation.kind !== "NONE";
-  const eligible = Boolean(!protected4hInvalidated && activeZone && targetZone && targetFarEnough && levels?.takeProfit != null && confirmationReady && (workingDirection === dominant4h || dominant4h === "NEUTRAL"));
+  const eligible = Boolean(!protected4hInvalidated && activeZone && targetZone && targetFarEnough && levels?.takeProfit != null && geometry?.valid && confirmationReady && (workingDirection === dominant4h || dominant4h === "NEUTRAL"));
   const status: HierarchicalWorkflow["status"] = eligible ? "QUALIFIED" : "WAITING";
   const explanation = eligible
     ? `${workingDirection} setup qualified through 4H ${dominant4h}, 1H ${trend1h}, ${zones.length} validated grouped-base zones, ${confirmation.kind} confirmation on ${confirmation.timeframe}, and the next opposing ${targetZone?.kind.toLowerCase()} zone. Structural target remains primary; actual ratio is ${levels?.riskReward == null ? "unavailable" : `1:${levels.riskReward}`}.`
-    : `Waiting: ${protected4hInvalidated ? "protected 4H swing invalidated; " : ""}${!activeZone ? "no valid active supply/demand zone at current price; " : ""}${!targetZone || !targetFarEnough ? "no suitable opposing zone at least 30 pips away; " : ""}${!confirmationReady ? "no qualifying rejection, engulfing, or CHoCH confirmation; " : ""}${dominant4h !== "NEUTRAL" && workingDirection !== dominant4h ? "lower timeframe conflicts with 4H bias; " : ""}`.replace(/; $/, ".");
+    : `Waiting: ${protected4hInvalidated ? "protected 4H swing invalidated; " : ""}${!activeZone ? "no valid active supply/demand zone at current price; " : ""}${!targetZone || !targetFarEnough ? "no suitable opposing zone at least 30 pips away; " : ""}${geometry && !geometry.valid ? `${geometry.reason} ` : ""}${!confirmationReady ? "no qualifying rejection, engulfing, or CHoCH confirmation; " : ""}${dominant4h !== "NEUTRAL" && workingDirection !== dominant4h ? "lower timeframe conflicts with 4H bias; " : ""}`.replace(/; $/, ".");
   const levelDerivation = { entry: "Close of the selected 15M/5M confirmation candle or latest primary close.", stopLoss: levels ? `Farther structural invalidation beyond the active ${activeZone?.kind.toLowerCase()} zone with buffer; stop=${levels.stopLoss}.` : "No structural stop until a valid active zone is found.", takeProfit: levels ? `Near edge of next opposing ${targetZone?.kind.toLowerCase()} zone with clearance; target=${levels.takeProfit}.` : "No opposing structural target available.", riskDistance: levels?.riskDistance ?? 0, riskReward: levels?.riskReward ?? 0, selectedRiskReward: levels?.riskReward ?? null, geometryMode: input.timeframe === "1H" ? "BREAKOUT_NEXT_ZONE" as const : "RANGE_OPPOSING_ZONE" as const };
-  const workflow: HierarchicalWorkflow = { eligible, status, direction: workingDirection, dominant4h, trend1h, protected4hInvalidated, zones, activeZone, targetZone, confirmation, targetBoundary: levels?.targetBoundary ?? null, targetDistance: levels?.targetDistance ?? null, riskDistance: levels?.riskDistance ?? null, riskReward: levels?.riskReward ?? null, stopLoss: levels?.stopLoss ?? null, takeProfit: levels?.takeProfit ?? null, explanation };
+  const workflow: HierarchicalWorkflow = { eligible, status, direction: workingDirection, dominant4h, trend1h, protected4hInvalidated, zones, activeZone, targetZone, confirmation, targetBoundary: levels?.targetBoundary ?? null, targetDistance: levels?.targetDistance ?? null, riskDistance: levels?.riskDistance ?? null, riskReward: levels?.riskReward ?? null, stopLoss: levels?.stopLoss ?? null, takeProfit: levels?.takeProfit ?? null, geometryValid: geometry?.valid ?? false, geometryReason: geometry?.reason ?? "No complete structural geometry available.", explanation };
   const decisionTrace: IntelligenceDecisionTrace = { ...baseline.decisionTrace, scoreSummary: { ...baseline.decisionTrace.scoreSummary, dominantDirection: workingDirection }, levelDerivation };
-  return { ...baseline, direction: workingDirection, entry: currentPrice, stopLoss: levels?.stopLoss ?? baseline.stopLoss, takeProfit: levels?.takeProfit ?? baseline.takeProfit, riskReward: levels?.riskReward ?? 0, marketRegime: `${dominant4h}/${trend1h}/${input.timeframe}/${status}`, adjustments: `${explanation} Existing confidence/confluence safeguards remain active.`, decisionTrace, workflow, setupIndicators: [...baseline.setupIndicators, { id: "hierarchical-zones", family: "LEVELS", direction: workingDirection, strength: eligible ? "STRONG" : "CONTEXT", observation: `${zones.length} grouped-base supply/demand zones evaluated across 4H, 1H, and 15M.`, contribution: eligible ? 3 : 0, source: { document: "Forex trading.docx", section: "Supply and demand workflow", passage: "Use larger timeframes for context and lower timeframes for execution around real zones." } }] };
+  return { ...baseline, direction: workingDirection, entry: currentPrice, stopLoss: levels?.stopLoss ?? baseline.stopLoss, takeProfit: levels?.takeProfit ?? baseline.takeProfit, riskReward: levels?.riskReward ?? 0, marketRegime: `${dominant4h}/${trend1h}/${input.timeframe}/${status}`, adjustments: `${explanation} Existing confidence/confluence safeguards remain active.`, decisionTrace, workflow, setupIndicators: [...baseline.setupIndicators, { id: "hierarchical-zones", family: "LEVELS", direction: workingDirection, strength: eligible ? "STRONG" : "CONTEXT", observation: `${zones.length} grouped-base supply/demand zones evaluated across 4H, 1H, 15M, and the selected execution timeframe.`, contribution: eligible ? 3 : 0, source: { document: "Forex trading.docx", section: "Supply and demand workflow", passage: "Use larger timeframes for context and lower timeframes for execution around real zones." } }] };
 }

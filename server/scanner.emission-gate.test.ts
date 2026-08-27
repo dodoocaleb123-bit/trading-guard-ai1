@@ -10,7 +10,11 @@ describe("v5 Entry Locator emission gate", () => {
     expect(canEmitV5Locator({ locatorReady: true, strategyApproved: true, levelsComplete: false })).toBe(false);
   });
 
-  it("emits only when readiness, approval, and complete levels all pass", () => {
-    expect(canEmitV5Locator({ locatorReady: true, strategyApproved: true, levelsComplete: true })).toBe(true);
+  it("does not emit when structural geometry is invalid", () => {
+    expect(canEmitV5Locator({ locatorReady: true, strategyApproved: true, levelsComplete: true, geometryValid: false })).toBe(false);
+  });
+
+  it("emits only when readiness, approval, complete levels, and geometry all pass", () => {
+    expect(canEmitV5Locator({ locatorReady: true, strategyApproved: true, levelsComplete: true, geometryValid: true })).toBe(true);
   });
 });

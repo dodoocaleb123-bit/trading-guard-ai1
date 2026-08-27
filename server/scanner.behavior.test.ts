@@ -90,7 +90,7 @@ vi.mock("./integrations", () => ({
   sendTelegramMessage,
 }));
 
-import { attachSetupIndicators, compactStrategyContext, isEligibleContradictoryReplacement, safelyEvaluateBaselineIntelligence, scanAllUsers, scanUser, shouldNotifyScannerSignal } from "./scanner";
+import { attachSetupIndicators, compactStrategyContext, isEligibleContradictoryReplacement, marketIntervalForSignalTimeframe, safelyEvaluateBaselineIntelligence, scanAllUsers, scanUser, shouldNotifyScannerSignal } from "./scanner";
 
 const series = (symbol: string, interval: "5min" | "15min" | "1h" | "4h") => {
   const values = [{ open: "0.9", high: "1.1", low: "0.8", close: "1" }, { open: "1.9", high: "2.1", low: "1.8", close: "2" }, { open: "2.9", high: "3.1", low: "2.8", close: "3" }];
@@ -295,6 +295,12 @@ describe("scanner unavailable-market behavior", () => {
 });
 
 describe("v5 signal timeframe policy", () => {
+  it("maps each signal timeframe to its own tracking interval", () => {
+    expect(marketIntervalForSignalTimeframe("5MIN")).toBe("5min");
+    expect(marketIntervalForSignalTimeframe("15MIN")).toBe("15min");
+    expect(marketIntervalForSignalTimeframe("1H")).toBe("1h");
+  });
+
   it("emits only on 15MIN and 5MIN while keeping 1H context-only", async () => {
     const { V5_SIGNAL_TIMEFRAMES, isV5SignalTimeframe } = await import("./scanner");
     expect(V5_SIGNAL_TIMEFRAMES).toEqual(["15MIN", "5MIN"]);

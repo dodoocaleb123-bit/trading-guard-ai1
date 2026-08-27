@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateMarketContext } from "./market-context";
 import { buildReplacementKnowledgeModelV5 } from "./replacement-intelligence";
-import { evaluateHierarchicalWorkflow } from "./multitimeframe-workflow";
+import { evaluateHierarchicalWorkflow, validateV5Geometry } from "./multitimeframe-workflow";
 
 const candle = (open: number, high: number, low: number, close: number, datetime: string) => ({ open: String(open), high: String(high), low: String(low), close: String(close), datetime });
 const series = (interval: "4h" | "1h" | "15min" | "5min", values: Array<Record<string, unknown>>) => ({ interval, values, close: Number(values.at(-1)?.close), marketContext: calculateMarketContext(values) });
@@ -27,6 +27,16 @@ function qualifiedEntryValues() {
 }
 
 describe("hierarchical supply-and-demand workflow", () => {
+  it("rejects the reported extreme XAU/USD 5M geometry", () => {
+    const check = validateV5Geometry("XAU/USD", 4594.0706, "SELL", { stopLoss: 4594.9987, takeProfit: 4058.1751, riskDistance: 0.9281, targetDistance: 535.8955, riskReward: 577.41 }, 3.712417);
+    expect(check.valid).toBe(false);
+    expect(check.reason).toContain("too tight");
+  });
+
+  it("accepts directionally valid geometry within volatility bounds", () => {
+    const check = validateV5Geometry("XAU/USD", 4594.0706, "SELL", { stopLoss: 4596.0000, takeProfit: 4588.0000, riskDistance: 1.9294, targetDistance: 6.0706, riskReward: 3.15 }, 3.712417);
+    expect(check.valid).toBe(true);
+  });
   it("qualifies a direction only after 4H/1H alignment, validated zones, and 15M confirmation", () => {
     const fourHour = series("4h", risingContextValues());
     const oneHour = series("1h", risingContextValues());

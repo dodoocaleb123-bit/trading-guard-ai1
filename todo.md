@@ -1371,3 +1371,10 @@
 - [x] Add regression coverage proving grouped requests never use keys outside their assigned asset pool and preserve complete v5 market-data assembly
 - [x] Validate and publish the grouped scanner routing without exposing key values or changing v5 decision rules
 - [x] Harden the live Twelve Data key-audit test with bounded per-key requests so provider stalls cannot block full regression validation
+- [x] Check each configured Twelve Data key individually and classify it without exposing credential values
+- [x] Add secure Twelve Data key slots 7 and 8
+- [x] Expand EUR/XAU routing to key slots 1–4 and GBP/BTC routing to key slots 5–8
+- [x] Add regression coverage for the eight-key pool boundaries and validate the updated provider routing
+- [x] Publish the eight-key configuration without changing v5 decision rules
+- [x] Correct the four-key pool mapping to preserve the original groups: keys 1–3 plus key 7 for EUR/XAU, and keys 4–6 plus key 8 for GBP/BTC
+- [x] Revalidate the corrected non-contiguous key-slot routing and publish the fix

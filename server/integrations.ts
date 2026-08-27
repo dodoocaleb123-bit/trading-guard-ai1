@@ -127,9 +127,9 @@ export function twelveDataAssetGroupForAssets(assets: readonly string[]): Twelve
 }
 
 export function twelveDataKeySlotIndexesForGroup(group: TwelveDataAssetGroup): number[] {
-  if (group === "EUR_XAU") return [0, 1, 2];
-  if (group === "GBP_BTC") return [3, 4, 5];
-  return [0, 1, 2, 3, 4, 5];
+  if (group === "EUR_XAU") return [0, 1, 2, 6];
+  if (group === "GBP_BTC") return [3, 4, 5, 7];
+  return [0, 1, 2, 3, 4, 5, 6, 7];
 }
 
 export function twelveDataKeySlotIndexesForAssets(assets: readonly string[]): number[] {

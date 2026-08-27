@@ -25,6 +25,8 @@ describe("Twelve Data failover credentials", () => {
       process.env.TWELVE_DATA_API_KEY_4,
       process.env.TWELVE_DATA_API_KEY_5,
       process.env.TWELVE_DATA_API_KEY_6,
+      process.env.TWELVE_DATA_API_KEY_7,
+      process.env.TWELVE_DATA_API_KEY_8,
     ].filter((key): key is string => Boolean(key));
 
     expect(keys.length, "At least one additional Twelve Data key must be configured").toBeGreaterThan(0);

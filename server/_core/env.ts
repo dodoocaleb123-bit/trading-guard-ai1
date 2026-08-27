@@ -18,6 +18,8 @@ export const ENV = {
     process.env.TWELVE_DATA_API_KEY_4,
     process.env.TWELVE_DATA_API_KEY_5,
     process.env.TWELVE_DATA_API_KEY_6,
+    process.env.TWELVE_DATA_API_KEY_7,
+    process.env.TWELVE_DATA_API_KEY_8,
   ],
   twelveDataApiKeys: [
     process.env.TWELVE_DATA_API_KEY,
@@ -26,6 +28,8 @@ export const ENV = {
     process.env.TWELVE_DATA_API_KEY_4,
     process.env.TWELVE_DATA_API_KEY_5,
     process.env.TWELVE_DATA_API_KEY_6,
+    process.env.TWELVE_DATA_API_KEY_7,
+    process.env.TWELVE_DATA_API_KEY_8,
   ].filter((key): key is string => Boolean(key)),
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
   telegramChatId: process.env.TELEGRAM_CHAT_ID ?? "",

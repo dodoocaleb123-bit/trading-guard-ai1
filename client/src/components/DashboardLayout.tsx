@@ -29,7 +29,8 @@ import { Button } from "./ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Overview", path: "/" },
-  { icon: ClipboardCheck, label: "Chat audit", path: "/chat-audit" },
+  { icon: ClipboardCheck, label: "White AI", path: "/chat-audit" },
+  { icon: ShieldCheck, label: "Cherry AI", path: "/cherry-ai" },
   { icon: BookOpen, label: "Strategy rules", path: "/strategy-rules" },
   { icon: ScrollText, label: "Trade history", path: "/trade-history" },
   { icon: Radar, label: "Scanner", path: "/scanner" },

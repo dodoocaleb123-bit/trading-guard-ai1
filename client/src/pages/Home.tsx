@@ -1000,14 +1000,17 @@ function RulesPage() {
   );
 }
 
-function ChatAudit() {
-  const history = trpc.audit.history.useQuery(undefined, LIVE_QUERY_OPTIONS);
-  const [mode, setMode] = useState<"ASK" | "AUDIT">("ASK");
+function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } = {}) {
+  const isCherry = assistant === "CHERRY";
+  const history = trpc.audit.history.useQuery({ channel: assistant }, LIVE_QUERY_OPTIONS);
+  const [mode, setMode] = useState<"ASK" | "AUDIT">(isCherry ? "AUDIT" : "ASK");
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content:
-        "I’m your interactive Trading Guard assistant. Ask a trading question, request a live paper-market read, ask about your recent outcomes, or switch to Audit mode for a structured v3 review.",
+        content:
+        isCherry
+          ? "I’m Cherry AI. Paste any trade idea or signal—whether it came from Trading Guard AI or from elsewhere—and I’ll audit its direction, structure, entry, stop, target, risk, and evidence. This is analysis only; it does not create or send a v5 signal."
+          : "I’m White AI, your app-aware Trading Guard assistant. Ask why v5 sent or withheld a signal, what the scanner and zones are doing, how the app works, or ask a general forex question using the stored trading document.",
     },
   ]);
   const historical = (history.data ?? [])
@@ -1038,7 +1041,9 @@ function ChatAudit() {
         {
           role: "assistant",
           content:
-            "Conversation cleared. Ask a trading question or switch to Audit mode for a structured v3 review.",
+            isCherry
+            ? "Cherry AI conversation cleared. Paste another app-generated or external trade idea for an independent paper-only audit."
+            : "White AI conversation cleared. Ask about v5 actions, scanner health, zones, paper outcomes, or general forex education.",
         },
       ]);
       history.refetch();
@@ -1054,12 +1059,13 @@ function ChatAudit() {
       { role: "user" as const, content: signal },
     ];
     setMessages(nextMessages);
-    if (mode === "AUDIT")
+    if (isCherry || mode === "AUDIT")
       audit.mutate({
         signal: signal.length >= 8 ? signal : `Audit: ${signal}`,
       });
     else
       conversation.mutate({
+        channel: "WHITE",
         messages: nextMessages
           .slice(-24)
           .map(message => ({
@@ -1083,33 +1089,38 @@ function ChatAudit() {
     link.click();
     URL.revokeObjectURL(url);
   };
-  const prompts =
-    mode === "ASK"
+  const prompts = isCherry
+    ? [
+        "Audit EUR/USD BUY on 15MIN with 1:2 risk/reward",
+        "Audit XAU/USD SELL on 5MIN and flag any adjustments",
+        "Should I take this BTC/USD BUY based on this entry, stop, and target?",
+      ]
+    : mode === "ASK"
       ? [
-          "Which asset looks most predictable today from my paper history?",
-          "What is the current paper position of XAU/USD?",
-          "How many wins have we made in the last hour?",
+          "Why did v5 send or withhold the latest XAU/USD signal?",
+          "What are the current XAU/USD zones and scanner status?",
+          "Explain how v5 decides confidence, confluence, and geometry.",
         ]
       : [
-          "Audit EUR/USD BUY on 15MIN with 1:2 risk/reward",
-          "Audit XAU/USD SELL and flag any adjustments",
-          "Audit BTC/USD BUY on 5MIN",
+          "Audit the latest app-generated EUR/USD signal",
+          "Explain why this v5 plan was skipped",
+          "Audit XAU/USD SELL with 1:2 risk/reward",
         ];
   return (
     <>
       {history.isError && (
         <DataError text="Audit history could not be loaded. New conversations remain available after the connection recovers." />
       )}
-      <PageHeading
-        eyebrow="Interactive trading assistant"
-        title="Chat audit"
-        description="Ask trading questions, inspect live paper-market context, review app performance, or request a structured Replacement Intelligence v3 audit."
+        <PageHeading
+        eyebrow={isCherry ? "Independent trade review" : "App-aware conversation"}
+        title={isCherry ? "Cherry AI" : "White AI"}
+        description={isCherry ? "Audit any proposed trade signal or setup with live context, the stored forex document, and clear paper-only reasoning." : "Ask White AI why v5 acted or waited, how the scanner and zones work, what the app is tracking, or ask general forex questions grounded in the stored trading document."}
       />
       <div className="grid min-w-0 gap-6 overflow-hidden xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0 overflow-hidden">
+        <div className={`min-w-0 overflow-hidden ${isCherry ? "font-montserrat" : "font-montserrat"}`}>
           <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-wrap gap-2">
-              <Button
+              {!isCherry && <Button
                 type="button"
                 size="sm"
                 variant={mode === "ASK" ? "default" : "outline"}
@@ -1117,8 +1128,8 @@ function ChatAudit() {
               >
                 <MessageSquareText className="mr-2 h-4 w-4" />
                 Ask
-              </Button>
-              <Button
+              </Button>}
+              {!isCherry && <Button
                 type="button"
                 size="sm"
                 variant={mode === "AUDIT" ? "default" : "outline"}
@@ -1126,7 +1137,7 @@ function ChatAudit() {
               >
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 Audit
-              </Button>
+              </Button>}
             </div>
             <div className="flex gap-2">
               <Button
@@ -1145,8 +1156,8 @@ function ChatAudit() {
                 variant="outline"
                 onClick={() =>
                   window.confirm(
-                    "Clear this Chat Audit conversation? Persisted audit trade records will remain."
-                  ) && clearConversation.mutate()
+                    `Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted trade-audit records will remain.`
+                  ) &&       clearConversation.mutate({ channel: assistant })
                 }
                 disabled={isPending}
               >
@@ -1169,10 +1180,14 @@ function ChatAudit() {
               height="min(650px, calc(100vh - 220px))"
               className="w-full min-w-0 max-w-full overflow-hidden"
               placeholder={
-                mode === "ASK"
-                  ? "Ask a trading question…"
-                  : "Describe a trade idea to audit…"
+                isCherry
+                  ? "Paste a trade signal or setup to audit…"
+                  : mode === "ASK"
+                    ? "Ask White AI about v5, the scanner, zones, or forex…"
+                    : "Describe a trade idea to audit…"
               }
+              assistantName={isCherry ? "Cherry AI" : "White AI"}
+              assistantTagline={isCherry ? "Independent paper-only trade review" : "Grounded app explanations and forex education"}
               suggestedPrompts={prompts}
             />
           </Suspense>
@@ -1181,19 +1196,19 @@ function ChatAudit() {
           <Card>
             <CardHeader>
               <CardTitle className="font-display text-lg">
-                {mode === "ASK" ? "Ask the assistant" : "Audit a trade"}
+                {isCherry ? "Audit a trade with Cherry AI" : mode === "ASK" ? "Ask White AI" : "Audit a trade"}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <Protocol
                 icon={MessageSquareText}
-                title="Ask"
-                text="Discuss market structure, risk, assets, sessions, and stored paper outcomes."
+                title={isCherry ? "Independent review" : "Ask"}
+                text={isCherry ? "Review app-generated or externally proposed trades without creating a v5 signal." : "Discuss v5 behavior, scanner state, market structure, risk, assets, sessions, and stored paper outcomes."}
               />
               <Protocol
                 icon={Gauge}
-                title="Audit"
-                text="Switch to Audit mode for a structured v3 paper review using current market data."
+                title="Grounded context"
+                text="The assistant uses current app records and the stored forex document when available, and identifies missing information plainly."
               />
               <Protocol
                 icon={ShieldCheck}
@@ -2899,7 +2914,7 @@ function ScannerPage() {
       )}
       <PageHeading
         eyebrow="Market-data collection"
-        title="Market data collector"
+        title="Rose’s Eye On The Markets"
         description="The external scheduler triggers collection of raw EUR/USD, XAU/USD, GBP/USD, and BTC/USD data for 4H bias, 1H context, and independent 15M and 5M signal evaluation. The strategy-rules algorithm analyzes that data and generates supported outcomes for tracking."
         action={
           <div className="flex flex-wrap gap-2">
@@ -4039,7 +4054,9 @@ export default function Home() {
     return <Onboarding />;
   const page =
     path === "/chat-audit" ? (
-      <ChatAudit />
+      <ChatAudit assistant="WHITE" />
+    ) : path === "/cherry-ai" ? (
+      <ChatAudit assistant="CHERRY" />
     ) : path === "/strategy-rules" ? (
       <RulesPage />
     ) : path === "/trade-history" ? (

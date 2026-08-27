@@ -190,10 +190,10 @@ export async function createStrategyRule(input: typeof strategyRules.$inferInser
   return { id: Number(result[0].insertId), ...input };
 }
 
-export async function listAuditMessages(userId: number) {
+export async function listAuditMessages(userId: number, channel: "WHITE" | "CHERRY" = "WHITE") {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(auditMessages).where(eq(auditMessages.userId, userId)).orderBy(desc(auditMessages.createdAt)).limit(50);
+  return db.select().from(auditMessages).where(and(eq(auditMessages.userId, userId), eq(auditMessages.channel, channel))).orderBy(desc(auditMessages.createdAt)).limit(100);
 }
 
 export function attachTelegramDelivery<T extends { id: number }, D extends { kind: string; signalId?: number | null; auditTradeId?: number | null }>(rows: T[], deliveries: D[], kind: "SIGNAL" | "AUDIT", key: "signalId" | "auditTradeId") {

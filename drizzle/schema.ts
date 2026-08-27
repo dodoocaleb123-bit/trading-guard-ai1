@@ -40,6 +40,7 @@ export const strategyRules = mysqlTable("strategy_rules", {
 export const auditMessages = mysqlTable("audit_messages", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
+  channel: mysqlEnum("channel", ["WHITE", "CHERRY"]).default("WHITE").notNull(),
   role: mysqlEnum("role", ["user", "assistant"]).notNull(),
   content: text("content").notNull(),
   verdict: mysqlEnum("verdict", ["APPROVED", "DENIED", "PENDING"]),

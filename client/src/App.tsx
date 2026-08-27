@@ -14,6 +14,7 @@ function Router() {
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/chat-audit"} component={Home} />
+      <Route path={"/cherry-ai"} component={Home} />
       <Route path={"/strategy-rules"} component={Home} />
       <Route path={"/trade-history"} component={Home} />
       <Route path={"/scanner"} component={Home} />

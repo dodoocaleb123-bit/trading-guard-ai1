@@ -1308,3 +1308,18 @@
 - [x] Monitor several production cycles for independent 15M/5M qualification, signal creation, delivery, and absence of 1H emissions
 - [x] Add regression coverage for the Scanner freshness query and visible latest-successful-cycle indicator
 - [x] Distinguish Scanner freshness loading and unavailable states from a true no-successful-cycle state
+
+- [x] Audit the existing AI chat component, chat route, persistence, and current app context
+- [x] Define grounded chat behavior for v5 explanations, scanner status, zones, signals, and audit questions
+- [x] Implement the approved chat upgrade without changing trading execution or Telegram behavior
+- [x] Add chat regression coverage and validate the full application before publishing
+
+- [x] Create White AI as the dedicated app-aware conversation assistant with full v5, scanner, zones, decisions, delivery, tracking, and app-purpose context
+- [x] Create Cherry AI as a separate trade-auditing chat for app-generated and user-proposed signals
+- [x] Ground both assistants in the complete forex trading document and preserve clear educational versus app-observation distinctions
+- [x] Replace the single Chat Audit experience with dedicated White AI and Cherry AI chat interfaces and interactive prompts
+- [x] Apply Montserrat typography to the chat areas and rename the market-data page title to Rose’s Eye On The Markets
+- [x] Preserve v5 signal generation, Telegram delivery, locks, outcome tracking, paper-only behavior, and prevent chat audits from emitting trades
+- [x] Add comprehensive tests for chat context, audit boundaries, persistence, branding, and v5 workflow isolation
+- [x] Update the Scanner terminology regression to expect Rose’s Eye On The Markets while preserving collector behavior assertions
+- [x] Register the Cherry AI route in the application shell so /cherry-ai renders the dedicated audit chat instead of a 404 page

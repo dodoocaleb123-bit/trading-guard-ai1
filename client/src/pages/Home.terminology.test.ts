@@ -6,7 +6,7 @@ const homeSource = readFileSync(fileURLToPath(new URL("./Home.tsx", import.meta.
 
 describe("dashboard terminology", () => {
   it("describes the scanner as a raw market-data collector", () => {
-    expect(homeSource).toContain('title="Market data collector"');
+    expect(homeSource).toContain('title="Rose’s Eye On The Markets"');
     expect(homeSource).toContain("The external scheduler triggers collection of raw");
     expect(homeSource).toContain("Pause data collection");
   });
@@ -31,6 +31,16 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("refetchOnWindowFocus: true");
     expect(homeSource).toContain("trpc.signals.list.useQuery");
     expect(homeSource).toContain("trpc.scanner.health.useQuery");
+  });
+
+  it("exposes the dedicated White AI and Cherry AI chat surfaces", () => {
+    expect(homeSource).toContain('assistant = "WHITE"');
+    expect(homeSource).toContain('assistant="WHITE"');
+    expect(homeSource).toContain('assistant="CHERRY"');
+    expect(homeSource).toContain('path === "/cherry-ai"');
+    expect(homeSource).toContain('title={isCherry ? "Cherry AI" : "White AI"}');
+    expect(homeSource).toContain("font-montserrat");
+    expect(homeSource).toContain('assistantName={isCherry ? "Cherry AI" : "White AI"}');
   });
 
   it("exposes the latest successful scanner-cycle freshness indicator", () => {
@@ -105,7 +115,14 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("and 5M are independent signal timeframes, and each lower timeframe");
   });
 
-  it("exposes signal delivery status and orphan-state warnings", () => {
+  it("keeps White AI and Cherry AI chat channels separate", () => {
+    expect(homeSource).toContain("trpc.audit.history.useQuery({ channel: assistant }");
+    expect(homeSource).toContain("clearConversation.mutate({ channel: assistant })");
+    expect(homeSource).toContain('channel: "WHITE"');
+    expect(homeSource).toContain("channel: assistant");
+  });
+
+  it("exposes the signal delivery status and orphan-state warnings", () => {
     expect(homeSource).toContain("Telegram delivery");
     expect(homeSource).toContain("ORPHANED STATE");
     expect(homeSource).toContain("No matching unresolved v5 signal exists; this state is not an active trade lock.");

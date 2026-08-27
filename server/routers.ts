@@ -1,10 +1,10 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, listOpenCurrentV5Signals, getScannerCadenceDiagnostics, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV5OutcomeStats, getAdaptiveRatioStats, getV5SourceStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV5MonitoringStats, getV5HierarchySmokeStatus, getLiveMarketPulse, listEntryLocatorStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getAllRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, listOpenCurrentV5Signals, getScannerCadenceDiagnostics, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV5OutcomeStats, getAdaptiveRatioStats, getV5SourceStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV5MonitoringStats, getV5HierarchySmokeStatus, getLiveMarketPulse, listEntryLocatorStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listStrategyDecisionsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, resolveLessonPatternReview } from "./intelligence";
@@ -46,7 +46,7 @@ export function buildStrategyRuleRecord(input: { userId: number; title: string; 
   return { userId: input.userId, title: input.title, sourceType: input.sourceType, sourceFileName: input.fileName, content: input.content, storageKey: input.storageKey, supabaseId: input.supabaseId };
 }
 
-export function buildReplacementManualAuditResult(signal: string, asset: string, timeframe: "15MIN" | "1H", market: MarketSnapshot, decision: ReplacementDecision) {
+export function buildReplacementManualAuditResult(signal: string, asset: string, timeframe: "15MIN" | "5MIN" | "1H", market: MarketSnapshot, decision: ReplacementDecision) {
   const submittedDirection = signal.match(/\b(BUY|SELL)\b/i)?.[1]?.toUpperCase() as "BUY" | "SELL" | undefined;
   const directionMatches = !submittedDirection || submittedDirection === decision.direction;
   const directionReason = submittedDirection
@@ -171,45 +171,55 @@ export const appRouter = router({
       }),
   }),
   audit: router({
-    history: protectedProcedure.query(({ ctx }) => listAuditMessages(ctx.user.id)),
-    clearConversation: protectedProcedure.mutation(async ({ ctx }) => { const db = await getDb(); if (!db) throw new Error("Database unavailable"); await db.delete(auditMessages).where(eq(auditMessages.userId, ctx.user.id)); return { cleared: true }; }),
+    history: protectedProcedure.input(z.object({ channel: z.enum(["WHITE", "CHERRY"]).default("WHITE") }).optional()).query(({ ctx, input }) => listAuditMessages(ctx.user.id, input?.channel ?? "WHITE")),
+    clearConversation: protectedProcedure.input(z.object({ channel: z.enum(["WHITE", "CHERRY"]).default("WHITE") }).optional()).mutation(async ({ ctx, input }) => { const db = await getDb(); if (!db) throw new Error("Database unavailable"); await db.delete(auditMessages).where(and(eq(auditMessages.userId, ctx.user.id), eq(auditMessages.channel, input?.channel ?? "WHITE"))); return { cleared: true }; }),
     run: protectedProcedure.input(z.object({ signal: z.string().min(8) })).mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
-      await db.insert(auditMessages).values({ userId: ctx.user.id, role: "user", content: input.signal });
+      await db.insert(auditMessages).values({ userId: ctx.user.id, channel: "CHERRY", role: "user", content: input.signal });
       const assetMatch = input.signal.match(/(?:asset|symbol)\s*:\s*([A-Za-z/]+)|\b(EUR\/?USD|GBP\/?USD|XAU\/?USD|BTC\/?USD)\b/i);
       const asset = normalizeAsset(assetMatch?.[1] ?? assetMatch?.[2] ?? "EUR/USD");
-      const timeframeMatch = input.signal.match(/(?:timeframe|tf)\s*[:=]\s*(15\s*MIN|1\s*H|15M|1H)\b/i) ?? input.signal.match(/\b(15\s*MIN|1\s*H|15M|1H)\b/i);
-      const timeframe: "15MIN" | "1H" = timeframeMatch?.[1]?.replace(/\s+/g, "").toUpperCase() === "1H" ? "1H" : "15MIN";
+      const timeframeMatch = input.signal.match(/(?:timeframe|tf)\s*[:=]\s*(15\s*MIN|5\s*MIN|1\s*H|15M|5M|1H)\b/i) ?? input.signal.match(/\b(15\s*MIN|5\s*MIN|1\s*H|15M|5M|1H)\b/i);
+      const timeframeToken = timeframeMatch?.[1]?.replace(/\s+/g, "").toUpperCase();
+      const timeframe: "15MIN" | "5MIN" | "1H" = timeframeToken === "1H" ? "1H" : timeframeToken === "5M" ? "5MIN" : "15MIN";
       try {
-        const series = await fetchMarketSeries(asset, timeframe === "1H" ? "1h" : "15min");
+        const series = await fetchMarketSeries(asset, timeframe === "1H" ? "1h" : timeframe === "5MIN" ? "5min" : "15min");
         if (!series.marketContext) throw new Error("Latest scanner market context is unavailable");
         const fundamentalContext = await fetchOfficialMacroContext(asset);
-        const market: MarketSnapshot = { symbol: series.symbol, price: series.close, close: series.close, fetchedAt: series.fetchedAt, interval: timeframe === "1H" ? "1h" : "15min", trend: series.trend, values: series.values, marketContext: series.marketContext, fundamentalContext };
+        const market: MarketSnapshot = { symbol: series.symbol, price: series.close, close: series.close, fetchedAt: series.fetchedAt, interval: timeframe === "1H" ? "1h" : timeframe === "5MIN" ? "5min" : "15min", trend: series.trend, values: series.values, marketContext: series.marketContext, fundamentalContext };
         const acceptedLessons = await listAcceptedStrategyLessons(ctx.user.id);
         const decision = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, marketContext: series.marketContext, fundamentalContext, acceptedLessons }, buildReplacementKnowledgeModelV5());
         const result = buildReplacementManualAuditResult(input.signal, asset, timeframe, market, decision);
         const assistantText = formatAuditResult(result, market);
-        await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });
+        await db.insert(auditMessages).values({ userId: ctx.user.id, channel: "CHERRY", role: "assistant", content: assistantText, verdict: result.verdict, confidence: String(result.confidence), asset });
         const [auditTradeInsert] = await db.insert(auditTrades).values({ userId: ctx.user.id, asset, timeframe: result.timeframe || "15MIN", direction: result.direction, entry: result.entry ? String(result.entry) : null, stopLoss: result.stopLoss ? String(result.stopLoss) : null, takeProfit: result.takeProfit ? String(result.takeProfit) : null, verdict: result.verdict, confidence: String(result.confidence), adjustments: result.adjustments });
         const auditTradeId = Number(auditTradeInsert.insertId);
         await mirrorToSupabase("audited_signals", { user_id: ctx.user.id, signal: input.signal, verdict: result.verdict, confidence: result.confidence, adjustments: result.adjustments, asset });
         return { role: "assistant" as const, content: assistantText, verdict: result.verdict, confidence: result.confidence, telegramDelivered: false };
       } catch (error) {
         const content = `TRADE DENIED\\n\\nConfidence level: 0%\\n\\nAdjustments: Live market data or strategy rules were unavailable. No decision should be made without a verified market snapshot.`;
-        await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content, verdict: "DENIED", confidence: "0", asset });
+        await db.insert(auditMessages).values({ userId: ctx.user.id, channel: "CHERRY", role: "assistant", content, verdict: "DENIED", confidence: "0", asset });
         return { role: "assistant" as const, content, verdict: "DENIED" as const, confidence: 0, error: error instanceof Error ? error.message : "Audit unavailable" };
       }
     }),
-    conversation: protectedProcedure.input(z.object({ messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(12000) })).min(1).max(24) })).mutation(async ({ ctx, input }) => {
+    conversation: protectedProcedure.input(z.object({ channel: z.enum(["WHITE", "CHERRY"]).default("WHITE"), messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(12000) })).min(1).max(24) })).mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
       const latest = input.messages[input.messages.length - 1].content;
-      await db.insert(auditMessages).values({ userId: ctx.user.id, role: "user", content: latest });
+      await db.insert(auditMessages).values({ userId: ctx.user.id, channel: input.channel, role: "user", content: latest });
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const assetMatch = latest.match(/\b(EUR\/?USD|GBP\/?USD|XAU\/?USD|BTC\/?USD)\b/i);
       const requestedAsset = assetMatch ? normalizeAsset(assetMatch[1]) : null;
-      const [signals, rulesText, judgment] = await Promise.all([listGeneratedSignalsSince(ctx.user.id, since, 500), getRelevantRulesText(ctx.user.id, latest, 12000), getStrategyDecisionSummary(ctx.user.id)]);
+      const [signals, rulesText, documentText, judgment, cadence, smoke, locatorStates, recentDecisions] = await Promise.all([
+        listGeneratedSignalsSince(ctx.user.id, since, 500),
+        getRelevantRulesText(ctx.user.id, latest, 12000),
+        getAllRulesText(ctx.user.id),
+        getStrategyDecisionSummary(ctx.user.id),
+        getScannerCadenceDiagnostics(ctx.user.id),
+        getV5HierarchySmokeStatus(ctx.user.id),
+        listEntryLocatorStates(ctx.user.id),
+        listStrategyDecisionsSince(ctx.user.id, since),
+      ]);
       let marketText = "No live market snapshot was requested or available.";
       if (requestedAsset) {
         try {
@@ -218,12 +228,14 @@ export const appRouter = router({
         } catch (error) { marketText = `Live snapshot unavailable for ${requestedAsset}: ${error instanceof Error ? error.message : "provider error"}`; }
       }
       const assetPerformance = summarizeChatSignals(signals).map((item) => `${item.asset}: ${item.generated} generated, ${item.resolved} resolved, ${item.wins} TP hits, ${item.winRate == null ? "—" : `${item.winRate}%`} win rate`).join("; ") || "No signals recorded in the last 24 hours.";
-      const system = `You are TradingGuardAI's interactive trading assistant. Have a natural, useful conversation about trading, market structure, risk, the user's ingested rules, and this app's paper-trading records. Answer questions such as which asset appears more predictable from the available sample, the current paper context for gold, and recent wins. Never invent live prices or performance. Distinguish clearly between live market observations, persisted paper outcomes, and general educational explanations. Use the supplied strategy-rule excerpts as the user's source of truth when relevant. Every response must state or preserve that this is analysis only, paper trading only, and UNVALIDATED; never place trades, promise accuracy, or present financial advice. If a requested fact is unavailable, say so plainly.
-
-Matched strategy rules:\n${rulesText || "No matching rule excerpt was found."}\n\nPaper outcomes in last 24 hours:\n${assetPerformance}\n\nStrategy judgment totals:\n${JSON.stringify(judgment)}\n\nRequested live market context:\n${marketText}`;
+      const system = [
+        "You are White AI, Trading Guard AI's interactive app-explanation and trading-education assistant. Have a natural, useful conversation about this app's v5 workflow, scanner health, zones, hierarchy judgments, Entry Locator decisions, paper-trading records, market structure, risk, and the user's ingested forex document. Explain why the app sends or withholds signals using supplied evidence. Never invent live prices, zone positions, scanner cycles, or performance. Distinguish clearly between live market observations, persisted app records, and general educational explanations. The app's v5 signal workflow is authoritative: 4H bias, 1H context only, independent 15M/5M execution, structural target/stop geometry, 60% confidence, 45% confluence, Entry Locator final guard, strict asset/timeframe locks, Telegram delivery, and paper-only UNVALIDATED safeguards. Chat must never place, alter, release, or approve an automatic v5 trade signal. Every response must state or preserve that this is analysis only, paper trading only, and UNVALIDATED; never promise accuracy or present personalized financial advice. If a requested fact is unavailable, say so plainly.",
+        "Answer questions such as which asset appears more predictable from the available sample, the current paper context for gold, and recent wins. Use the supplied strategy-rule excerpts as the user's source of truth when relevant.",
+        `Relevant strategy rules for this question:\n${rulesText || "No matching rule excerpt was found."}\n\nFull stored forex-document knowledge:\n${documentText || "No stored forex document is available."}\n\nPaper outcomes in last 24 hours:\n${assetPerformance}\n\nStrategy judgment totals:\n${JSON.stringify(judgment)}\n\nScanner freshness and cadence:\n${JSON.stringify({ latestSuccessfulAt: cadence.latestSuccessfulAt, latestSuccessfulSource: cadence.latestSuccessfulSource, completedCycles: cadence.completedCycles, failedCycles: cadence.failedCycles, expectedIntervalMinutes: cadence.expectedIntervalMinutes })}\n\nV5 production smoke:\n${JSON.stringify(smoke)}\n\nCurrent Entry Locator states:\n${JSON.stringify(locatorStates.slice(0, 20))}\n\nRecent v5 decision ledger:\n${JSON.stringify(recentDecisions.slice(0, 40))}\n\nRequested live market context:\n${marketText}`,
+      ].join("\n\n");
       const response = await invokeLLM({ model: "gpt-5-mini", messages: [{ role: "system", content: system }, ...input.messages] , maxTokens: 1400 });
       const content = normalizeChatResponseContent(response.choices[0]?.message.content);
-      await db.insert(auditMessages).values({ userId: ctx.user.id, role: "assistant", content });
+      await db.insert(auditMessages).values({ userId: ctx.user.id, channel: input.channel, role: "assistant", content });
       return { role: "assistant" as const, content, verdict: null, confidence: null, telegramDelivered: false };
     }),
   }),

@@ -1,0 +1,1 @@
+ALTER TABLE `audit_messages` ADD `channel` enum('WHITE','CHERRY') DEFAULT 'WHITE' NOT NULL;

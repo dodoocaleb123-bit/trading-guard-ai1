@@ -249,17 +249,17 @@ function ReplacementStatsCard() {
     <Card className="mt-6">
       <CardHeader>
         <CardTitle className="font-display text-xl">
-          Replacement v4 paper validation
+          Hierarchical workflow paper validation
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          V4 outcome performance, confidence calibration, and source-linked
+          Hierarchical-workflow outcome performance, confidence calibration, and source-linked
           market regimes.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-4">
           <SummaryStat
-            label="V4 outcomes"
+            label="Workflow outcomes"
             value={stats.data?.total ?? 0}
             tone="neutral"
           />
@@ -310,7 +310,7 @@ function ReplacementStatsCard() {
               ))}
               {!stats.data?.components?.length && (
                 <p className="text-xs text-muted-foreground">
-                  No v4 outcomes recorded yet.
+                  No hierarchical-workflow outcomes recorded yet.
                 </p>
               )}
             </div>
@@ -358,7 +358,7 @@ function ReplacementStatsCard() {
               ))}
               {!stats.data?.confidenceBands?.length && (
                 <p className="text-xs text-muted-foreground">
-                  Calibration begins with v4 outcomes.
+                  Calibration begins with hierarchical-workflow outcomes.
                 </p>
               )}
             </div>
@@ -391,7 +391,7 @@ function V4MonitoringCard() {
     <Card className="mt-6">
       <CardHeader>
         <CardTitle className="font-display text-xl">
-          Active v4 outcome monitor
+          Active hierarchical outcome monitor
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           Resolved paper outcomes grouped by the active model’s asset,
@@ -2437,8 +2437,8 @@ function AdaptiveGeometryDiagnostics() {
               Adaptive geometry diagnostics
             </CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              Breakout confirmation and next opposing-zone evidence used by the
-              v4 locator.
+              Breakout confirmation and next opposing-zone evidence retained for
+              the hierarchical Entry Locator.
             </p>
           </div>
           <Badge
@@ -3144,6 +3144,10 @@ function ScannerPage() {
                   snapshot && typeof snapshot === "object"
                     ? (snapshot as { marketContext?: any }).marketContext
                     : null;
+                const workflow =
+                  snapshot && typeof snapshot === "object"
+                    ? (snapshot as { replacementIntelligence?: { workflow?: any } }).replacementIntelligence?.workflow
+                    : null;
                 const placeholder = isPlaceholderDecision(decision);
                 return (
                   <div key={decision.id} className="rounded-xl border">
@@ -3228,6 +3232,22 @@ function ScannerPage() {
                             </span>
                           </div>
                         </div>
+                        {workflow && (
+                          <div className="md:col-span-2 rounded-lg border border-primary/15 bg-primary/[0.03] p-3">
+                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                              Hierarchical workflow
+                            </p>
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground md:grid-cols-4">
+                              <span>4H bias: <b className="text-foreground">{workflow.dominant4h ?? "—"}</b></span>
+                              <span>1H trend: <b className="text-foreground">{workflow.trend1h ?? "—"}</b></span>
+                              <span>Confirmation: <b className="text-foreground">{workflow.confirmation?.kind ?? "—"}</b></span>
+                              <span>Actual R:R: <b className="text-foreground">{workflow.riskReward == null ? "—" : `1:${workflow.riskReward}`}</b></span>
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                              {workflow.explanation ?? "No hierarchy explanation was persisted."}
+                            </p>
+                          </div>
+                        )}
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                             Placeholder diagnostics

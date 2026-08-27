@@ -16,7 +16,7 @@ export type MarketSnapshot = {
   close?: number;
   change?: number;
   fetchedAt: string;
-  interval?: "15min" | "1h";
+  interval?: "5min" | "15min" | "1h" | "4h";
   trend?: "UP" | "DOWN";
   values?: Array<Record<string, unknown>>;
   marketContext?: MarketContext | null;
@@ -165,7 +165,7 @@ export async function fetchMarketSnapshot(asset: string, interval = "15min") {
 
 export type MarketSeries = {
   symbol: string;
-  interval: "15min" | "1h";
+  interval: "5min" | "15min" | "1h" | "4h";
   values: Array<Record<string, unknown>>;
   close: number;
   trend: "UP" | "DOWN";
@@ -173,7 +173,7 @@ export type MarketSeries = {
   marketContext: MarketContext | null;
 };
 
-function parseMarketSeries(symbol: string, interval: "15min" | "1h", payload: any): MarketSeries {
+function parseMarketSeries(symbol: string, interval: "5min" | "15min" | "1h" | "4h", payload: any): MarketSeries {
   if (payload?.status === "error") throw new Error(payload.message ?? "OHLCV data unavailable");
   const values = Array.isArray(payload?.values) ? payload.values : [];
   if (values.length < 3) throw new Error("Not enough OHLCV data for timeframe");
@@ -185,18 +185,18 @@ function parseMarketSeries(symbol: string, interval: "15min" | "1h", payload: an
   return { symbol, interval, values, close, trend: close >= priorClose ? "UP" : "DOWN", fetchedAt: new Date().toISOString(), marketContext: calculateMarketContext(values) };
 }
 
-export async function fetchMarketSeries(asset: string, interval: "15min" | "1h") {
+export async function fetchMarketSeries(asset: string, interval: "5min" | "15min" | "1h" | "4h") {
   const symbol = normalizeAsset(asset);
-  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol, interval, outputsize: 30, order: "ASC", timezone: "UTC" }, 15000);
+  const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol, interval, outputsize: 200, order: "ASC", timezone: "UTC" }, 15000);
   return parseMarketSeries(symbol, interval, response.data);
 }
 
-export async function fetchMarketSeriesBatch(assets: readonly string[], interval: "15min" | "1h") {
+export async function fetchMarketSeriesBatch(assets: readonly string[], interval: "5min" | "15min" | "1h" | "4h") {
   const symbols = assets.map(normalizeAsset);
   const startedAt = Date.now();
   console.info(`[Market] Twelve Data batch started interval=${interval} assets=${symbols.length} at=${new Date(startedAt).toISOString()}`);
   try {
-    const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 30, order: "ASC", timezone: "UTC" }, 20000);
+    const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 200, order: "ASC", timezone: "UTC" }, 20000);
     if (response.data?.status === "error") throw new Error(response.data.message ?? "OHLCV batch unavailable");
     const result = new Map<string, MarketSeries>();
     for (const symbol of symbols) {
@@ -279,6 +279,7 @@ export function formatApprovedTelegramMessage(input: { asset: string; timeframe:
   const trace = input.decisionTrace;
   const confluence = trace?.scoreSummary.confluenceScore ?? input.confluenceScore;
   const score = trace ? `Score: BUY ${trace.scoreSummary.buyScore} vs SELL ${trace.scoreSummary.sellScore}` : "Score: unavailable";
+  const sourceLabel = input.generationSource === "ENTRY_FORGER" ? "ENTRY FORGER" : "HIERARCHICAL WORKFLOW · ENTRY LOCATOR";
   return [
     input.direction,
     `${input.asset} · ${input.timeframe}`,
@@ -288,7 +289,7 @@ export function formatApprovedTelegramMessage(input: { asset: string; timeframe:
     `Risk/reward: ${input.riskReward == null ? "—" : `1:${input.riskReward}`}`,
     `Confidence: ${input.confidence}%${confluence == null ? "" : ` · Confluence: ${confluence}%`}`,
     score,
-    `Paper only · UNVALIDATED · v4 active · ${input.generationSource === "ENTRY_FORGER" ? "ENTRY FORGER" : "ENTRY LOCATOR"}`,
+    `Paper only · UNVALIDATED · ${sourceLabel}`,
   ].join("\n");
 }
 

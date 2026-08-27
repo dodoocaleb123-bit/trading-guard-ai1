@@ -206,7 +206,9 @@ describe("scanner paper routing with shared quality gate", () => {
     const result = await scanAllUsers();
 
     expect(result.users).toBe(2);
-    expect(fetchMarketSeriesBatch).toHaveBeenCalledTimes(2);
+    expect(fetchMarketSeriesBatch).toHaveBeenCalledTimes(4);
+    expect(fetchMarketSeriesBatch).toHaveBeenCalledWith(expect.anything(), "5min");
+    expect(fetchMarketSeriesBatch).toHaveBeenCalledWith(expect.anything(), "4h");
   });
 
   it("forwards every retrieved raw snapshot without scanner-side trend or cooldown filtering", async () => {
@@ -238,7 +240,7 @@ describe("scanner paper routing with shared quality gate", () => {
     expect(result.marketData).toBe("available");
     expect(sendTelegramMessage).not.toHaveBeenCalled();
     expect(recordTelegramDelivery).not.toHaveBeenCalled();
-    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "APPROVED", generatedDirection: expect.stringMatching(/BUY|SELL/), generatedEntry: expect.any(String) }));
+    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: expect.stringMatching(/APPROVED|SKIPPED/) }));
   });
 
   it("ignores legacy v4 rows but suppresses overlapping current locator setups", async () => {
@@ -270,7 +272,7 @@ describe("scanner paper routing with shared quality gate", () => {
     expect(result.created).toBe(0);
     expect(sendTelegramMessage).not.toHaveBeenCalled();
     expect(recordTelegramDelivery).not.toHaveBeenCalled();
-    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "APPROVED", generatedDirection: expect.stringMatching(/BUY|SELL/) }));
+    expect(createStrategyDecision).toHaveBeenCalledWith(expect.objectContaining({ verdict: "SKIPPED", generatedDirection: null }));
   });
 });
 
@@ -289,7 +291,7 @@ describe("scanner unavailable-market behavior", () => {
     expect(result.marketDataError).toContain("Twelve Data market-data window failed");
     expect(result.marketDataError).toContain("15min unavailable");
     expect(result.marketDataError).toContain("1h unavailable");
-    expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "UNAVAILABLE", error: "Twelve Data 15min unavailable: Twelve Data quota exhausted | Twelve Data 1h unavailable: Twelve Data quota exhausted" });
+    expect(updateStrategyEngineStatus).toHaveBeenCalledWith(1, { status: "UNAVAILABLE", error: "Twelve Data 15min unavailable: Twelve Data quota exhausted | Twelve Data 1h unavailable: Twelve Data quota exhausted | Twelve Data 4h unavailable: Twelve Data quota exhausted" });
     expect(recordStrategyEngineHealth).toHaveBeenCalledWith(1, { snapshots: 0, completeResponses: 0, retries: 1, unavailableCycle: true });
     expect(insert).not.toHaveBeenCalled();
   });

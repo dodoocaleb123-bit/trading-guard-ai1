@@ -7,6 +7,7 @@ import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutable
 import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV4, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { advanceEntryLocator, countStrongSetupIndicators, hasBreakoutConfirmationTransition, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
 import { buildEntryForgerDashboardState, canUseEntryForgerFallback, deriveEntryForgerLevels } from "./entry-forger";
+import { evaluateHierarchicalWorkflow } from "./multitimeframe-workflow";
 import { describePaperSignalQuality, hasMinimumPaperSignalQuality } from "./paper-signal-quality";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
@@ -121,22 +122,27 @@ export const MAX_OUTCOME_TRACKS_PER_RUN = 32;
 export const MAX_FAILED_OUTCOME_RETRIES_PER_RUN = 2;
 
 type ScanUserResult = { created: number; tracked: number; adjustments: number; marketData: ScanMarketDataStatus; marketDataError?: string | null };
-type SharedMarketData = { series15m: Map<string, MarketSeries>; series1h: Map<string, MarketSeries> };
+type SharedMarketData = { series5m: Map<string, MarketSeries>; series15m: Map<string, MarketSeries>; series1h: Map<string, MarketSeries>; series4h: Map<string, MarketSeries> };
 type ScanUserInput = { marketData?: SharedMarketData; marketDataError?: string | null };
 
 async function fetchSharedMarketData(): Promise<SharedMarketData> {
   const startedAt = Date.now();
   console.info(`[Scanner] Shared market-data window started at=${new Date(startedAt).toISOString()}`);
   const batchResults = await Promise.allSettled([
+    fetchMarketSeriesBatch(WATCHLIST, "5min"),
     fetchMarketSeriesBatch(WATCHLIST, "15min"),
     fetchMarketSeriesBatch(WATCHLIST, "1h"),
+    fetchMarketSeriesBatch(WATCHLIST, "4h"),
   ]);
-  const batchLabels = ["15min", "1h"] as const;
-  const failures = batchResults.flatMap((result, index) => result.status === "rejected" ? [{ interval: batchLabels[index], message: result.reason instanceof Error ? result.reason.message : String(result.reason) }] : []);
+  const batchLabels = ["5min", "15min", "1h", "4h"] as const;
+  const optional5m = batchResults[0];
+  if (optional5m.status === "rejected") console.warn(`[Scanner] Optional 5min confirmation batch unavailable; continuing with 15min confirmation: ${optional5m.reason instanceof Error ? optional5m.reason.message : String(optional5m.reason)}`);
+  const failures = batchResults.slice(1).flatMap((result, index) => result.status === "rejected" ? [{ interval: batchLabels[index + 1], message: result.reason instanceof Error ? result.reason.message : String(result.reason) }] : []);
   if (failures.length) throw new Error(failures.map((failure) => `Twelve Data ${failure.interval} unavailable: ${failure.message}`).join(" | "));
-  const [series15m, series1h] = batchResults.map((result) => (result as PromiseFulfilledResult<Map<string, MarketSeries>>).value) as [Map<string, MarketSeries>, Map<string, MarketSeries>];
-  console.info(`[Scanner] Shared market-data window completed series15m=${series15m.size} series1h=${series1h.size} durationMs=${Date.now() - startedAt} at=${new Date().toISOString()}`);
-  return { series15m, series1h };
+  const series5m = optional5m.status === "fulfilled" ? optional5m.value : new Map<string, MarketSeries>();
+  const [series15m, series1h, series4h] = batchResults.slice(1).map((result) => (result as PromiseFulfilledResult<Map<string, MarketSeries>>).value) as [Map<string, MarketSeries>, Map<string, MarketSeries>, Map<string, MarketSeries>];
+  console.info(`[Scanner] Shared market-data window completed series5m=${series5m.size} series15m=${series15m.size} series1h=${series1h.size} series4h=${series4h.size} durationMs=${Date.now() - startedAt} at=${new Date().toISOString()}`);
+  return { series5m, series15m, series1h, series4h };
 }
 
 export function outcomeFallbackPrice(signal: { status: string; entry: string | number; stopLoss: string | number; takeProfit: string | number; outcomeNote?: string | null; resolutionPrice?: string | number | null }) {
@@ -195,28 +201,32 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
   const db = await getDb();
   if (!db) return { created: 0, tracked: 0, adjustments: 0, marketData: "not-run", marketDataError: null };
 
+  let series5m: Map<string, MarketSeries>;
   let series15m: Map<string, MarketSeries>;
   let series1h: Map<string, MarketSeries>;
+  let series4h: Map<string, MarketSeries>;
   const marketDataStartedAt = Date.now();
   console.info(`[Scanner] Market-data window ${input?.marketData ? "reused" : "started"} user=${userId} at=${new Date(marketDataStartedAt).toISOString()}`);
   try {
     if (input?.marketDataError) throw new Error(input.marketDataError);
     if (input?.marketData) {
-      ({ series15m, series1h } = input.marketData);
+      ({ series5m, series15m, series1h, series4h } = input.marketData);
     } else {
-      ({ series15m, series1h } = await fetchSharedMarketData());
+      ({ series5m, series15m, series1h, series4h } = await fetchSharedMarketData());
     }
-    console.info(`[Scanner] Market-data window ready user=${userId} series15m=${series15m.size} series1h=${series1h.size} durationMs=${Date.now() - marketDataStartedAt} at=${new Date().toISOString()}`);
+    console.info(`[Scanner] Market-data window ready user=${userId} series15m=${series15m.size} series5m=${series5m.size} series1h=${series1h.size} durationMs=${Date.now() - marketDataStartedAt} at=${new Date().toISOString()}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await updateStrategyEngineStatus(userId, { status: "UNAVAILABLE", error: message });
     await recordStrategyEngineHealth(userId, { snapshots: 0, completeResponses: 0, retries: 1, unavailableCycle: true });
     console.warn("[Scanner] Market batch unavailable; no signals created:", message);
-    return { created: 0, tracked: 0, adjustments: 0, marketData: "unavailable", marketDataError: `Twelve Data market-data window failed for 15min and/or 1h: ${message}` };
+    return { created: 0, tracked: 0, adjustments: 0, marketData: "unavailable", marketDataError: `Twelve Data market-data window failed for required 15min/1h/4h series: ${message}` };
   }
   const seriesCache = new Map<string, MarketSeries>();
+  series5m.forEach((series, symbol) => seriesCache.set(`${symbol}:5MIN`, series));
   series15m.forEach((series, symbol) => seriesCache.set(`${symbol}:15MIN`, series));
   series1h.forEach((series, symbol) => seriesCache.set(`${symbol}:1H`, series));
+  series4h.forEach((series, symbol) => seriesCache.set(`${symbol}:4H`, series));
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
   const createdSignalIds = new Set<number>();
   const mirroredRules = await fetchStrategyRulesFromSupabase();
@@ -260,33 +270,40 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         const fundamentalContext = await fetchOfficialMacroContext(asset);
         const detectedIndicators = market.marketContext ? detectSetupIndicators({ market: { asset, close: series.close, interval: series.interval, values: series.values }, context: market.marketContext, fundamentalContext }, replacementModel) : [];
         const hasDirectionalIndicator = detectedIndicators.some((indicator) => indicator.direction !== "NEUTRAL");
-        if (!market.marketContext || !hasDirectionalIndicator) {
-          return { asset, timeframe, noDirectionalSetup: true, entryLocatorReady: false, entryLocatorReason: "No directional setup indicator detected; accumulating fresh scanner snapshots.", verdict: "SKIPPED" as const, confidence: 0, confluenceScore: 0, marketRegime: "WAITING/ACCUMULATING", adjustments: "No directional setup indicator detected; accumulating fresh scanner snapshots before constructing a v4 candidate.", direction: "NEUTRAL" as const, entry: null, stopLoss: null, takeProfit: null, ruleEvidence: [], ruleFindings: [], decisionTrace: undefined, setupIndicators: detectedIndicators, market: { ...market, fundamentalContext, setupIndicators: detectedIndicators, replacementIntelligence: undefined, v3BaselineIntelligence: undefined, replacementMarketRegime: "WAITING/ACCUMULATING" } };
+        const series4h = seriesCache.get(`${asset}:4H`);
+        const series1hForWorkflow = seriesCache.get(`${asset}:1H`);
+        const series15mForWorkflow = seriesCache.get(`${asset}:15MIN`);
+        const series5mForWorkflow = seriesCache.get(`${asset}:5MIN`);
+        const replacementIntelligence = market.marketContext && hasDirectionalIndicator
+          ? evaluateHierarchicalWorkflow({ asset, timeframe, primary: series, series4h, series1h: series1hForWorkflow, series15m: series15mForWorkflow, series5m: series5mForWorkflow, fundamentalContext, acceptedLessons }, replacementModel)
+          : null;
+        const workflowIndicators = replacementIntelligence?.setupIndicators ?? detectedIndicators;
+        if (!market.marketContext || !replacementIntelligence) {
+          return { asset, timeframe, noDirectionalSetup: true, entryLocatorReady: false, entryLocatorReason: "No directional setup indicator detected; accumulating fresh scanner snapshots.", verdict: "SKIPPED" as const, confidence: 0, confluenceScore: 0, marketRegime: "WAITING/ACCUMULATING", adjustments: "No directional setup indicator detected; accumulating fresh scanner snapshots before constructing the hierarchical candidate.", direction: "NEUTRAL" as const, entry: null, stopLoss: null, takeProfit: null, ruleEvidence: [], ruleFindings: [], decisionTrace: undefined, setupIndicators: workflowIndicators, market: { ...market, fundamentalContext, setupIndicators: workflowIndicators, replacementIntelligence: undefined, v3BaselineIntelligence: undefined, replacementMarketRegime: "WAITING/ACCUMULATING" } };
         }
-        const replacementIntelligence = evaluateReplacementIntelligence({ asset, close: series.close, interval: series.interval, values: series.values, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementModel);
         const baselineEvaluation = market.marketContext ? safelyEvaluateBaselineIntelligence({ asset, close: series.close, interval: series.interval, values: series.values, marketContext: market.marketContext, fundamentalContext, acceptedLessons }, replacementBaselineModel) : { status: "UNAVAILABLE" as const, decision: undefined, error: "Market context unavailable" };
         const v3BaselineIntelligence = baselineEvaluation.decision;
-        if (!replacementIntelligence) throw new Error(`Replacement intelligence could not evaluate ${asset} ${timeframe}.`);
-        if (baselineEvaluation.status !== "AVAILABLE") console.warn(`[Scanner] ${asset} ${timeframe} v3 baseline unavailable; continuing with v4: ${baselineEvaluation.error ?? "unknown baseline error"}`);
+        if (baselineEvaluation.status !== "AVAILABLE") console.warn(`[Scanner] ${asset} ${timeframe} baseline unavailable; continuing with hierarchical workflow: ${baselineEvaluation.error ?? "unknown baseline error"}`);
+        const workflowQualified = replacementIntelligence.workflow.eligible;
         return attachSetupIndicators({
           asset,
           timeframe,
           entryLocatorReady: false,
-          entryLocatorReason: "Entry locator status is assigned after this decision is observed.",
-          verdict: "APPROVED" as const,
+          entryLocatorReason: workflowQualified ? "Hierarchical workflow qualified; entry locator status is assigned after this decision is observed." : replacementIntelligence.workflow.explanation,
+          verdict: workflowQualified ? "APPROVED" as const : "SKIPPED" as const,
           confidence: replacementIntelligence.confidence,
           confluenceScore: replacementIntelligence.confluenceScore,
           marketRegime: replacementIntelligence.marketRegime,
           adjustments: replacementIntelligence.adjustments,
           direction: replacementIntelligence.direction,
-          entry: replacementIntelligence.entry,
-          stopLoss: replacementIntelligence.stopLoss,
-          takeProfit: replacementIntelligence.takeProfit,
+          entry: workflowQualified ? replacementIntelligence.entry : null,
+          stopLoss: workflowQualified ? replacementIntelligence.stopLoss : null,
+          takeProfit: workflowQualified ? replacementIntelligence.takeProfit : null,
           ruleEvidence: replacementIntelligence.ruleEvidence,
           ruleFindings: replacementIntelligence.ruleFindings,
           decisionTrace: replacementIntelligence.decisionTrace,
-          market: { ...market, fundamentalContext, intelligenceSeed: replacementIntelligence, replacementIntelligence, v3BaselineIntelligence, v3BaselineStatus: baselineEvaluation.status, v3BaselineError: baselineEvaluation.error, replacementMarketRegime: replacementIntelligence.marketRegime },
-        }, detectedIndicators);
+          market: { ...market, fundamentalContext, setupIndicators: workflowIndicators, intelligenceSeed: replacementIntelligence, replacementIntelligence, v3BaselineIntelligence, v3BaselineStatus: baselineEvaluation.status, v3BaselineError: baselineEvaluation.error, replacementMarketRegime: replacementIntelligence.marketRegime },
+        }, workflowIndicators);
       }));
     decisions.metrics = { snapshots: candidates.length, completeResponses: decisions.length, retries: 0 };
     await updateStrategyEngineStatus(userId, { status: "AVAILABLE" });
@@ -324,7 +341,8 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
       geometryMode: gated.decisionTrace?.levelDerivation?.geometryMode ?? "RANGE_OPPOSING_ZONE",
       nextResistance: market.marketContext?.nextResistance ?? null,
       nextSupport: market.marketContext?.nextSupport ?? null,
-      targetBoundary: market.marketContext ? (gated.direction === "BUY" ? market.marketContext.nextResistance ?? market.marketContext.supportResistance.resistance : market.marketContext.nextSupport ?? market.marketContext.supportResistance.support) : null,
+      targetBoundary: (market.replacementIntelligence as any)?.workflow?.targetBoundary ?? (market.marketContext ? (gated.direction === "BUY" ? market.marketContext.nextResistance ?? market.marketContext.supportResistance.resistance : market.marketContext.nextSupport ?? market.marketContext.supportResistance.support) : null),
+      workflowQualified: Boolean((market.replacementIntelligence as any)?.workflow?.eligible),
       conflictingComponents: gated.decisionTrace?.conflictingComponents ?? [],
     };
     const hasOpenSignal = await hasOpenGeneratedSignal(userId, asset, timeframe, replacementModel.id, ENTRY_LOCATOR_V4_GENERATION_MODE);
@@ -360,6 +378,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
     const indicatorBucket = strongIndicatorCount === 1 ? "ONE_STRONG" : strongIndicatorCount >= 2 ? "TWO_PLUS" : "NONE";
     const locatorMarket = { ...market, entryLocator: { status: locatorState.status, ready: locatorReadyForEmission, reason: gated.entryLocatorReason, snapshotCount: locatorState.snapshotCount, fingerprint: observation.fingerprint, strongIndicatorCount, indicatorBucket } };
     const decisionVerdict = locatorReadyForEmission ? gated.verdict : "SKIPPED" as const;
+    const executableDecision = decisionVerdict === "APPROVED";
     await createStrategyDecision({
       userId,
       asset,
@@ -370,10 +389,10 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
       ruleEvidence: JSON.stringify(gated.ruleEvidence ?? []),
       ruleFindings: JSON.stringify(gated.ruleFindings ?? []),
       marketSnapshot: JSON.stringify(locatorMarket),
-      generatedDirection: locatorReadyForEmission ? gated.direction : null,
-      generatedEntry: locatorReadyForEmission && gated.entry != null ? String(gated.entry) : null,
-      generatedStopLoss: locatorReadyForEmission && gated.stopLoss != null ? String(gated.stopLoss) : null,
-      generatedTakeProfit: locatorReadyForEmission && gated.takeProfit != null ? String(gated.takeProfit) : null,
+      generatedDirection: executableDecision ? gated.direction : null,
+      generatedEntry: executableDecision && gated.entry != null ? String(gated.entry) : null,
+      generatedStopLoss: executableDecision && gated.stopLoss != null ? String(gated.stopLoss) : null,
+      generatedTakeProfit: executableDecision && gated.takeProfit != null ? String(gated.takeProfit) : null,
       decisionReason: `${gated.adjustments} Entry locator: ${gated.entryLocatorReason}`,
       cooldownKey,
     });
@@ -414,10 +433,11 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         console.info(`[Scanner] ${asset} ${timeframe} strategy engine returned an incomplete approved outcome; no signal sent.`);
         continue;
       }
-      const adaptiveV4 = replacementModel.id.endsWith("v4");
+      const hierarchicalQualified = Boolean((market.replacementIntelligence as any)?.workflow?.eligible);
+      const adaptiveV4 = replacementModel.id.endsWith("v4") && !hierarchicalQualified;
       const traceRatio = gated.decisionTrace?.levelDerivation?.selectedRiskReward;
-      const selectedRiskReward = adaptiveV4 ? (traceRatio == null ? Number.NaN : Number(traceRatio)) : Number(gated.riskReward ?? 2);
-      const allowedRatios = adaptiveV4 ? (ALLOWED_RISK_REWARD_RATIOS as readonly number[]) : [2];
+      const selectedRiskReward = hierarchicalQualified ? Number(gated.riskReward ?? traceRatio ?? 0) : adaptiveV4 ? (traceRatio == null ? Number.NaN : Number(traceRatio)) : Number(gated.riskReward ?? 2);
+      const allowedRatios = hierarchicalQualified ? [selectedRiskReward] : adaptiveV4 ? (ALLOWED_RISK_REWARD_RATIOS as readonly number[]) : [2];
       if (!allowedRatios.includes(selectedRiskReward)) {
         const canForge = adaptiveV4 && locatorGeometryDenied && paperSignalQualityApproved && !activeSignal && Boolean(gated.direction) && gated.entry != null;
         const forged = canForge ? deriveEntryForgerLevels({ entry: Number(gated.entry), direction: gated.direction as "BUY" | "SELL", targetBoundary: observation.targetBoundary, atr: market.marketContext?.volatility.atr }) : { ready: false as const, reason: "Entry Forger not eligible until Entry Locator geometry denial." };

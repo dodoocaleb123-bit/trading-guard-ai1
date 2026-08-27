@@ -20,6 +20,7 @@ export type EntryLocatorObservation = {
   nextResistance?: number | null;
   nextSupport?: number | null;
   targetBoundary?: number | null;
+  workflowQualified?: boolean;
 };
 
 export type EntryLocatorSnapshot = EntryLocatorObservation & { receivedAt: string };
@@ -117,7 +118,7 @@ export function advanceEntryLocator(input: {
   const strongIndicatorCount = countStrongSetupIndicators(latest.supportingComponents);
   const hasEnoughIndicators = strongIndicatorCount >= 1;
   const hasQuality = hasMinimumPaperSignalQuality(averageConfidence, averageConfluence);
-  const hasCoherentGeometry = !latest.geometryFallback;
+  const hasCoherentGeometry = latest.workflowQualified === true || !latest.geometryFallback;
   const hasHighImpactRisk = latest.eventRisk === "HIGH";
   const riskReady = !hasHighImpactRisk || (averageConfidence >= 72 && sameDirection.length >= 2 && strongIndicatorCount >= 2);
   const ready = !input.hasOpenSignal && Boolean(direction) && hasEnoughIndicators && hasQuality && hasCoherentGeometry && riskReady && latest.direction === direction;
@@ -128,7 +129,7 @@ export function advanceEntryLocator(input: {
   else if (!direction) reason = "BUY and SELL evidence are currently tied or mixed; waiting for resolution.";
   else if (!hasEnoughIndicators) reason = "Waiting for at least one strong setup indicator from the catalog-derived evidence families.";
   else if (!hasQuality) reason = `Setup evidence found, but confidence/confluence remain below the ${MIN_PAPER_SIGNAL_CONFIDENCE}%/${MIN_PAPER_SIGNAL_CONFLUENCE}% threshold (${Math.round(averageConfidence)}%/${Math.round(averageConfluence)}%).`;
-  else if (!hasCoherentGeometry) reason = "Setup repeated, but no allowed adaptive ratio has sufficient cleared structural space or breakout confirmation; waiting for coherent geometry.";
+  else if (!hasCoherentGeometry) reason = "Setup repeated, but no structure-first geometry or cleared adaptive ratio is available; waiting for coherent geometry.";
   else if (!riskReady) reason = "High-impact event risk is present; waiting for two consistent observations and at least two independent setup families.";
   else if (conflictCount > 0) reason = `Setup is eligible after ranking, with ${conflictCount} conflicting component(s) retained in the audit trace and ${strongIndicatorCount} supporting setup family/families.`;
   else if (ready) reason = `Entry signal located from ${strongIndicatorCount} strong setup family/families without requiring every catalog indicator.`;

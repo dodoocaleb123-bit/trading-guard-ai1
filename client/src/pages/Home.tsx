@@ -1007,15 +1007,7 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
   const isCherry = assistant === "CHERRY";
   const history = trpc.audit.history.useQuery({ channel: assistant }, LIVE_QUERY_OPTIONS);
   const [mode, setMode] = useState<"ASK" | "AUDIT">(isCherry ? "AUDIT" : "ASK");
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-        content:
-        isCherry
-          ? "I’m Cherry AI. Paste any trade idea or signal—whether it came from Trading Guard AI or from elsewhere—and I’ll audit its direction, structure, entry, stop, target, risk, and evidence. This is analysis only; it does not create or send a v5 signal."
-          : "I’m White AI, your app-aware Trading Guard assistant. Ask why v5 sent or withheld a signal, what the scanner and zones are doing, how the app works, or ask a general forex question using the stored trading document.",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const historical = (history.data ?? [])
     .slice()
     .reverse()
@@ -1040,15 +1032,7 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
   });
   const clearConversation = trpc.audit.clearConversation.useMutation({
     onSuccess: () => {
-      setMessages([
-        {
-          role: "assistant",
-          content:
-            isCherry
-            ? "Cherry AI conversation cleared. Paste another app-generated or external trade idea for an independent paper-only audit."
-            : "White AI conversation cleared. Ask about v5 actions, scanner health, zones, paper outcomes, or general forex education.",
-        },
-      ]);
+      setMessages([]);
       history.refetch();
       toast.success("Chat conversation cleared");
     },
@@ -1114,23 +1098,23 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
     <div className="-mx-4 -my-6 flex min-h-[100dvh] min-w-0 flex-col overflow-hidden bg-background font-montserrat sm:mx-0 sm:my-0 sm:min-h-[calc(100vh-4rem)] sm:rounded-2xl sm:border">
       <section className="flex min-h-0 min-w-0 flex-1 flex-col">
           {history.isError && <DataError text="Chat history could not be loaded. New conversations remain available after the connection recovers." />}
-          <header className="sticky top-0 z-20 flex min-h-20 shrink-0 items-center justify-center border-b bg-background px-4 py-3 sm:px-6">
-            <div className="flex min-w-0 items-center justify-center gap-2 sm:gap-3">
-              <Button type="button" variant="ghost" size="icon" onClick={toggleSidebar} aria-label="Open app navigation" title="Open app navigation" className="shrink-0">
+          <header className="sticky top-0 z-20 flex min-h-20 shrink-0 items-center justify-between border-b bg-background px-4 py-3 sm:px-6">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <Button type="button" variant="ghost" size="icon" onClick={toggleSidebar} aria-label="Open app navigation" title="Open app navigation" className="shrink-0 text-foreground">
                 <PanelLeft className="size-5" />
               </Button>
-              <div className="min-w-0 text-center">
+              <div className="min-w-0">
                 <p className="truncate text-base font-semibold tracking-tight">{isCherry ? "Cherry AI" : "White AI"}</p>
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{isCherry ? "INDEPENDENT TRADE REVIEW" : "APP-AWARE CONVERSATIONS"}</p>
+                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground">{isCherry ? "INDEPENDENT TRADE REVIEW" : "APP-AWARE CONVERSATIONS"}</p>
               </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <Button type="button" variant="ghost" size="icon" onClick={exportConversation} disabled={!combined.length} aria-label="Export conversation" title="Export conversation">
-                  <Download className="size-4" />
-                </Button>
-                <Button type="button" variant="ghost" size="icon" onClick={() => window.confirm(`Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted audit records remain.`) && clearConversation.mutate({ channel: assistant })} disabled={isPending} aria-label="Clear conversation" title="Clear conversation">
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button type="button" variant="ghost" size="icon" onClick={exportConversation} disabled={!combined.length} aria-label="Export conversation" title="Export conversation" className="rounded-full bg-black text-white hover:bg-black/85">
+                <Download className="size-4" />
+              </Button>
+              <Button type="button" variant="ghost" size="icon" onClick={() => window.confirm(`Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted audit records remain.`) && clearConversation.mutate({ channel: assistant })} disabled={isPending} aria-label="Clear conversation" title="Clear conversation" className="rounded-full bg-black text-white hover:bg-black/85">
+                <Trash2 className="size-4" />
+              </Button>
             </div>
           </header>
           <main className="min-h-0 flex-1 p-0">
@@ -1140,8 +1124,10 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
                 onSendMessage={handleMessage}
                 isLoading={isPending}
                 height="calc(100dvh - 5rem)"
-                className="min-h-[calc(100dvh-5rem)] w-full min-w-0 flex-1 rounded-none border-0 shadow-none sm:min-h-[calc(100vh-5rem)] sm:rounded-none"
-                placeholder={isCherry ? "Paste a trade signal or setup to audit…" : "Ask White AI about v5, the scanner, zones, or forex…"}
+                className="min-h-[calc(100dvh-5rem)] w-full min-w-0 flex-1 rounded-none border-0 bg-white shadow-none sm:min-h-[calc(100vh-5rem)] sm:rounded-none"
+                composerHint={isCherry ? "Audit your trade signals with Cherry AI" : "Ask White AI what you want to know about Trading and how trades are taken"}
+                placeholder={isCherry ? "Ask Cherry" : "Ask White"}
+                emptyStateMessage={isCherry ? "What trade signal\ndo you want to audit?" : "Ask me any\nthing about trading"}
                 assistantName={isCherry ? "Cherry AI" : "White AI"}
                 assistantTagline={isCherry ? "Independent paper-only trade review" : "Grounded app explanations and forex education"}
                 showHeader={false}

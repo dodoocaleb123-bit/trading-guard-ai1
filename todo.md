@@ -1343,3 +1343,12 @@
 - [x] Revert the mistaken vertical header centering while keeping the assistant identity horizontally centered in the top panel
 - [x] Remove the duplicate in-chat tabs panel and connect its left button to the existing app navigation on phone and laptop
 - [x] Validate the corrected header and existing-navigation behavior without changing v5 or chat functionality
+
+- [x] Match the laptop reference: existing app sidebar, clean white chat canvas, compact identity bar, black circular Export/Clear icons, centered empty-state prompt, and rounded gray bottom composer
+- [x] Match the phone reference edge-to-edge without adding an in-app keyboard, while preserving the device keyboard viewport behavior
+- [x] Keep White AI and Cherry AI-specific names, subtitles, prompts, and independent histories in the shared reference-matched shell
+- [x] Verify archived interaction states for scrolling, keyboard appearance, fixed header, and fixed composer
+- [x] Match the reference empty state by removing the initial assistant bubble and rendering the centered White AI or Cherry AI prompt in the chat canvas
+- [x] Match the supplied header alignment with the panel icon and assistant identity on the left and icon-only Export/Clear controls on the right
+- [x] Match the supplied rounded gray bottom composer, black circular send button, and centered helper caption on phone and laptop
+- [x] Render escaped newline sequences in Cherry AI audit responses as actual line breaks so message formatting matches the reference chat behavior

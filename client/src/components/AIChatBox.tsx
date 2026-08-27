@@ -65,6 +65,9 @@ export type AIChatBoxProps = {
 
   /** Hide the internal identity header when a parent owns the fixed workspace header. */
   showHeader?: boolean;
+
+  /** Small helper caption shown beneath the composer in the reference layout. */
+  composerHint?: string;
 };
 
 /**
@@ -130,6 +133,7 @@ export function AIChatBox({
   assistantName = "AI assistant",
   assistantTagline = "Grounded conversation with clear paper-trading boundaries.",
   showHeader = true,
+  composerHint,
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -231,28 +235,10 @@ export function AIChatBox({
       {/* Messages Area */}
       <div ref={scrollAreaRef} className="min-w-0 max-w-full flex-1 overflow-hidden">
         {displayMessages.length === 0 ? (
-          <div className="flex h-full flex-col p-4">
-            <div className="flex flex-1 flex-col items-center justify-center gap-6 text-muted-foreground">
-              <div className="flex flex-col items-center gap-3">
-                <Sparkles className="size-12 opacity-20" />
-                <p className="text-sm">{emptyStateMessage}</p>
-              </div>
-
-              {suggestedPrompts && suggestedPrompts.length > 0 && (
-                <div className="flex max-w-2xl flex-wrap justify-center gap-2">
-                  {suggestedPrompts.map((prompt, index) => (
-                    <button
-                      key={index}
-                      onClick={() => onSendMessage(prompt)}
-                      disabled={isLoading}
-                      className="rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div className="flex h-full items-center justify-center px-6 text-center">
+            <p className="max-w-[18ch] whitespace-pre-line text-3xl font-semibold leading-[0.98] tracking-tight text-muted-foreground/65 sm:text-4xl">
+              {emptyStateMessage}
+            </p>
           </div>
         ) : (
           <ScrollArea className="h-full w-0 min-w-full max-w-full overflow-hidden">
@@ -338,29 +324,32 @@ export function AIChatBox({
       <form
         ref={inputAreaRef}
         onSubmit={handleSubmit}
-        className="flex w-full min-w-0 gap-2 border-t bg-background/50 p-4 items-end"
+        className="flex w-full min-w-0 flex-col items-center gap-1 border-0 bg-background px-4 pb-3 pt-4"
       >
-        <Textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className="flex-1 max-h-32 resize-none min-h-9"
-          rows={1}
-        />
-        <Button
-          type="submit"
-          size="icon"
-          disabled={!input.trim() || isLoading}
-          className="shrink-0 h-[38px] w-[38px]"
-        >
-          {isLoading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Send className="size-4" />
-          )}
-        </Button>
+        <div className="flex w-full min-w-0 items-center gap-2 rounded-full bg-[#c8c8c8] px-4 py-2.5">
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="min-h-8 flex-1 resize-none border-0 bg-transparent p-0 text-sm text-foreground shadow-none outline-none placeholder:text-[#8a8a8a] focus-visible:ring-0"
+            rows={1}
+          />
+          <Button
+            type="submit"
+            size="icon"
+            disabled={!input.trim() || isLoading}
+            className="size-10 shrink-0 rounded-full bg-black text-white hover:bg-black/85 disabled:bg-black/40"
+          >
+            {isLoading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Send className="size-4" />
+            )}
+          </Button>
+        </div>
+        {composerHint && <p className="text-center text-[10px] leading-tight text-foreground">{composerHint}</p>}
       </form>
     </div>
   );

@@ -1381,3 +1381,13 @@
 - [x] Diagnose why the eight-key grouped scanner still produces inconsistent v5 snapshots after keys 7 and 8 were added; confirmed prior key exhaustion/rate limiting was the cause and complete cycles now recover
 - [x] Fix the confirmed retrieval defect without changing v5 judgment or Telegram safety rules; the deployed grouped routing and four-key pool expansion resolved the retrieval bottleneck
 - [x] Validate complete grouped market-data recovery and publish the fix; four consecutive production cycles from 23:05 through 23:20 were available, with two signals delivered at 23:15
+- [x] Diagnose the White AI “Service Unavailable” invalid-JSON error shown after sending a message
+- [x] Make White AI service-unavailable responses display a clear recoverable error instead of a JSON parser failure
+- [x] Add regression coverage and validate White AI success/error behavior without changing Cherry AI or v5 workflows
+- [x] Diagnose the 11:25 PM production cycle showing provider data unavailable after the 11:20 PM v5 update
+- [x] Fix any confirmed retrieval or dashboard-status defect without changing v5 decision rules
+- [x] Validate consecutive production cycles and the delivered XAU/USD 5M signal path
+- [x] Fix White AI and Cherry AI handling of plain-text Service Unavailable responses so users receive a readable recoverable error
+- [x] Fix the scanner-to-v5 lifecycle so overlapping or stalled callbacks cannot leave fresh cycles stuck in RUNNING or suppress later complete snapshots
+- [x] Add focused regression coverage for chat transport errors and scanner callback lifecycle behavior
+- [x] Run full validation and publish the combined fix without changing v5 judgment, Telegram, tracking, or paper-only rules

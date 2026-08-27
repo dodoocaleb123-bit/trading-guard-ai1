@@ -12,6 +12,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
+import { formatChatError } from "@/lib/chat-errors";
 import {
   BookOpen,
   CheckCircle2,
@@ -1046,14 +1047,14 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
       setMessages(prev => [...prev, result]);
       history.refetch();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatChatError(e, "Cherry AI")),
   });
   const conversation = trpc.audit.conversation.useMutation({
     onSuccess: result => {
       setMessages(prev => [...prev, result]);
       history.refetch();
     },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(formatChatError(e, "White AI")),
   });
   const clearConversation = trpc.audit.clearConversation.useMutation({
     onSuccess: () => {

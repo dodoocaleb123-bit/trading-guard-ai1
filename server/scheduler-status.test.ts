@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCallbackStatus, hasRepeatedScannerFailures, selectScannerSchedulerJob, type SchedulerJobSnapshot } from "./scheduler-status";
+import { buildCallbackStatus, hasRepeatedScannerFailures, isStaleScannerRun, selectScannerSchedulerJob, type SchedulerJobSnapshot } from "./scheduler-status";
 import { buildScannerRunKey } from "./db";
 
 const job: SchedulerJobSnapshot = {
@@ -18,6 +18,15 @@ describe("repeated scanner failures", () => {
   it("requires two failed app-side runs before alerting", () => {
     expect(hasRepeatedScannerFailures([{ status: "SUCCEEDED" }, { status: "FAILED" }])).toBe(false);
     expect(hasRepeatedScannerFailures([{ status: "FAILED" }, { status: "FAILED" }])).toBe(true);
+  });
+});
+
+describe("scanner run lease", () => {
+  it("reclaims a RUNNING row after the callback lease expires", () => {
+    const startedAt = new Date("2026-08-27T23:25:00.000Z");
+    expect(isStaleScannerRun({ status: "RUNNING", startedAt }, new Date("2026-08-27T23:26:50.000Z"))).toBe(true);
+    expect(isStaleScannerRun({ status: "RUNNING", startedAt }, new Date("2026-08-27T23:26:49.000Z"))).toBe(false);
+    expect(isStaleScannerRun({ status: "SUCCEEDED", startedAt }, new Date("2026-08-27T23:30:00.000Z"))).toBe(false);
   });
 });
 

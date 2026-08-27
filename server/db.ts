@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, ownerAlertLedger, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
-import { summarizeScannerCadence } from "./scheduler-status";
+import { isStaleScannerRun, summarizeScannerCadence } from "./scheduler-status";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -485,8 +485,23 @@ export async function startScannerRun(taskUid: string, at = new Date()) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const runKey = buildScannerRunKey(taskUid, at);
+  const activeRuns = await db.select().from(scannerRunLedger).where(and(eq(scannerRunLedger.taskUid, taskUid), eq(scannerRunLedger.status, "RUNNING"))).orderBy(desc(scannerRunLedger.startedAt)).limit(1);
+  const active = activeRuns[0];
+  if (active && active.runKey !== runKey) {
+    if (isStaleScannerRun(active, at)) {
+      await db.update(scannerRunLedger).set({ status: "FAILED", finishedAt: at, marketData: "unavailable", error: `Scanner run lease expired before callback completion: ${active.runKey}` }).where(eq(scannerRunLedger.id, active.id));
+    } else {
+      await db.update(scannerRunLedger).set({ duplicateCallbacks: sql`${scannerRunLedger.duplicateCallbacks} + 1`, lastDuplicateAt: at }).where(eq(scannerRunLedger.id, active.id));
+      return { row: { ...active, duplicateCallbacks: Number(active.duplicateCallbacks ?? 0) + 1, lastDuplicateAt: at }, duplicate: true };
+    }
+  }
   const existing = await db.select().from(scannerRunLedger).where(eq(scannerRunLedger.runKey, runKey)).limit(1);
   if (existing[0]) {
+    if (isStaleScannerRun(existing[0], at)) {
+      await db.update(scannerRunLedger).set({ startedAt: at, finishedAt: null, status: "RUNNING", usersProcessed: 0, createdSignals: 0, trackedSignals: 0, adjustments: 0, marketData: "not-run", error: null }).where(eq(scannerRunLedger.id, existing[0].id));
+      const reclaimed = await db.select().from(scannerRunLedger).where(eq(scannerRunLedger.id, existing[0].id)).limit(1);
+      return { row: reclaimed[0], duplicate: false, reclaimed: true };
+    }
     await db.update(scannerRunLedger).set({ duplicateCallbacks: sql`${scannerRunLedger.duplicateCallbacks} + 1`, lastDuplicateAt: at }).where(eq(scannerRunLedger.id, existing[0].id));
     return { row: { ...existing[0], duplicateCallbacks: Number(existing[0].duplicateCallbacks ?? 0) + 1, lastDuplicateAt: at }, duplicate: true };
   }

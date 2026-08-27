@@ -14,6 +14,13 @@ export type SchedulerJobSnapshot = {
 
 const SCANNER_CALLBACK_PATH = "/api/scheduled/trading-guard-scanner";
 const SCANNER_TASK_PREFIX = "trading-guard-scanner";
+export const SCANNER_RUN_LEASE_MS = 110_000;
+
+export function isStaleScannerRun(run: { status: string; startedAt: Date | string }, now = new Date()) {
+  if (run.status !== "RUNNING") return false;
+  const startedAt = new Date(run.startedAt).getTime();
+  return Number.isFinite(startedAt) && now.getTime() - startedAt >= SCANNER_RUN_LEASE_MS;
+}
 
 export function hasRepeatedScannerFailures(runs: Array<{ status: string }>, threshold = 2) {
   return runs.filter((run) => run.status === "FAILED").length >= threshold;

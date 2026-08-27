@@ -27,6 +27,14 @@ export function summarizeChatSignals(signals: Array<{ asset: string; status: str
   });
 }
 
+export function formatChatServiceError(error: unknown, assistantName: string): string {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = raw.toLowerCase();
+  if (normalized.includes("429") || normalized.includes("rate limit") || normalized.includes("quota")) return `${assistantName} is temporarily rate-limited. Please try again shortly.`;
+  if (normalized.includes("service unavailable") || normalized.includes("unavailable") || normalized.includes("timeout") || normalized.includes("failed to fetch")) return `${assistantName} is temporarily unavailable because the response service did not return a valid response. Please try again in a moment.`;
+  return raw.trim() || `${assistantName} could not respond. Please try again shortly.`;
+}
+
 export function normalizeChatResponseContent(content: unknown): string {
   if (typeof content === "string" && content.trim()) return content;
   if (Array.isArray(content)) {
@@ -233,8 +241,13 @@ export const appRouter = router({
         "Answer questions such as which asset appears more predictable from the available sample, the current paper context for gold, and recent wins. Use the supplied strategy-rule excerpts as the user's source of truth when relevant.",
         `Relevant strategy rules for this question:\n${rulesText || "No matching rule excerpt was found."}\n\nFull stored forex-document knowledge:\n${documentText || "No stored forex document is available."}\n\nPaper outcomes in last 24 hours:\n${assetPerformance}\n\nStrategy judgment totals:\n${JSON.stringify(judgment)}\n\nScanner freshness and cadence:\n${JSON.stringify({ latestSuccessfulAt: cadence.latestSuccessfulAt, latestSuccessfulSource: cadence.latestSuccessfulSource, completedCycles: cadence.completedCycles, failedCycles: cadence.failedCycles, expectedIntervalMinutes: cadence.expectedIntervalMinutes })}\n\nV5 production smoke:\n${JSON.stringify(smoke)}\n\nCurrent Entry Locator states:\n${JSON.stringify(locatorStates.slice(0, 20))}\n\nRecent v5 decision ledger:\n${JSON.stringify(recentDecisions.slice(0, 40))}\n\nRequested live market context:\n${marketText}`,
       ].join("\n\n");
-      const response = await invokeLLM({ model: "gpt-5-mini", messages: [{ role: "system", content: system }, ...input.messages] , maxTokens: 1400 });
-      const content = normalizeChatResponseContent(response.choices[0]?.message.content);
+      let content: string;
+      try {
+        const response = await invokeLLM({ model: "gpt-5-mini", messages: [{ role: "system", content: system }, ...input.messages], maxTokens: 1400 });
+        content = normalizeChatResponseContent(response.choices[0]?.message.content);
+      } catch (error) {
+        content = formatChatServiceError(error, input.channel === "WHITE" ? "White AI" : "Cherry AI");
+      }
       await db.insert(auditMessages).values({ userId: ctx.user.id, channel: input.channel, role: "assistant", content });
       return { role: "assistant" as const, content, verdict: null, confidence: null, telegramDelivered: false };
     }),

@@ -60,6 +60,16 @@ describe("scanner cadence diagnostics", () => {
     expect(result.lastRunAt).toBe("2026-08-25T17:05:00.000Z");
   });
 
+  it("selects the latest successful available-data cycle for freshness", () => {
+    const result = summarizeScannerCadence([
+      { runKey: "trading-guard-scanner:20", taskUid: "external-cron-job", startedAt: "2026-08-27T13:00:00.000Z", finishedAt: "2026-08-27T13:00:12.000Z", status: "SUCCEEDED", marketData: "available" },
+      { runKey: "trading-guard-scanner:21", taskUid: "external-cron-job", startedAt: "2026-08-27T13:05:00.000Z", finishedAt: "2026-08-27T13:05:30.000Z", status: "SUCCEEDED", marketData: "unavailable", error: "Twelve Data 4h unavailable: aborted" },
+      { runKey: "trading-guard-scanner:22", taskUid: "heartbeat-task", startedAt: "2026-08-27T13:10:00.000Z", finishedAt: "2026-08-27T13:10:09.000Z", status: "SUCCEEDED", marketData: "available" },
+    ]);
+    expect(result.latestSuccessfulAt).toBe("2026-08-27T13:10:09.000Z");
+    expect(result.latestSuccessfulSource).toBe("HEARTBEAT");
+  });
+
   it("returns a safe empty state", () => {
     expect(summarizeScannerCadence([])).toMatchObject({ receivedCycles: 0, skippedWindows: 0, providerUnavailableWindows: 0, duplicateSuppressed: 0, lastRunAt: null });
   });

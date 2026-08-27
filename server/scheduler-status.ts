@@ -100,6 +100,8 @@ export function summarizeScannerCadence(runs: ScannerCadenceRun[]) {
   }
   const uniqueRows = Array.from(byRunKey.values()).sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
   const providerIssues = uniqueRows.map(providerIssueFromRun).filter((issue): issue is ScannerProviderIssue => Boolean(issue));
+  const successfulRows = uniqueRows.filter((run) => run.status === "SUCCEEDED" && run.marketData === "available");
+  const latestSuccessful = successfulRows.at(-1) ?? null;
   const intervals = uniqueRows.slice(1).map((row, index) => (new Date(row.startedAt).getTime() - new Date(uniqueRows[index].startedAt).getTime()) / 60000);
   const firstAt = uniqueRows[0] ? new Date(uniqueRows[0].startedAt).getTime() : null;
   const lastAt = uniqueRows.at(-1) ? new Date(uniqueRows.at(-1)!.startedAt).getTime() : null;
@@ -114,6 +116,8 @@ export function summarizeScannerCadence(runs: ScannerCadenceRun[]) {
     averageIntervalMinutes: intervals.length ? Math.round((intervals.reduce((sum, value) => sum + value, 0) / intervals.length) * 10) / 10 : null,
     lastRunAt: uniqueRows.at(-1)?.startedAt ?? null,
     lastSource: uniqueRows.at(-1) ? (uniqueRows.at(-1)!.taskUid === "external-cron-job" ? "EXTERNAL_TRIGGER" : "HEARTBEAT") : null,
+    latestSuccessfulAt: latestSuccessful?.finishedAt ?? latestSuccessful?.startedAt ?? null,
+    latestSuccessfulSource: latestSuccessful ? (latestSuccessful.taskUid === "external-cron-job" ? "EXTERNAL_TRIGGER" : "HEARTBEAT") : null,
     externalCycles: uniqueRows.filter((run) => run.taskUid === "external-cron-job").length,
     heartbeatCycles: uniqueRows.filter((run) => run.taskUid !== "external-cron-job").length,
     providerUnavailableCycles: providerIssues.length,

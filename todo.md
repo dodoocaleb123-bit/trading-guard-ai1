@@ -1303,3 +1303,8 @@
 - [x] Correct dashboard v5 hierarchy and zone-map copy so it accurately describes 15M and 5M as independent signal timeframes and does not imply 5M is absent
 - [x] Align the dashboard terminology regression with the corrected multi-line v5 hierarchy and zone-map copy
 - [x] Update Scanner page description to describe 4H/1H context with independent 15M/5M signal evaluation instead of the retired 15M/1H split
+
+- [x] Add a visible Scanner freshness indicator showing the latest successful scanner cycle and its age
+- [x] Monitor several production cycles for independent 15M/5M qualification, signal creation, delivery, and absence of 1H emissions
+- [x] Add regression coverage for the Scanner freshness query and visible latest-successful-cycle indicator
+- [x] Distinguish Scanner freshness loading and unavailable states from a true no-successful-cycle state

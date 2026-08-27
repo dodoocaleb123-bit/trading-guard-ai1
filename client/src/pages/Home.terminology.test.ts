@@ -33,6 +33,15 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("trpc.scanner.health.useQuery");
   });
 
+  it("exposes the latest successful scanner-cycle freshness indicator", () => {
+    expect(homeSource).toContain("trpc.scanner.cadence.useQuery");
+    expect(homeSource).toContain("Scanner freshness");
+    expect(homeSource).toContain("latestSuccessfulAt");
+    expect(homeSource).toContain("Expected cadence:");
+    expect(homeSource).toContain("Checking…");
+    expect(homeSource).toContain("Scanner cadence could not be loaded.");
+  });
+
   it("distinguishes candle time from scanner state-save time", () => {
     expect(homeSource).toContain("last candle");
     expect(homeSource).toContain("lastSnapshotAt");

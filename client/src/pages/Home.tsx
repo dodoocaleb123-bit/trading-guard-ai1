@@ -115,6 +115,15 @@ function formatDateTime(value: Date | string | null | undefined) {
       })
     : "—";
 }
+function scannerFreshness(value: Date | string | null | undefined) {
+  if (!value) return { label: "No successful cycle", tone: "text-amber-700", detail: "Waiting for the first successful market-data cycle." };
+  const ageMinutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000));
+  if (ageMinutes <= 7) return { label: `Fresh · ${ageMinutes}m ago`, tone: "text-emerald-700", detail: `Latest successful cycle finished ${formatDateTime(value)}.` };
+  if (ageMinutes <= 15) return { label: `Recent · ${ageMinutes}m ago`, tone: "text-emerald-700", detail: `Latest successful cycle finished ${formatDateTime(value)}.` };
+  if (ageMinutes <= 30) return { label: `Aging · ${ageMinutes}m ago`, tone: "text-amber-700", detail: `Latest successful cycle finished ${formatDateTime(value)}.` };
+  return { label: `Stale · ${ageMinutes}m ago`, tone: "text-rose-700", detail: `Latest successful cycle finished ${formatDateTime(value)}.` };
+}
+
 function riskRewardLabel(signal: {
   direction: string;
   entry: unknown;
@@ -2791,6 +2800,7 @@ function V5ZoneMap() {
 function ScannerPage() {
   const settings = trpc.scanner.status.useQuery(undefined, LIVE_QUERY_OPTIONS);
   const health = trpc.scanner.health.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const cadence = trpc.scanner.cadence.useQuery(undefined, LIVE_QUERY_OPTIONS);
   const [assetFilter, setAssetFilter] = useState("all");
   const [timeframeFilter, setTimeframeFilter] = useState("all");
   const [verdictFilter, setVerdictFilter] = useState("all");
@@ -2902,6 +2912,31 @@ function ScannerPage() {
           </div>
         }
       />
+      {(() => {
+        const freshness = cadence.isLoading
+          ? { label: "Checking…", tone: "text-muted-foreground", detail: "Loading the latest scanner cadence." }
+          : cadence.isError
+            ? { label: "Unavailable", tone: "text-rose-700", detail: "Scanner cadence could not be loaded." }
+            : scannerFreshness(cadence.data?.latestSuccessfulAt);
+        return (
+          <Card className="mb-6 border-primary/15 bg-primary/[0.025]">
+            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-primary/10 p-2.5 text-primary"><Radar className="h-5 w-5" /></div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Scanner freshness</p>
+                  <p aria-live="polite" className={`mt-1 text-lg font-semibold ${freshness.tone}`}>{freshness.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{freshness.detail}</p>
+                </div>
+              </div>
+              <div className="text-left text-xs text-muted-foreground sm:text-right">
+                <p>Source: <b className="text-foreground">{cadence.isLoading || cadence.isError ? "—" : cadence.data?.latestSuccessfulSource ?? "—"}</b></p>
+                <p className="mt-1">Expected cadence: <b className="text-foreground">5 min</b></p>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
       <AdaptiveGeometryDiagnostics />
       <V5SmokeStatusCard />
       <V5ZoneMap />

@@ -1,0 +1,133 @@
+{
+  "count": 25,
+  "entries": [
+    {
+      "timestamp": "2026-08-27T21:17:22Z",
+      "severity": "Default",
+      "message": "[OAuth] Initialized with baseURL: https://api.manus.ai"
+    },
+    {
+      "timestamp": "2026-08-27T21:17:22Z",
+      "severity": "Default",
+      "message": "Server running on http://localhost:3000/"
+    },
+    {
+      "timestamp": "2026-08-27T21:18:12Z",
+      "severity": "Default",
+      "message": "[OAuth] Initialized with baseURL: https://api.manus.ai"
+    },
+    {
+      "timestamp": "2026-08-27T21:18:12Z",
+      "severity": "Default",
+      "message": "Server running on http://localhost:3000/"
+    },
+    {
+      "timestamp": "2026-08-27T21:18:15Z",
+      "severity": "Default",
+      "message": "[Auth] Missing session cookie"
+    },
+    {
+      "timestamp": "2026-08-27T21:18:16Z",
+      "severity": "Default",
+      "message": "[Auth] Missing session cookie"
+    },
+    {
+      "timestamp": "2026-08-27T21:18:16Z",
+      "severity": "Default",
+      "message": "[Auth] Missing session cookie"
+    },
+    {
+      "timestamp": "2026-08-27T21:18:17Z",
+      "severity": "Default",
+      "message": "[Auth] Missing session cookie"
+    },
+    {
+      "timestamp": "2026-08-27T21:18:18Z",
+      "severity": "Default",
+      "message": "[Auth] Missing session cookie"
+    },
+    {
+      "timestamp": "2026-08-27T21:18:19Z",
+      "severity": "Default",
+      "message": "[Auth] Missing session cookie"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:02Z",
+      "severity": "Default",
+      "message": "[Scanner] Shared market-data window started at=2026-08-27T21:20:02.504Z"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:02Z",
+      "severity": "Default",
+      "message": "[Market] Twelve Data batch started interval=5min assets=4 at=2026-08-27T21:20:02.505Z"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:02Z",
+      "severity": "Default",
+      "message": "[Market] Twelve Data batch started interval=15min assets=4 at=2026-08-27T21:20:02.521Z"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:02Z",
+      "severity": "Default",
+      "message": "[Market] Twelve Data batch started interval=1h assets=4 at=2026-08-27T21:20:02.527Z"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:02Z",
+      "severity": "Default",
+      "message": "[Market] Twelve Data batch started interval=4h assets=4 at=2026-08-27T21:20:02.529Z"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:04Z",
+      "severity": "Default",
+      "message": "[Market] Twelve Data batch completed interval=1h assets=4 series=4 durationMs=1628 at=2026-08-27T21:20:04.155Z"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:04Z",
+      "severity": "Default",
+      "message": "[Market] Twelve Data batch completed interval=4h assets=4 series=4 durationMs=1937 at=2026-08-27T21:20:04.466Z"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:05Z",
+      "severity": "Default",
+      "message": "[Market] Twelve Data batch failed interval=15min assets=4 durationMs=3243: Request failed with status code 429"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:06Z",
+      "severity": "Default",
+      "message": "[Market] Twelve Data batch failed interval=5min assets=4 durationMs=3625: Request failed with status code 429"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:06Z",
+      "severity": "Default",
+      "message": "[Scanner] Optional 5min confirmation batch unavailable; continuing with 15min confirmation: Request failed with status code 429"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:06Z",
+      "severity": "Default",
+      "message": "[Scanner] Market-data window started user=24030001 at=2026-08-27T21:20:06.132Z"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:06Z",
+      "severity": "Default",
+      "message": "[Scanner] Market batch unavailable; no signals created: Twelve Data 15min unavailable: Request failed with status code 429"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:06Z",
+      "severity": "Default",
+      "message": "[Scanner] Market-data window started user=1 at=2026-08-27T21:20:06.184Z"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:06Z",
+      "severity": "Default",
+      "message": "[Scanner] Market batch unavailable; no signals created: Twelve Data 15min unavailable: Request failed with status code 429"
+    },
+    {
+      "timestamp": "2026-08-27T21:20:06Z",
+      "severity": "Default",
+      "message": "[Scanner] External trigger run complete: users=2 created=0 tracked=0 adjustments=0 marketData=unavailable"
+    }
+  ],
+  "has_more": false,
+  "oldest_time": "",
+  "project_id": "JPWZdwvyAH9bH5mLVeVheV"
+}

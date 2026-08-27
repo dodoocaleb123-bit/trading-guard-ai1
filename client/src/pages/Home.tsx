@@ -730,7 +730,6 @@ function Overview() {
         </Card>
       </div>
       <EntryLocatorCard />
-      <EntryForgerCard />
       <div className="mt-6">
         <RulesUpload compact />
       </div>
@@ -747,11 +746,12 @@ function EntryLocatorCard() {
     <Card className="mt-6">
       <CardHeader>
         <CardTitle className="font-display text-xl">
-          Entry-signal locator
+          V5 hierarchy execution states
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          The scanner accumulates distinct snapshots and waits for repeated,
-          coherent setup evidence instead of emitting routine interval signals.
+          V5 evaluates each scanner snapshot through its 4H → 1H → 15M
+          hierarchy. Entry Locator is the final execution-readiness gate; these
+          states show whether v5 has a qualified plan ready to emit.
         </p>
       </CardHeader>
       <CardContent>
@@ -773,7 +773,7 @@ function EntryLocatorCard() {
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <p className="text-muted-foreground">Snapshots</p>
+                    <p className="text-muted-foreground">V5 snapshots evaluated</p>
                     <p className="mt-1 font-semibold">{state.snapshotCount}</p>
                   </div>
                   <div>
@@ -860,149 +860,6 @@ function EntryLocatorCard() {
     </Card>
   );
 }
-function EntryForgerCard() {
-  const query = trpc.intelligence.entryForger.useQuery(
-    undefined,
-    LIVE_QUERY_OPTIONS
-  );
-  const states = query.data ?? [];
-  const formatNumber = (value: unknown) =>
-    value == null
-      ? "—"
-      : Number(value).toLocaleString(undefined, { maximumFractionDigits: 8 });
-  return (
-    <Card className="mt-6 border-primary/15">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <CardTitle className="font-display text-xl">Entry Forger</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Target-first fallback observability after Entry Locator geometry
-              denial. Entry Locator keeps precedence.
-            </p>
-          </div>
-          <Badge variant="outline" className="border-primary/25 text-primary">
-            LIVE · REFRESH 1 MIN
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {states.length ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {states.map(state => (
-              <div
-                key={`${state.asset}-${state.timeframe}`}
-                className="rounded-xl border bg-muted/20 p-3"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium">{state.asset}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {state.timeframe}
-                    </p>
-                  </div>
-                  <StatusPill status={state.status} />
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <p className="text-muted-foreground">Snapshots</p>
-                    <p className="mt-1 font-semibold">{state.snapshotCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Last direction</p>
-                    <p className="mt-1 font-semibold">
-                      {state.lastDirection ?? "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Confidence</p>
-                    <p className="mt-1 font-semibold">
-                      {state.lastConfidence == null
-                        ? "—"
-                        : `${state.lastConfidence}%`}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Confluence</p>
-                    <p className="mt-1 font-semibold">
-                      {state.lastConfluence == null
-                        ? "—"
-                        : `${state.lastConfluence}%`}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 rounded-lg border bg-background/70 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Forger decision
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-foreground">
-                    {state.reason ?? "No decision reason recorded."}
-                  </p>
-                </div>
-                {(state.targetBoundary != null ||
-                  state.targetDistance != null ||
-                  state.riskReward != null) && (
-                  <div className="mt-3 space-y-2 text-xs text-muted-foreground">
-                    <div className="grid grid-cols-2 gap-2">
-                      <span>
-                        Target boundary:{" "}
-                        <b className="text-foreground">
-                          {formatNumber(state.targetBoundary)}
-                        </b>
-                      </span>
-                      <span>
-                        Target-to-entry distance D:{" "}
-                        <b className="text-foreground">
-                          {formatNumber(state.targetDistance)}
-                        </b>
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 rounded-md bg-muted/40 p-2">
-                      <span>
-                        TP distance (100% of D):{" "}
-                        <b className="text-foreground">
-                          {state.targetDistance == null
-                            ? "—"
-                            : formatNumber(Number(state.targetDistance))}
-                        </b>
-                      </span>
-                      <span>
-                        SL distance (50% of D):{" "}
-                        <b className="text-foreground">
-                          {state.targetDistance == null
-                            ? "—"
-                            : formatNumber(Number(state.targetDistance) * 0.5)}
-                        </b>
-                      </span>
-                    </div>
-                    <span className="block">
-                      Planned R:R:{" "}
-                      <b className="text-foreground">
-                        {state.riskReward == null
-                          ? "—"
-                          : `1:${formatNumber(state.riskReward)}`}
-                      </b>
-                    </span>
-                  </div>
-                )}
-                <p className="mt-3 text-[11px] text-muted-foreground">
-                  Last snapshot {formatDateTime(state.lastSnapshotAt)} · Updated{" "}
-                  {formatDateTime(state.updatedAt)}
-                </p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-            No Entry Forger state has been recorded yet. The next scanner cycle
-            will evaluate and explain the fallback path.
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 function Metric({
   label,
   value,
@@ -1759,23 +1616,18 @@ function UpgradeChainHistory() {
 function V5SourcePerformanceCard() {
   const [asset, setAsset] = useState("ALL");
   const [timeframe, setTimeframe] = useState<"ALL" | "15MIN" | "1H">("ALL");
-  const [source, setSource] = useState<
-    "ALL" | "ENTRY_LOCATOR" | "ENTRY_FORGER"
-  >("ALL");
   const sourceFilters = useMemo(
     () => ({
       asset: asset === "ALL" ? undefined : asset,
       timeframe: timeframe === "ALL" ? undefined : timeframe,
-      source: source === "ALL" ? undefined : source,
     }),
-    [asset, source, timeframe]
+    [asset, timeframe]
   );
   const query = trpc.intelligence.v5SourceStats.useQuery(sourceFilters, {
     refetchInterval: 60_000,
   });
   const rows = query.data?.sources ?? [];
-  const visibleRows =
-    source === "ALL" ? rows : rows.filter(row => row.source === source);
+  const visibleRows = rows;
   return (
     <Card className="mt-6 border-primary/15 bg-primary/[0.025]">
       <CardHeader>
@@ -1785,9 +1637,8 @@ function V5SourcePerformanceCard() {
               V5 source performance
             </CardTitle>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Compare how often the strict Entry Locator and fallback Entry
-              Forger produce paper signals and how their resolved outcomes
-              compare. Refreshes every minute.
+              Review v5 paper signals created by the Entry Locator after the
+              hierarchy and quality gates pass. Refreshes every minute.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1816,20 +1667,6 @@ function V5SourcePerformanceCard() {
               <option value="15MIN">15MIN</option>
               <option value="1H">1H</option>
             </select>
-            <select
-              aria-label="Filter source performance by signal source"
-              value={source}
-              onChange={event =>
-                setSource(
-                  event.target.value as "ALL" | "ENTRY_LOCATOR" | "ENTRY_FORGER"
-                )
-              }
-              className="h-9 rounded-md border bg-background px-2 text-xs"
-            >
-              <option value="ALL">Both sources</option>
-              <option value="ENTRY_LOCATOR">Entry Locator</option>
-              <option value="ENTRY_FORGER">Entry Forger</option>
-            </select>
             <Badge variant="outline" className="border-primary/30 text-primary">
               UNVALIDATED
             </Badge>
@@ -1849,25 +1686,19 @@ function V5SourcePerformanceCard() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-medium">
-                      {row.source === "ENTRY_LOCATOR"
-                        ? "Entry Locator"
-                        : "Entry Forger"}
+                      "Entry Locator"
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {row.source === "ENTRY_LOCATOR"
-                        ? "Strict structural geometry"
-                        : "Target-first fallback geometry"}
+                      "V5 structural execution gate"
                     </p>
                   </div>
                   <Badge
                     variant="outline"
                     className={
-                      row.source === "ENTRY_LOCATOR"
-                        ? "border-primary/30 text-primary"
-                        : "border-amber-500/35 text-amber-700"
+                      "border-primary/30 text-primary"
                     }
                   >
-                    {row.source === "ENTRY_LOCATOR" ? "LOCATOR" : "FORGER"}
+                    LOCATOR
                   </Badge>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
@@ -2276,20 +2107,14 @@ function TradeHistory() {
                         className={
                           s.generationMode === "ENTRY_LOCATOR_V5"
                             ? "border-primary/30 text-primary"
-                            : s.generationMode === "ENTRY_FORGER_V5"
-                              ? "border-amber-500/35 text-amber-700"
-                              : "border-slate-400/40 text-slate-600"
+                            : "border-slate-400/40 text-slate-600"
                         }
                       >
                         {s.generationMode === "ENTRY_LOCATOR_V5"
                           ? "V5 · Entry Locator"
-                          : s.generationMode === "ENTRY_FORGER_V5"
-                            ? "V5 · Entry Forger"
-                            : s.intelligenceVersion?.includes("v5")
-                              ? "V5 · Legacy snapshot"
-                              : intelligenceVersionLabel(
-                                  s.intelligenceVersion ?? ""
-                                )}
+                          : s.intelligenceVersion?.includes("v5")
+                            ? "V5 · Historical snapshot"
+                            : intelligenceVersionLabel(s.intelligenceVersion ?? "")}
                       </Badge>
                     </div>
                     <p className="mt-1 text-[11px] text-muted-foreground">
@@ -2652,7 +2477,7 @@ function ScannerCadenceDiagnostics() {
                 </p>
                 <p className="mt-1 text-xs leading-5">
                   This cycle could not supply market data, so v5 did not
-                  evaluate setups and no Entry Locator or Entry Forger signal
+                  evaluate setups and no v5 Entry Locator signal
                   was created. Unavailable provider cycles in the last 24 hours:{" "}
                   {data.providerUnavailableCycles ?? 0}.{" "}
                   {data.latestProviderIssue.severity === "TRANSIENT"

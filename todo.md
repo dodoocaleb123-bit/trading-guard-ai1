@@ -1276,3 +1276,11 @@
 - [x] Add per-signal Telegram delivery status and timestamp indicators to the relevant dashboard view.
 - [x] Add regression coverage for orphan-state detection and delivery-status rendering.
 - [x] Run full tests, typecheck, build, responsive UI verification, and publish the observability correction. Focused tests passed 30 tests; full suite passed 56 files / 225 tests; TypeScript, production build, and mobile Scanner verification passed.
+
+## v5 activity visibility and Locator-only execution
+
+- [x] Expose v5 snapshot ingestion, 4H bias, 1H refinement, 15M zones, confirmation, structural levels, blockers, and final decision status in the dashboard. The Scanner now shows v5 execution states, the zone map, qualification trend, smoke status, and decision ledger.
+- [x] Clarify and correct snapshot provenance labels so snapshots are visibly attributed to the v5 hierarchy analysis layer rather than implying Entry Locator is the market-data engine.
+- [x] Remove Entry Forger from the dashboard interface, scanner fallback orchestration, active persistence/query paths, and related tests without deleting historical v5 records. The unused legacy database table/columns remain only for migration compatibility and are not imported or queried by the application.
+- [x] Preserve Entry Locator as the v5 execution-readiness gate with strict locks, confidence/confluence thresholds, paper-only mode, UNVALIDATED status, and outcome tracking.
+- [x] Add regression coverage and run full tests, typecheck, build, production reconciliation, and responsive UI verification before publishing. Focused v5 tests passed 28 tests; full suite, TypeScript, production build, and Scanner desktop/mobile verification passed.

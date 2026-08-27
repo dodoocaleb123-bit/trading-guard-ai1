@@ -17,13 +17,12 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("strategy-engine judgments");
   });
 
-  it("exposes the v5 source comparison controls and provenance labels", () => {
+  it("exposes the v5 Locator source controls and provenance labels", () => {
     expect(homeSource).toContain("V5 source performance");
     expect(homeSource).toContain("Filter source performance by asset");
     expect(homeSource).toContain("Filter source performance by timeframe");
-    expect(homeSource).toContain("Filter source performance by signal source");
     expect(homeSource).toContain("Entry Locator");
-    expect(homeSource).toContain("Entry Forger");
+    expect(homeSource).not.toContain("Entry Forger");
   });
 
   it("configures live dashboard queries to refresh and refetch on focus", () => {
@@ -46,7 +45,7 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("Latest affected interval");
     expect(homeSource).toContain("detected");
     expect(homeSource).toContain("latestProviderIssue.at");
-    expect(homeSource).toContain("no Entry Locator or Entry Forger signal");
+    expect(homeSource).toContain("no v5 Entry Locator signal");
   });
 
   it("keeps scheduler-operated diagnostics out of the Scanner page", () => {
@@ -64,7 +63,7 @@ describe("dashboard terminology", () => {
 
   it("keeps only recommended operational cards after optional-card cleanup", () => {
     expect(homeSource).toContain("<EntryLocatorCard />");
-    expect(homeSource).toContain("<EntryForgerCard />");
+    expect(homeSource).not.toContain("EntryForgerCard");
     expect(homeSource).toContain("Strategy-engine decision ledger");
     expect(homeSource).not.toContain("<ScannerCadenceDiagnostics");
     expect(homeSource).not.toContain("<MacroStatusPanel");
@@ -78,20 +77,10 @@ describe("dashboard terminology", () => {
     expect(homeSource).not.toContain("How to read this page");
   });
 
-  it("exposes the live Entry Forger status and decision-reason panel", () => {
-    expect(homeSource).toContain("trpc.intelligence.entryForger.useQuery");
-    expect(homeSource).toContain(">Entry Forger</CardTitle>");
-    expect(homeSource).toContain("Forger decision");
-    expect(homeSource).toContain("Target boundary:");
-    expect(homeSource).toContain("Entry Locator keeps precedence.");
-  });
-
-  it("shows the Entry Forger target-distance geometry breakdown", () => {
-    expect(homeSource).toContain("Target-to-entry distance D:");
-    expect(homeSource).toContain("TP distance (100% of D):");
-    expect(homeSource).toContain("SL distance (50% of D):");
-    expect(homeSource).toContain("Number(state.targetDistance))");
-    expect(homeSource).toContain("Number(state.targetDistance) * 0.5");
+  it("does not expose the retired Entry Forger interface or query", () => {
+    expect(homeSource).not.toContain("trpc.intelligence.entryForger.useQuery");
+    expect(homeSource).not.toContain("Entry Forger");
+    expect(homeSource).not.toContain("EntryForgerCard");
   });
 
   it("exposes the v5 zone map, history freshness, and qualification trend", () => {

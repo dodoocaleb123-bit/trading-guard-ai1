@@ -44,7 +44,7 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain('immersiveChat = path === "/chat-audit" || path === "/cherry-ai"');
     expect(homeSource).toContain('APP-AWARE CONVERSATIONS');
     expect(homeSource).toContain('INDEPENDENT TRADE REVIEW');
-    expect(homeSource).toContain('aria-label="Open app tabs"');
+    expect(homeSource).toContain('aria-label="Open app navigation"');
     expect(homeSource).toContain('aria-label="Export conversation"');
     expect(homeSource).toContain('aria-label="Clear conversation"');
     expect(homeSource).not.toContain('Ask</Button>');

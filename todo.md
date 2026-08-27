@@ -1339,3 +1339,7 @@
 
 - [x] Center White AI and Cherry AI names, subtitles, panel toggle, Export, and Clear controls as one balanced fixed-header group
 - [x] Validate the centered header on phone and laptop layouts without changing chat or v5 behavior
+
+- [x] Revert the mistaken vertical header centering while keeping the assistant identity horizontally centered in the top panel
+- [x] Remove the duplicate in-chat tabs panel and connect its left button to the existing app navigation on phone and laptop
+- [x] Validate the corrected header and existing-navigation behavior without changing v5 or chat functionality

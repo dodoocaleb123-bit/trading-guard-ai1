@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { useSidebar } from "@/components/ui/sidebar";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -1091,13 +1092,7 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
     link.click();
     URL.revokeObjectURL(url);
   };
-  const [, navigate] = useLocation();
-  const workspaceTabs = [
-    { label: "Overview", path: "/", icon: Radar },
-    { label: "White AI", path: "/chat-audit", icon: MessageSquareText },
-    { label: "Cherry AI", path: "/cherry-ai", icon: ShieldCheck },
-    { label: "Scanner", path: "/scanner", icon: Zap },
-  ];
+  const { toggleSidebar } = useSidebar();
   const prompts = isCherry
     ? [
         "Audit EUR/USD BUY on 15MIN with 1:2 risk/reward",
@@ -1115,41 +1110,13 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
           "Explain why this v5 plan was skipped",
           "Audit XAU/USD SELL with 1:2 risk/reward",
         ];
-  const [panelOpen, setPanelOpen] = useState(false);
   return (
     <div className="-mx-4 -my-6 flex min-h-[100dvh] min-w-0 flex-col overflow-hidden bg-background font-montserrat sm:mx-0 sm:my-0 sm:min-h-[calc(100vh-4rem)] sm:rounded-2xl sm:border">
-      <div className="flex min-h-0 flex-1">
-        <aside className={cn("fixed inset-y-0 left-0 z-40 w-72 border-r bg-card p-4 shadow-xl transition-transform duration-200 sm:static sm:w-56 sm:shrink-0 sm:translate-x-0 sm:shadow-none", panelOpen ? "translate-x-0" : "-translate-x-full")}>
-          <div className="mb-5 flex items-center justify-between sm:hidden">
-            <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">App tabs</span>
-            <Button type="button" variant="ghost" size="icon" onClick={() => setPanelOpen(false)} aria-label="Close app tabs">
-              <PanelLeft className="size-4" />
-            </Button>
-          </div>
-          <nav className="space-y-1" aria-label="Chat workspace tabs">
-            {workspaceTabs.map(tab => {
-              const Icon = tab.icon;
-              const active = tab.path === (isCherry ? "/cherry-ai" : "/chat-audit");
-              return (
-                <button
-                  key={tab.path}
-                  type="button"
-                  onClick={() => { navigate(tab.path); setPanelOpen(false); }}
-                  className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition-colors", active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
-                >
-                  <Icon className="size-4 shrink-0" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
-        {panelOpen && <button type="button" aria-label="Close app tabs" className="fixed inset-0 z-30 bg-black/20 sm:hidden" onClick={() => setPanelOpen(false)} />}
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col">
           {history.isError && <DataError text="Chat history could not be loaded. New conversations remain available after the connection recovers." />}
           <header className="sticky top-0 z-20 flex min-h-20 shrink-0 items-center justify-center border-b bg-background px-4 py-3 sm:px-6">
             <div className="flex min-w-0 items-center justify-center gap-2 sm:gap-3">
-              <Button type="button" variant="ghost" size="icon" onClick={() => setPanelOpen(value => !value)} aria-label="Open app tabs" title="Open app tabs" className="shrink-0">
+              <Button type="button" variant="ghost" size="icon" onClick={toggleSidebar} aria-label="Open app navigation" title="Open app navigation" className="shrink-0">
                 <PanelLeft className="size-5" />
               </Button>
               <div className="min-w-0 text-center">
@@ -1183,7 +1150,6 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
             </Suspense>
           </main>
         </section>
-      </div>
     </div>
   );
 }

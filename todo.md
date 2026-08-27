@@ -1336,3 +1336,6 @@
 - [x] Add responsive tests and visual verification without changing v5 signal generation, Telegram delivery, locks, or tracking
 - [x] Remove the duplicate mobile page bar above White AI and Cherry AI so the fixed chat header is the only chat identity panel
 - [x] Tune immersive chat height so the fixed composer reaches the bottom edge of the phone viewport without unused lower space
+
+- [x] Center White AI and Cherry AI names, subtitles, panel toggle, Export, and Clear controls as one balanced fixed-header group
+- [x] Validate the centered header on phone and laptop layouts without changing chat or v5 behavior

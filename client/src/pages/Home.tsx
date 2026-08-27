@@ -1147,21 +1147,23 @@ function ChatAudit({ assistant = "WHITE" }: { assistant?: "WHITE" | "CHERRY" } =
         {panelOpen && <button type="button" aria-label="Close app tabs" className="fixed inset-0 z-30 bg-black/20 sm:hidden" onClick={() => setPanelOpen(false)} />}
         <section className="flex min-h-0 min-w-0 flex-1 flex-col">
           {history.isError && <DataError text="Chat history could not be loaded. New conversations remain available after the connection recovers." />}
-          <header className="sticky top-0 z-20 flex min-h-20 shrink-0 items-center gap-3 border-b bg-background px-4 py-3 sm:px-6">
-            <Button type="button" variant="ghost" size="icon" onClick={() => setPanelOpen(value => !value)} aria-label="Open app tabs" className="shrink-0">
-              <PanelLeft className="size-5" />
-            </Button>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold tracking-tight">{isCherry ? "Cherry AI" : "White AI"}</p>
-              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{isCherry ? "INDEPENDENT TRADE REVIEW" : "APP-AWARE CONVERSATIONS"}</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Button type="button" variant="ghost" size="icon" onClick={exportConversation} disabled={!combined.length} aria-label="Export conversation" title="Export conversation">
-                <Download className="size-4" />
+          <header className="sticky top-0 z-20 flex min-h-20 shrink-0 items-center justify-center border-b bg-background px-4 py-3 sm:px-6">
+            <div className="flex min-w-0 items-center justify-center gap-2 sm:gap-3">
+              <Button type="button" variant="ghost" size="icon" onClick={() => setPanelOpen(value => !value)} aria-label="Open app tabs" title="Open app tabs" className="shrink-0">
+                <PanelLeft className="size-5" />
               </Button>
-              <Button type="button" variant="ghost" size="icon" onClick={() => window.confirm(`Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted audit records remain.`) && clearConversation.mutate({ channel: assistant })} disabled={isPending} aria-label="Clear conversation" title="Clear conversation">
-                <Trash2 className="size-4" />
-              </Button>
+              <div className="min-w-0 text-center">
+                <p className="truncate text-base font-semibold tracking-tight">{isCherry ? "Cherry AI" : "White AI"}</p>
+                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{isCherry ? "INDEPENDENT TRADE REVIEW" : "APP-AWARE CONVERSATIONS"}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button type="button" variant="ghost" size="icon" onClick={exportConversation} disabled={!combined.length} aria-label="Export conversation" title="Export conversation">
+                  <Download className="size-4" />
+                </Button>
+                <Button type="button" variant="ghost" size="icon" onClick={() => window.confirm(`Clear this ${isCherry ? "Cherry AI" : "White AI"} conversation? Persisted audit records remain.`) && clearConversation.mutate({ channel: assistant })} disabled={isPending} aria-label="Clear conversation" title="Clear conversation">
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
             </div>
           </header>
           <main className="min-h-0 flex-1 p-0">

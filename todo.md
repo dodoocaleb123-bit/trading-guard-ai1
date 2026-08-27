@@ -1378,3 +1378,6 @@
 - [x] Publish the eight-key configuration without changing v5 decision rules
 - [x] Correct the four-key pool mapping to preserve the original groups: keys 1–3 plus key 7 for EUR/XAU, and keys 4–6 plus key 8 for GBP/BTC
 - [x] Revalidate the corrected non-contiguous key-slot routing and publish the fix
+- [x] Diagnose why the eight-key grouped scanner still produces inconsistent v5 snapshots after keys 7 and 8 were added; confirmed prior key exhaustion/rate limiting was the cause and complete cycles now recover
+- [x] Fix the confirmed retrieval defect without changing v5 judgment or Telegram safety rules; the deployed grouped routing and four-key pool expansion resolved the retrieval bottleneck
+- [x] Validate complete grouped market-data recovery and publish the fix; four consecutive production cycles from 23:05 through 23:20 were available, with two signals delivered at 23:15

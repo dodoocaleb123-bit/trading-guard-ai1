@@ -1456,3 +1456,9 @@
 - [x] Verify 4H/1H remain context-only and White AI remains read-only while v5 and Telegram workflows stay unchanged
 - [x] Add regression coverage, run production-safe validation, and publish the zone-persistence correction
 
+- [x] Add a versioned persistent v5 zone inventory keyed by user, asset, timeframe, and zone identity
+- [x] Reconcile newly detected zones against prior zones, preserving valid zones and recording retests, freshness changes, and invalidations
+- [x] Feed maintained zone inventory into v5 evidence while preserving existing confirmation, risk, signal, and Telegram boundaries
+- [x] Expose maintained zone history to White AI as read-only grounded context
+- [x] Add migration, regression coverage, production-safe validation, and publish the persistent zone-memory implementation
+

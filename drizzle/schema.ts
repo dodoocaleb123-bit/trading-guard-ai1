@@ -232,6 +232,35 @@ export const entryLocatorStates = mysqlTable("entry_locator_states", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const v5ZoneHistory = mysqlTable("v5_zone_history", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  asset: varchar("asset", { length: 32 }).notNull(),
+  timeframe: varchar("timeframe", { length: 16 }).notNull(),
+  zoneKey: varchar("zoneKey", { length: 255 }).notNull(),
+  zoneKind: mysqlEnum("zoneKind", ["SUPPLY", "DEMAND"]).notNull(),
+  lower: decimal("lower", { precision: 24, scale: 10 }).notNull(),
+  upper: decimal("upper", { precision: 24, scale: 10 }).notNull(),
+  reactions: int("reactions").default(0).notNull(),
+  displacement: decimal("displacement", { precision: 24, scale: 10 }).default("0").notNull(),
+  fresh: boolean("fresh").default(true).notNull(),
+  weakFor: varchar("weakFor", { length: 32 }).default("").notNull(),
+  lifecycle: mysqlEnum("lifecycle", ["ACTIVE", "WEAKENED", "INVALIDATED"]).default("ACTIVE").notNull(),
+  observationCount: int("observationCount").default(1).notNull(),
+  retestCount: int("retestCount").default(0).notNull(),
+  firstSeenAt: timestamp("firstSeenAt").defaultNow().notNull(),
+  lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
+  lastCandleAt: timestamp("lastCandleAt"),
+  lastRetestedAt: timestamp("lastRetestedAt"),
+  evidenceJson: mediumtext("evidenceJson").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  zoneIdentityUnique: unique("v5_zone_history_identity_unique").on(table.userId, table.asset, table.timeframe, table.zoneKey),
+  assetTimeframeIdx: index("v5_zone_history_asset_timeframe_idx").on(table.userId, table.asset, table.timeframe),
+  lifecycleIdx: index("v5_zone_history_lifecycle_idx").on(table.userId, table.lifecycle),
+}));
+
 export const entryForgerStates = mysqlTable("entry_forger_states", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

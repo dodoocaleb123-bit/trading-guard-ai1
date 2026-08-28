@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, ownerAlertLedger, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users, whiteAiMemories } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, ownerAlertLedger, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users, v5ZoneHistory, whiteAiMemories } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
 import { isStaleScannerRun, summarizeScannerCadence } from "./scheduler-status";
@@ -311,6 +311,36 @@ export async function saveEntryLocatorState(input: { userId: number; asset: stri
   }
   const result = await db.insert(entryLocatorStates).values({ ...input, lastSnapshotAt: input.lastSnapshotAt ?? null, lastDirection: input.lastDirection ?? null, lastConfidence: input.lastConfidence ?? null, lastConfluence: input.lastConfluence ?? null, evidenceJson: input.evidenceJson ?? null, conflictJson: input.conflictJson ?? null, stateJson: input.stateJson ?? null, lastEmittedAt: input.lastEmittedAt ?? null });
   return { id: Number(result[0].insertId), ...input };
+}
+
+export async function upsertV5ZoneHistory(input: typeof v5ZoneHistory.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(v5ZoneHistory).values(input).onDuplicateKeyUpdate({ set: {
+    zoneKind: input.zoneKind,
+    lower: input.lower,
+    upper: input.upper,
+    reactions: input.reactions,
+    displacement: input.displacement,
+    fresh: input.fresh,
+    weakFor: input.weakFor,
+    lifecycle: input.lifecycle,
+    observationCount: input.observationCount,
+    retestCount: input.retestCount,
+    lastSeenAt: input.lastSeenAt,
+    lastCandleAt: input.lastCandleAt ?? null,
+    lastRetestedAt: input.lastRetestedAt ?? null,
+    evidenceJson: input.evidenceJson,
+  } });
+}
+
+export async function listV5ZoneHistory(userId: number, asset?: string, timeframe?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const filters = [eq(v5ZoneHistory.userId, userId)];
+  if (asset) filters.push(eq(v5ZoneHistory.asset, asset));
+  if (timeframe) filters.push(eq(v5ZoneHistory.timeframe, timeframe));
+  return db.select().from(v5ZoneHistory).where(and(...filters)).orderBy(desc(v5ZoneHistory.lastSeenAt)).limit(500);
 }
 
 export async function listEntryLocatorStates(userId: number) {

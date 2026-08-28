@@ -1,12 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import { generatedSignals, users } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_LOCATOR_V5_GENERATION_MODE, getActiveIntelligenceVersion, buildBoundedRuleText, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, claimOwnerAlert, listAcceptedStrategyLessons, listFailedOutcomeDeliveries, listIntelligenceComponents, listOpenCurrentV5Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, markOwnerAlertNotified, supersedeGeneratedSignal, updateStrategyEngineStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createPaperTradeAdjustment, createStrategyDecision, createStrategyLesson, ENTRY_LOCATOR_V5_GENERATION_MODE, getActiveIntelligenceVersion, buildBoundedRuleText, getAllRulesText, getDb, getEntryLocatorState, getRelevantRulesText, getTelegramDeliveryForSignal, hasOpenGeneratedSignal, hasTelegramDelivery, claimOwnerAlert, listAcceptedStrategyLessons, listFailedOutcomeDeliveries, listIntelligenceComponents, listV5ZoneHistory, listOpenCurrentV5Signals, listStrategyRules, recordStrategyEngineHealth, recordTelegramDelivery, saveEntryLocatorState, markOwnerAlertNotified, supersedeGeneratedSignal, updateStrategyEngineStatus, upsertV5ZoneHistory } from "./db";
 import { buildMultiTimeframeContext } from "./market-context";
 import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
 import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV5, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { advanceEntryLocator, countStrongSetupIndicators, hasBreakoutConfirmationTransition, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
-import { detectWorkflowZones, evaluateHierarchicalWorkflow } from "./multitimeframe-workflow";
+import { detectWorkflowZones, evaluateHierarchicalWorkflow, type WorkflowZone } from "./multitimeframe-workflow";
+import { reconcileZoneMemory, toWorkflowZone, type PersistedZoneMemory } from "./zone-memory";
 import { describePaperSignalQuality, hasMinimumPaperSignalQuality } from "./paper-signal-quality";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
@@ -201,6 +202,25 @@ export function buildPersistedZoneEvidence(input: { asset: string; timeframe: st
   };
 }
 
+async function reconcileAndPersistV5ZoneMemory(userId: number, seriesByTimeframe: Array<{ timeframe: "4H" | "1H" | "15MIN" | "5MIN"; series: Map<string, MarketSeries> }>, priorRows: PersistedZoneMemory[]) {
+  const allRecords: PersistedZoneMemory[] = [];
+  for (const { timeframe, series } of seriesByTimeframe) {
+    for (const asset of WATCHLIST) {
+      const current = series.get(asset);
+      if (!current) continue;
+      const prior = priorRows.filter((row) => row.asset === asset && row.timeframe === timeframe);
+      const observed = detectWorkflowZones({ interval: current.interval, values: current.values, close: current.close, marketContext: current.marketContext }, asset);
+      const candleAt = parseMarketSeriesCandleAt(current);
+      const reconciled = reconcileZoneMemory({ prior, observed, asset, timeframe, currentPrice: current.close, candleAt, observedAt: new Date() });
+      await Promise.all(reconciled.map(async (record) => {
+        await upsertV5ZoneHistory({ userId, asset: record.asset, timeframe: record.timeframe, zoneKey: record.zoneKey, zoneKind: record.zoneKind, lower: String(record.lower), upper: String(record.upper), reactions: record.reactions, displacement: String(record.displacement), fresh: record.fresh, weakFor: record.weakFor, lifecycle: record.lifecycle, observationCount: record.observationCount, retestCount: record.retestCount, firstSeenAt: new Date(record.firstSeenAt), lastSeenAt: new Date(record.lastSeenAt), lastCandleAt: record.lastCandleAt ? new Date(record.lastCandleAt) : null, lastRetestedAt: record.lastRetestedAt ? new Date(record.lastRetestedAt) : null, evidenceJson: record.evidenceJson });
+      }));
+      allRecords.push(...reconciled);
+    }
+  }
+  return allRecords;
+}
+
 export function buildContextOnlyState(input: { asset: string; timeframe: "1H" | "4H"; series: MarketSeries; previousSnapshotCount?: number; previousLastEmittedAt?: Date | null }) {
   const candleAt = parseMarketSeriesCandleAt(input.series);
   const zoneEvidence = buildPersistedZoneEvidence(input);
@@ -316,6 +336,21 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
   series15m.forEach((series, symbol) => seriesCache.set(`${symbol}:15MIN`, series));
   series1h.forEach((series, symbol) => seriesCache.set(`${symbol}:1H`, series));
   series4h.forEach((series, symbol) => seriesCache.set(`${symbol}:4H`, series));
+  const priorZoneRows = await listV5ZoneHistory(userId) as unknown as PersistedZoneMemory[];
+  const maintainedZoneRows = await reconcileAndPersistV5ZoneMemory(userId, [
+    { timeframe: "4H", series: series4h },
+    { timeframe: "1H", series: series1h },
+    { timeframe: "15MIN", series: series15m },
+    { timeframe: "5MIN", series: series5m },
+  ], priorZoneRows);
+  const maintainedZonesByAsset = new Map<string, WorkflowZone[]>();
+  for (const record of maintainedZoneRows) {
+    const zone = toWorkflowZone(record);
+    if (!zone) continue;
+    const assetZones = maintainedZonesByAsset.get(record.asset) ?? [];
+    assetZones.push(zone);
+    maintainedZonesByAsset.set(record.asset, assetZones);
+  }
   await persistV5ContextStates(userId, series1h, series4h);
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
   const createdSignalIds = new Set<number>();
@@ -365,7 +400,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         const series15mForWorkflow = seriesCache.get(`${asset}:15MIN`);
         const series5mForWorkflow = seriesCache.get(`${asset}:5MIN`);
         const replacementIntelligence = market.marketContext && hasDirectionalIndicator
-          ? evaluateHierarchicalWorkflow({ asset, timeframe, primary: series, series4h, series1h: series1hForWorkflow, series15m: series15mForWorkflow, series5m: series5mForWorkflow, fundamentalContext, acceptedLessons }, replacementModel)
+          ? evaluateHierarchicalWorkflow({ asset, timeframe, primary: series, series4h, series1h: series1hForWorkflow, series15m: series15mForWorkflow, series5m: series5mForWorkflow, priorZones: maintainedZonesByAsset.get(asset) ?? [], fundamentalContext, acceptedLessons }, replacementModel)
           : null;
         const workflowIndicators = replacementIntelligence?.setupIndicators ?? detectedIndicators;
         if (!market.marketContext || !replacementIntelligence) {

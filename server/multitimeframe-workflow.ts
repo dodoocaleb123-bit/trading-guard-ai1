@@ -43,6 +43,12 @@ function average(values: number[]) { return values.length ? values.reduce((sum, 
 function round(value: number, digits = 6) { const factor = 10 ** digits; return Math.round(value * factor) / factor; }
 function precision(asset?: string) { return asset === "BTC/USD" ? 2 : asset === "XAU/USD" ? 4 : 5; }
 function pipSize(asset: string) { return asset === "BTC/USD" ? 1 : asset === "XAU/USD" ? 0.01 : 0.0001; }
+function overlapRatioForWorkflowZones(left: Pick<WorkflowZone, "lower" | "upper">, right: Pick<WorkflowZone, "lower" | "upper">) {
+  const overlap = Math.max(0, Math.min(left.upper, right.upper) - Math.max(left.lower, right.lower));
+  const smallerWidth = Math.max(Math.min(left.upper - left.lower, right.upper - right.lower), 1e-12);
+  return overlap / smallerWidth;
+}
+
 function directionFromStructure(context: MarketContext | null | undefined): "BUY" | "SELL" | "NEUTRAL" {
   if (context?.marketStructure === "RISING") return "BUY";
   if (context?.marketStructure === "FALLING") return "SELL";
@@ -178,7 +184,7 @@ function buildLevels(asset: string, entry: number, direction: "BUY" | "SELL", ac
 }
 
 export function evaluateHierarchicalWorkflow(input: { asset: string; timeframe: string; primary: WorkflowSeries; series4h?: WorkflowSeries; series1h?: WorkflowSeries;   series15m?: WorkflowSeries;
-  series5m?: WorkflowSeries;
+  series5m?: WorkflowSeries; priorZones?: WorkflowZone[];
   fundamentalContext?: FundamentalContext; acceptedLessons?: Array<{ id: number; outcome: "WIN" | "LOSS" | "INVALIDATED"; lessonJson: string }> }, model: ReplacementKnowledgeModel): ReplacementDecision & { workflow: HierarchicalWorkflow } {
   const hierarchy = [input.series4h, input.series1h, input.series15m, input.timeframe.toUpperCase() === "5MIN" ? input.series5m : undefined].filter((series): series is WorkflowSeries => Boolean(series));
   const enrichedContext = enrichContext(input.primary.marketContext, hierarchy, input.primary);
@@ -189,7 +195,9 @@ export function evaluateHierarchicalWorkflow(input: { asset: string; timeframe: 
   const dominant4h = protected4hInvalidated ? "NEUTRAL" as const : inferred4h;
   const trend1h = directionFromStructure(input.series1h?.marketContext);
   const workingDirection = dominant4h !== "NEUTRAL" ? dominant4h : trend1h !== "NEUTRAL" ? trend1h : baseline.direction;
-  const zones = hierarchy.flatMap((series) => detectWorkflowZones(series, input.asset));
+  const detectedZones = hierarchy.flatMap((series) => detectWorkflowZones(series, input.asset));
+  const historicalZones = (input.priorZones ?? []).filter((historical) => !detectedZones.some((current) => current.kind === historical.kind && current.timeframe === historical.timeframe && overlapRatioForWorkflowZones(current, historical) >= 0.5));
+  const zones = [...detectedZones, ...historicalZones].slice(-48);
   const currentPrice = input.primary.close;
   const activeZone = zones.filter((zone) => !zone.weakFor.includes(workingDirection) && currentPrice >= zone.lower && currentPrice <= zone.upper).sort((left, right) => (left.timeframe === input.timeframe ? -1 : 1) - (right.timeframe === input.timeframe ? -1 : 1))[0] ?? null;
   const normalizedTimeframe = input.timeframe.toUpperCase();

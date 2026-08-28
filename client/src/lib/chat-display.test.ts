@@ -11,4 +11,11 @@ describe("displayChatMessage", () => {
     expect(displayChatMessage('"I could not produce a response."'))
       .toContain("Historical assistant response unavailable");
   });
+
+  it("hides persisted malformed-response errors with the active assistant name", () => {
+    expect(displayChatMessage("Cannot read properties of undefined (reading '0')", "White AI"))
+      .toContain("White AI was temporarily unavailable");
+    expect(displayChatMessage("Cannot read properties of undefined (reading '0')", "Cherry AI"))
+      .toContain("Cherry AI was temporarily unavailable");
+  });
 });

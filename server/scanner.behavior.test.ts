@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculateMarketContext } from "./market-context";
 
-const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV5Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db } = vi.hoisted(() => {
+const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV5Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, buildBoundedRuleText, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db } = vi.hoisted(() => {
   const fetchMarketSeriesBatch = vi.fn(async () => { throw new Error("Twelve Data quota exhausted"); });
   const generateScannerDecisions = vi.fn();
   const createStrategyDecision = vi.fn(async (input: any) => ({ id: 99, ...input }));
@@ -19,6 +19,7 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
   const updateStrategyEngineStatus = vi.fn();
   const recordStrategyEngineHealth = vi.fn();
   const getActiveIntelligenceVersion = vi.fn(async () => ({ id: 1, versionLabel: "forex-trading-combined-document-v2" }));
+  const buildBoundedRuleText = vi.fn((rules: Array<{ title?: string | null; content?: string | null }>, maxChars = 60_000) => rules.map((rule) => `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`).join("\n\n").slice(0, maxChars));
   const activateIntelligenceVersion = vi.fn();
   const listIntelligenceComponents = vi.fn(async () => []);
   const listStrategyRules = vi.fn(async () => [{ id: 1, title: "Rules", content: "Use confirmation." }]);
@@ -34,7 +35,7 @@ const { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, r
     })),
   }));
   const db = { select, insert, update: vi.fn() };
-  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV5Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db };
+  return { fetchMarketSeriesBatch, generateScannerDecisions, sendTelegramMessage, recordTelegramDelivery, createStrategyDecision, createPaperTradeAdjustment, hasTelegramDelivery, listOpenCurrentV5Signals, listFailedOutcomeDeliveries, getSettings, hasRecentStrategyDecision, hasOpenGeneratedSignal, getEntryLocatorState, saveEntryLocatorState, updateStrategyEngineStatus, recordStrategyEngineHealth, getActiveIntelligenceVersion, buildBoundedRuleText, activateIntelligenceVersion, listIntelligenceComponents, listStrategyRules, listAcceptedStrategyLessons, createIntelligenceVersion, createIntelligenceComponent, claimOwnerAlert, markOwnerAlertNotified, insert, select, db };
 });
 
 vi.mock("./db", () => ({
@@ -42,6 +43,7 @@ vi.mock("./db", () => ({
   listStrategyRules,
   listAcceptedStrategyLessons,
   getActiveIntelligenceVersion,
+  buildBoundedRuleText,
   ENTRY_LOCATOR_V5_GENERATION_MODE: "ENTRY_LOCATOR_V5",
   activateIntelligenceVersion,
   listIntelligenceComponents,

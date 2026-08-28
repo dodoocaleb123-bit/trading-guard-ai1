@@ -1,0 +1,18 @@
+## Strategy rules payload follow-up
+
+At 01:16 UTC the authenticated Strategy rules route rendered successfully after the API change. The page displayed 71 imported rule sets with short readable excerpts and timestamps; no technical error text, crash, or navigation failure appeared. The prior browser extraction had transferred roughly 4.5 MB because the route received complete document bodies. The API now maps each usable rule through `toStrategyRuleSummary`, preserving metadata and a 720-character preview plus `contentLength`, while internal scanner/chat/intelligence callers continue using `listStrategyRules` for full server-side context. The new regression test confirms previews are capped and source objects remain unchanged.
+
+Automated validation after this change: 63 Vitest files / 254 tests passed; TypeScript no-emit passed; production build passed with the existing large-chunk advisory only.
+
+## Live scanner and signal-path verification
+
+The latest 200 production runtime records were audited. The newest 5 completed external-trigger cycles through 01:15 UTC all finished `SUCCEEDED` with `marketData=available`, `users=2`, and no recorded error. The log audit found zero recent OOM/heap messages, zero unhandled/uncaught/exception messages, and zero provider 429/quota messages in the sampled window. The repeated `SKIPPED` messages are explicit v5 waiting decisions: no qualified structural plan was ready, so the Entry Locator correctly emitted no signal rather than failing.
+
+The live database verification confirmed 16 successful scanner cycles since 00:00 UTC, all with market data available. Recent hierarchy decisions are 128 `SKIPPED` rows for each allowed execution timeframe, 15MIN and 5MIN. The generated-signal table contains only previously resolved historical records in the inspected aggregate; there are no current open blocking signals. Persisted Entry Locator state contains 8 rows per timeframe for 15MIN, 5MIN, 1H, and 4H. All are WAITING, with latest state updates at 01:15:08 UTC; latest 1H and 4H context snapshots are present at 01:00 UTC, and 5MIN snapshots at 01:10 UTC. This confirms higher-timeframe context persistence and the no-1H/4H-emission boundary.
+
+The live production deployment inspected during this pass remains version `0f02d070`; the bounded Strategy rules payload change is local until the next checkpoint is saved and auto-published.
+
+## Final visual and route verification
+
+The desktop Strategy rules screen renders correctly with metadata and bounded excerpts. The first attempted `/white-ai` screenshot returned 404 because the app’s actual White AI navigation path is `/chat-audit`; source inspection confirmed the implemented route and menu target are correct, so no alias defect was introduced. The valid `/chat-audit` and `/cherry-ai` routes were then verified at 375×812. Both show the fixed assistant header, centered identity/tagline, icon-only Export/Clear controls, edge-to-edge white canvas, ash-gray user composer/bubbles, fixed bottom composer, and friendly readable White AI fallback text when the response service returns an invalid response. Cherry AI renders its persisted audit content without technical error text.
+

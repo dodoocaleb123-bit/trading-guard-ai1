@@ -183,6 +183,16 @@ export async function listStrategyRules(userId: number) {
   return rows.filter(isUsableStrategyRule);
 }
 
+export function toStrategyRuleSummary<T extends { content: string }>(rule: T, previewChars = 720) {
+  const preview = rule.content.length > previewChars ? `${rule.content.slice(0, previewChars)}…` : rule.content;
+  return { ...rule, content: preview, contentLength: rule.content.length };
+}
+
+export async function listStrategyRuleSummaries(userId: number, previewChars = 720) {
+  const rules = await listStrategyRules(userId);
+  return rules.map((rule) => toStrategyRuleSummary(rule, previewChars));
+}
+
 export async function createStrategyRule(input: typeof strategyRules.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -485,6 +495,16 @@ export async function startScannerRun(taskUid: string, at = new Date()) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const runKey = buildScannerRunKey(taskUid, at);
+  // Reclaim stale RUNNING rows across task IDs before checking this callback's
+  // lease. This covers disabled legacy schedulers whose final callback never
+  // returned, while the bounded lease prevents a slow but healthy run from
+  // being reclaimed too early.
+  const runningRuns = await db.select().from(scannerRunLedger).where(eq(scannerRunLedger.status, "RUNNING")).orderBy(scannerRunLedger.startedAt).limit(50);
+  for (const runningRun of runningRuns) {
+    if (isStaleScannerRun(runningRun, at)) {
+      await db.update(scannerRunLedger).set({ status: "FAILED", finishedAt: at, marketData: "unavailable", error: `Scanner run lease expired before callback completion: ${runningRun.runKey}` }).where(eq(scannerRunLedger.id, runningRun.id));
+    }
+  }
   const activeRuns = await db.select().from(scannerRunLedger).where(and(eq(scannerRunLedger.taskUid, taskUid), eq(scannerRunLedger.status, "RUNNING"))).orderBy(desc(scannerRunLedger.startedAt)).limit(1);
   const active = activeRuns[0];
   if (active && active.runKey !== runKey) {
@@ -719,9 +739,21 @@ export async function markOnboardingComplete(userId: number) {
   await db.insert(appSettings).values({ userId, onboardingComplete: true }).onDuplicateKeyUpdate({ set: { onboardingComplete: true } });
 }
 
-export async function getAllRulesText(userId: number) {
-  const rules = await listStrategyRules(userId);
-  return rules.map((rule) => `## ${rule.title}\n${rule.content}`).join("\n\n");
+export function buildBoundedRuleText(rules: Array<{ title?: string | null; content?: string | null }>, maxChars = 60_000) {
+  const sections: string[] = [];
+  let chars = 0;
+  for (const rule of rules) {
+    if (chars >= maxChars) break;
+    const remaining = maxChars - chars;
+    const section = `## ${rule.title ?? "Saved strategy rule"}\n${rule.content ?? ""}`;
+    sections.push(section.slice(0, remaining));
+    chars += Math.min(section.length, remaining) + 2;
+  }
+  return sections.join("\n\n").slice(0, maxChars);
+}
+
+export async function getAllRulesText(userId: number, maxChars = 60_000) {
+  return buildBoundedRuleText(await listStrategyRules(userId), maxChars);
 }
 
 export async function getRelevantRulesText(userId: number, query: string, maxChars = 120_000) {

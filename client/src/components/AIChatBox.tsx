@@ -280,7 +280,7 @@ export function AIChatBox({
                     >
                       {message.role === "assistant" ? (
                         <div className="prose prose-sm dark:prose-invert w-full min-w-0 max-w-none break-words [overflow-wrap:anywhere]">
-                          <Streamdown>{displayChatMessage(message.content)}</Streamdown>
+                          <Streamdown>{displayChatMessage(message.content, assistantName ?? "White AI")}</Streamdown>
                         </div>
                       ) : (
                         <p className="whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">

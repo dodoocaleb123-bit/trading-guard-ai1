@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getAllRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, listOpenCurrentV5Signals, getScannerCadenceDiagnostics, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV5OutcomeStats, getAdaptiveRatioStats, getV5SourceStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV5MonitoringStats, getV5HierarchySmokeStatus, getLiveMarketPulse, listEntryLocatorStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listStrategyDecisionsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getAllRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, listOpenCurrentV5Signals, getScannerCadenceDiagnostics, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV5OutcomeStats, getAdaptiveRatioStats, getV5SourceStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV5MonitoringStats, getV5HierarchySmokeStatus, getLiveMarketPulse, listEntryLocatorStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listStrategyDecisionsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRuleSummaries, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, resolveLessonPatternReview } from "./intelligence";
@@ -31,7 +31,7 @@ export function formatChatServiceError(error: unknown, assistantName: string): s
   const raw = error instanceof Error ? error.message : String(error ?? "");
   const normalized = raw.toLowerCase();
   if (normalized.includes("429") || normalized.includes("rate limit") || normalized.includes("quota")) return `${assistantName} is temporarily rate-limited. Please try again shortly.`;
-  if (normalized.includes("service unavailable") || normalized.includes("unavailable") || normalized.includes("timeout") || normalized.includes("failed to fetch")) return `${assistantName} is temporarily unavailable because the response service did not return a valid response. Please try again in a moment.`;
+  if (normalized.includes("service unavailable") || normalized.includes("unavailable") || normalized.includes("timeout") || normalized.includes("failed to fetch") || normalized.includes("cannot read properties") || normalized.includes("is not a function") || normalized.includes("missing readable") || normalized.includes("invalid response")) return `${assistantName} is temporarily unavailable because the response service did not return a valid response. Please try again in a moment.`;
   return raw.trim() || `${assistantName} could not respond. Please try again shortly.`;
 }
 
@@ -163,7 +163,7 @@ export const appRouter = router({
     }),
   }),
   rules: router({
-    list: protectedProcedure.query(({ ctx }) => listStrategyRules(ctx.user.id)),
+    list: protectedProcedure.query(({ ctx }) => listStrategyRuleSummaries(ctx.user.id)),
     supabaseList: protectedProcedure.query(() => fetchStrategyRulesFromSupabase()),
     ingest: protectedProcedure
       .input(z.object({ fileName: z.string(), mimeType: z.string(), sourceType: z.enum(["pdf", "docx", "text"]), title: z.string().min(1), contentBase64: z.string().min(1) }))
@@ -244,7 +244,9 @@ export const appRouter = router({
       let content: string;
       try {
         const response = await invokeLLM({ model: "gpt-5-mini", messages: [{ role: "system", content: system }, ...input.messages], maxTokens: 1400 });
-        content = normalizeChatResponseContent(response.choices[0]?.message.content);
+        const choice = response?.choices?.[0];
+        if (!choice?.message) throw new Error("LLM response missing readable message");
+        content = normalizeChatResponseContent(choice.message.content);
       } catch (error) {
         content = formatChatServiceError(error, input.channel === "WHITE" ? "White AI" : "Cherry AI");
       }

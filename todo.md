@@ -1411,3 +1411,30 @@
 - [x] Run regression, build, visual, and production-cycle verification
 - [x] Publish the verified 1H state persistence correction
 
+- [x] Run a clean baseline check across build, TypeScript, tests, runtime logs, and production health
+- [x] Diagnose frontend routes, responsive chat interfaces, authentication, tRPC/API, and database access
+- [x] Diagnose scheduler callbacks, scanner cadence, Twelve Data pools, 1H/4H context, v5 workflow, Telegram, tracking, and outcome delivery
+- [x] Diagnose White AI and Cherry AI transport, persistence, formatting, and failure fallback
+- [x] Fix every confirmed application defect found during the baseline diagnosis
+- [x] Repeat the complete diagnosis after fixes until one full pass completes without application errors
+- [x] Publish the clean diagnostic checkpoint and report any external-provider limitations separately
+
+- [x] Fix the authenticated White AI history/render crash: `Cannot read properties of undefined (reading '0')`
+- [x] Restart the full diagnostic from the beginning after fixing the White AI crash
+
+- [x] Reclaim the two orphaned RUNNING scanner-ledger rows left by the disabled legacy scheduler and prevent future cross-task orphan leakage
+
+- [x] Diagnose the production scanner JavaScript heap-out-of-memory event observed after the 00:50 cycle
+- [x] Fix scanner memory growth without changing v5 decisions, timeframe policy, Telegram, or paper-only safeguards
+- [x] Repeat the complete full-app diagnosis from the beginning after the memory fix
+
+- [x] Update scanner test mocks for the new bounded rule-text helper and rerun the failed focused validation
+
+- [x] Add a bounded timeout to built-in LLM requests so White AI and other callers cannot remain pending indefinitely
+- [x] Add regression coverage for LLM timeout and retry exhaustion fallback behavior
+
+- [x] Repeat the complete full-app diagnosis from the beginning after the LLM timeout fix
+
+- [x] Bound the authenticated Strategy rules page payload so it does not transfer and retain full multi-megabyte document contents in the client
+- [x] Add regression coverage for bounded rule-list summaries while preserving full server-side rule context
+

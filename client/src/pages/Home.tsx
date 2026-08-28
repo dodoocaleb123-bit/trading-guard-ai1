@@ -2510,42 +2510,35 @@ function ScannerCadenceDiagnostics() {
               </span>
             </div>
             {data?.runs?.length ? (
-              <div className="divide-y rounded-xl border bg-background">
-                {data.runs.slice(0, 6).map(run => (
-                  <div
-                    key={run.id}
-                    className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <p className="text-xs font-medium">
-                        {run.taskUid === "external-cron-job"
-                          ? "EXTERNAL TRIGGER"
-                          : "HEARTBEAT"}{" "}
-                        · {formatDateTime(run.startedAt)}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {run.finishedAt
-                          ? `Finished ${formatDateTime(run.finishedAt)}`
-                          : "Still running"}
-                        {Number(run.duplicateCallbacks ?? 0)
-                          ? ` · ${run.duplicateCallbacks} duplicate callback${Number(run.duplicateCallbacks) === 1 ? "" : "s"} suppressed`
-                          : ""}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={
-                        run.status === "SUCCEEDED"
-                          ? "border-emerald-500/25 text-emerald-700"
-                          : run.status === "FAILED"
-                            ? "border-rose-500/25 text-rose-700"
-                            : "border-amber-500/25 text-amber-700"
-                      }
-                    >
-                      {run.status}
-                    </Badge>
-                  </div>
-                ))}
+              <div className="overflow-hidden rounded-xl border bg-background">
+                <div className="border-b bg-muted/25 px-3 py-2.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground">Production health timeline</p>
+                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground">Recent scheduler cycles at a glance. Telegram is only attempted after v5 qualifies and the Entry Locator emits a signal.</p>
+                </div>
+                <div className="divide-y">
+                  {data.runs.slice(0, 8).map(run => {
+                    const hasMarketData = run.marketData === "available";
+                    const qualified = Number(run.createdSignals ?? 0) > 0;
+                    const source = run.taskUid === "external-cron-job" ? "External trigger" : "Heartbeat";
+                    return (
+                      <div key={run.id} className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                            <span className="font-semibold text-foreground">{formatDateTime(run.startedAt)}</span>
+                            <span className="text-muted-foreground">{source}</span>
+                            <Badge variant="outline" className={run.status === "SUCCEEDED" ? "border-emerald-500/25 text-emerald-700" : run.status === "FAILED" ? "border-rose-500/25 text-rose-700" : "border-amber-500/25 text-amber-700"}>{run.status}</Badge>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                            <span className={`rounded-full border px-2 py-0.5 ${hasMarketData ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700" : "border-amber-500/25 bg-amber-500/5 text-amber-800"}`}>Data · {hasMarketData ? "available" : run.marketData === "unavailable" ? "unavailable" : "not run"}</span>
+                            <span className={`rounded-full border px-2 py-0.5 ${qualified ? "border-emerald-500/25 bg-emerald-500/5 text-emerald-700" : "border-slate-300 bg-slate-50 text-slate-700"}`}>v5 · {qualified ? `${run.createdSignals} qualified` : "waiting"}</span>
+                            <span className={`rounded-full border px-2 py-0.5 ${qualified ? "border-blue-500/25 bg-blue-500/5 text-blue-700" : "border-slate-300 bg-slate-50 text-slate-700"}`}>Telegram · {qualified ? "path started" : "not attempted"}</span>
+                          </div>
+                        </div>
+                        <p className="shrink-0 text-[11px] text-muted-foreground">{run.finishedAt ? `Finished ${formatDateTime(run.finishedAt)}` : "Still running"}</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -2953,6 +2946,7 @@ function ScannerPage() {
         </Card>
       ) : null}
       <AdaptiveGeometryDiagnostics />
+      <ScannerCadenceDiagnostics />
       <V5SmokeStatusCard />
       <V5ZoneMap />
       <V5DecisionTrend />

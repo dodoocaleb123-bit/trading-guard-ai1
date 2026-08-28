@@ -51,6 +51,9 @@ export type ScannerCadenceRun = {
   finishedAt?: Date | string | null;
   status: string;
   duplicateCallbacks?: number | null;
+  createdSignals?: number | string | null;
+  trackedSignals?: number | string | null;
+  adjustments?: number | string | null;
   marketData?: "available" | "unavailable" | "not-run" | string | null;
   error?: string | null;
 };

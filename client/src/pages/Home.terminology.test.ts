@@ -75,8 +75,16 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("no v5 Entry Locator signal");
   });
 
-  it("keeps scheduler-operated diagnostics out of the Scanner page", () => {
-    expect(homeSource).not.toContain("<ScannerCadenceDiagnostics />");
+  it("exposes the compact production health timeline", () => {
+    expect(homeSource).toContain("Production health timeline");
+    expect(homeSource).toContain("Data · {hasMarketData ? \"available\" : run.marketData === \"unavailable\" ? \"unavailable\" : \"not run\"}");
+    expect(homeSource).toContain("v5 · {qualified ? `${run.createdSignals} qualified` : \"waiting\"}");
+    expect(homeSource).toContain("Telegram · {qualified ? \"path started\" : \"not attempted\"}");
+    expect(homeSource).toContain("Telegram is only attempted after v5 qualifies");
+  });
+
+  it("mounts the compact production timeline on the Scanner page", () => {
+    expect(homeSource).toContain("<ScannerCadenceDiagnostics />");
     expect(homeSource).not.toContain("<CallbackStatusCard />");
     expect(homeSource).not.toContain("Recent app-side run history");
     expect(homeSource).not.toContain("Activate 5-min schedule");
@@ -92,7 +100,7 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("<EntryLocatorCard />");
     expect(homeSource).not.toContain("EntryForgerCard");
     expect(homeSource).toContain("Strategy-engine decision ledger");
-    expect(homeSource).not.toContain("<ScannerCadenceDiagnostics");
+    expect(homeSource).toContain("<ScannerCadenceDiagnostics />");
     expect(homeSource).not.toContain("<MacroStatusPanel");
     expect(homeSource).not.toContain("<V2V3Comparison");
     expect(homeSource).not.toContain("<LocatorOutcomeReviewCard");

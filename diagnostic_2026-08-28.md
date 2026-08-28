@@ -16,3 +16,15 @@ The live production deployment inspected during this pass remains version `0f02d
 
 The desktop Strategy rules screen renders correctly with metadata and bounded excerpts. The first attempted `/white-ai` screenshot returned 404 because the app’s actual White AI navigation path is `/chat-audit`; source inspection confirmed the implemented route and menu target are correct, so no alias defect was introduced. The valid `/chat-audit` and `/cherry-ai` routes were then verified at 375×812. Both show the fixed assistant header, centered identity/tagline, icon-only Export/Clear controls, edge-to-edge white canvas, ash-gray user composer/bubbles, fixed bottom composer, and friendly readable White AI fallback text when the response service returns an invalid response. Cherry AI renders its persisted audit content without technical error text.
 
+## Requested follow-up implementation verification
+
+The Scanner page settled successfully after the live queries completed. At 01:30 UTC, the page showed a fresh successful external-trigger cycle, 15M/1H/4H retrieval all AVAILABLE, the authenticated v5 production smoke marked PASS with 45 payloads checked, 0 qualified and 45 waiting, and explicit WAITING states for current Entry Locator plans. No technical error was shown. The first visual capture was taken before query settlement and showed loading placeholders; the settled browser verification confirmed the underlying data rendered correctly.
+
+The compact production health timeline code is now present in the Scanner cadence diagnostics and is ready for final visual inspection below the first viewport.
+
+## Compact timeline follow-up
+
+The compact production health timeline is now mounted on the authenticated Scanner page. After query settlement, the page showed a fresh 01:30 UTC external-trigger cycle with 15M, 1H, and 4H available, v5 smoke PASS, and current 15M/5M Entry Locator states WAITING. The timeline summarizes recent cycles, source, SUCCEEDED/failed state, market-data availability, v5 qualified-or-waiting status, and whether the Telegram path was started or not attempted. Full regression now passes 63 files / 255 tests and TypeScript validation passes.
+
+A first monitoring observation found no qualified setup yet: the latest persisted v5 decisions are explicit SKIPPED/WAITING states, so no Telegram signal was expected. The monitor remains focused only on the next qualified v5 setup and its persisted delivery record.
+

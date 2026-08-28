@@ -52,7 +52,7 @@ function range(candle: Candle) { return Math.max(candle.high - candle.low, 0); }
 function body(candle: Candle) { return Math.abs(candle.close - candle.open); }
 function averageRange(candles: Candle[]) { return average(candles.slice(-20).map(range)); }
 
-function detectZones(series: WorkflowSeries, asset: string): WorkflowZone[] {
+export function detectWorkflowZones(series: WorkflowSeries, asset: string): WorkflowZone[] {
   const candles = parse(series.values);
   if (candles.length < 8) return [];
   const avgRange = averageRange(candles);
@@ -189,7 +189,7 @@ export function evaluateHierarchicalWorkflow(input: { asset: string; timeframe: 
   const dominant4h = protected4hInvalidated ? "NEUTRAL" as const : inferred4h;
   const trend1h = directionFromStructure(input.series1h?.marketContext);
   const workingDirection = dominant4h !== "NEUTRAL" ? dominant4h : trend1h !== "NEUTRAL" ? trend1h : baseline.direction;
-  const zones = hierarchy.flatMap((series) => detectZones(series, input.asset));
+  const zones = hierarchy.flatMap((series) => detectWorkflowZones(series, input.asset));
   const currentPrice = input.primary.close;
   const activeZone = zones.filter((zone) => !zone.weakFor.includes(workingDirection) && currentPrice >= zone.lower && currentPrice <= zone.upper).sort((left, right) => (left.timeframe === input.timeframe ? -1 : 1) - (right.timeframe === input.timeframe ? -1 : 1))[0] ?? null;
   const normalizedTimeframe = input.timeframe.toUpperCase();

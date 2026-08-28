@@ -1451,3 +1451,8 @@
 - [x] Add a grounded read-only explanation path for signal entry, stop, target, and risk-to-reward questions
 - [x] Validate the exact XAU/USD stop-loss question and publish the fix without changing v5 execution
 
+- [x] Trace and correct v5 zone detection-to-persistence for every watched asset and supported timeframe
+- [x] Persist bounded zone positions and supporting evidence for 4H, 1H, 15M, and 5M without changing v5 confirmation rules
+- [x] Verify 4H/1H remain context-only and White AI remains read-only while v5 and Telegram workflows stay unchanged
+- [x] Add regression coverage, run production-safe validation, and publish the zone-persistence correction
+

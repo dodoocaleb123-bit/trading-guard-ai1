@@ -6,7 +6,7 @@ import { fetchOfficialMacroContext } from "./official-macro";
 import { buildIntelligenceModel, compileExecutableComponents, evaluateExecutableIntelligence, type ExecutableComponent } from "./intelligence";
 import { ALLOWED_RISK_REWARD_RATIOS, buildReplacementKnowledgeModelV3, buildReplacementKnowledgeModelV5, detectSetupIndicators, evaluateReplacementIntelligence } from "./replacement-intelligence";
 import { advanceEntryLocator, countStrongSetupIndicators, hasBreakoutConfirmationTransition, markEntryLocatorEmitted, type EntryLocatorObservation } from "./entry-locator";
-import { evaluateHierarchicalWorkflow } from "./multitimeframe-workflow";
+import { detectWorkflowZones, evaluateHierarchicalWorkflow } from "./multitimeframe-workflow";
 import { describePaperSignalQuality, hasMinimumPaperSignalQuality } from "./paper-signal-quality";
 import { detectPaperTradeContradiction } from "./paper-trade-adjustments";
 import { buildUpgradePaperAdjustmentReason, buildUpgradeTelegramDedupeKey, compareStrongerSameDirectionSetup } from "./paper-trade-upgrades";
@@ -177,8 +177,33 @@ export function parseMarketSeriesCandleAt(series: Pick<MarketSeries, "values" | 
   return Number.isFinite(parsed.getTime()) ? parsed : Number.isFinite(fallback.getTime()) ? fallback : new Date();
 }
 
+export function buildPersistedZoneEvidence(input: { asset: string; timeframe: string; series: MarketSeries }) {
+  const candleAt = parseMarketSeriesCandleAt(input.series);
+  const context = input.series.marketContext;
+  const zones = detectWorkflowZones({ interval: input.series.interval, values: input.series.values, close: input.series.close, marketContext: context }, input.asset);
+  return {
+    kind: "V5_ZONE_REFRESH" as const,
+    asset: input.asset,
+    timeframe: input.timeframe,
+    interval: input.series.interval,
+    fetchedAt: input.series.fetchedAt,
+    candleAt: candleAt.toISOString(),
+    currentPrice: input.series.close,
+    zones,
+    marketStructure: context?.marketStructure ?? null,
+    breakoutState: context?.breakoutState ?? null,
+    supportZone: context?.supportResistance.supportZone ?? null,
+    resistanceZone: context?.supportResistance.resistanceZone ?? null,
+    nextSupport: context?.nextSupport ?? null,
+    nextResistance: context?.nextResistance ?? null,
+    atr: context?.volatility.atr ?? null,
+    sampleSize: context?.sampleSize ?? null,
+  };
+}
+
 export function buildContextOnlyState(input: { asset: string; timeframe: "1H" | "4H"; series: MarketSeries; previousSnapshotCount?: number; previousLastEmittedAt?: Date | null }) {
   const candleAt = parseMarketSeriesCandleAt(input.series);
+  const zoneEvidence = buildPersistedZoneEvidence(input);
   return {
     status: "WAITING" as const,
     snapshotCount: (input.previousSnapshotCount ?? 0) + 1,
@@ -186,9 +211,9 @@ export function buildContextOnlyState(input: { asset: string; timeframe: "1H" | 
     lastDirection: null,
     lastConfidence: null,
     lastConfluence: null,
-    evidenceJson: JSON.stringify({ kind: "V5_CONTEXT_REFRESH", asset: input.asset, timeframe: input.timeframe, interval: input.series.interval, fetchedAt: input.series.fetchedAt, candleAt: candleAt.toISOString() }),
+    evidenceJson: JSON.stringify({ kind: "V5_CONTEXT_REFRESH", zoneEvidence }),
     conflictJson: "[]",
-    stateJson: JSON.stringify({ contextOnly: true, asset: input.asset, timeframe: input.timeframe, interval: input.series.interval, fetchedAt: input.series.fetchedAt, candleAt: candleAt.toISOString(), waitReason: `${input.timeframe} context refreshed for the v5 hierarchy; this timeframe is not eligible for signal emission.` }),
+    stateJson: JSON.stringify({ contextOnly: true, ...zoneEvidence, waitReason: `${input.timeframe} context refreshed for the v5 hierarchy; this timeframe is not eligible for signal emission.` }),
     lastEmittedAt: input.previousLastEmittedAt ?? null,
   };
 }
@@ -445,7 +470,8 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
         ? { ...locatorResult.state, status: "WAITING" as const, waitReason: gated.entryLocatorReason }
         : locatorResult.state;
     const locatorState = executableLocatorEmission ? markEntryLocatorEmitted(qualitySafeLocatorState, observation.fingerprint) : qualitySafeLocatorState;
-    await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null,       lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify(locatorState), lastEmittedAt: executableLocatorEmission ? new Date() : storedLocator?.lastEmittedAt ?? null });
+    const zoneEvidence = buildPersistedZoneEvidence({ asset, timeframe, series: sourceCandidate!.series });
+    await saveEntryLocatorState({ userId, asset, timeframe, status: locatorState.status, snapshotCount: locatorState.snapshotCount, lastSnapshotAt: locatorState.lastSnapshotAt ? new Date(locatorState.lastSnapshotAt) : null,       lastDirection: observation.direction === "NEUTRAL" ? null : observation.direction, lastConfidence: String(observation.confidence), lastConfluence: String(observation.confluence), evidenceJson: JSON.stringify({ ...zoneEvidence, supporting: observation.supportingComponents, conflicting: observation.conflictingComponents }), conflictJson: JSON.stringify(observation.conflictingComponents), stateJson: JSON.stringify({ ...locatorState, zoneEvidence }), lastEmittedAt: executableLocatorEmission ? new Date() : storedLocator?.lastEmittedAt ?? null });
     if (hasBreakoutConfirmationTransition(previousLocator, observation)) {
       const dedupeKey = `BREAKOUT_CONFIRMED:${userId}:${asset}:${timeframe}:${observation.fingerprint}`;
       const content = `${asset} ${timeframe} has transitioned to a confirmed ${observation.direction} breakout. Geometry mode: ${observation.geometryMode ?? "UNKNOWN"}. Next opposing zone: ${observation.direction === "BUY" ? observation.nextResistance ?? "not recorded" : observation.nextSupport ?? "not recorded"}. This is an operational paper-trading alert; it is not a guarantee and does not itself emit a signal.`;

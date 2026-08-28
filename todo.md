@@ -1408,6 +1408,6 @@
 - [x] Trace why retrieved 1H context is not refreshing the visible v5 state records
 - [x] Persist fresh 1H context state without making 1H an emission timeframe
 - [x] Clarify dashboard labels so 1H context freshness is distinct from 15M/5M signal readiness
-- [ ] Run regression, build, visual, and production-cycle verification
-- [ ] Publish the verified 1H state persistence correction
+- [x] Run regression, build, visual, and production-cycle verification
+- [x] Publish the verified 1H state persistence correction
 

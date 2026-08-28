@@ -1441,3 +1441,9 @@
 - [x] Add a compact production health timeline showing recent scanner cycles, market-data availability, v5 waiting/qualified state, and delivery status
 - [x] Monitor the next qualified v5 setup and verify the complete persisted signal-to-Telegram delivery path
 
+- [x] Upgrade White AI into a read-only trading and v5 workflow intelligence with grounded explanations
+- [x] Add persistent White AI learning memory for approved conversation-derived preferences and facts without altering v5 rules
+- [x] Add grounded White AI analytics for winning rates, timeframe performance, difficult or unstable assets, and related records
+- [x] Preserve strict read-only boundaries so White AI cannot modify v5, Entry Locator, signals, tracking, or Telegram behavior
+- [x] Add regression coverage, visual verification, and publish the White AI upgrade
+

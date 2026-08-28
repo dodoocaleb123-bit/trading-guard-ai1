@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, ownerAlertLedger, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users } from "../drizzle/schema";
+import { appSettings, auditMessages, auditTrades, cooldownChangeLog, entryLocatorStates, generatedSignals, InsertUser, ownerAlertLedger, scannerRunLedger, strategyDecisionLedger, strategyRules, strategyIntelligenceComponents, strategyIntelligenceVersions, strategyLessons, telegramDeliveries, paperTradeAdjustments, users, whiteAiMemories } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { filterStrategyDecisions, type DecisionFilters } from "./decision-ledger";
 import { isStaleScannerRun, summarizeScannerCadence } from "./scheduler-status";
@@ -204,6 +204,34 @@ export async function listAuditMessages(userId: number, channel: "WHITE" | "CHER
   const db = await getDb();
   if (!db) return [];
   return db.select().from(auditMessages).where(and(eq(auditMessages.userId, userId), eq(auditMessages.channel, channel))).orderBy(desc(auditMessages.createdAt)).limit(100);
+}
+
+export async function listWhiteAiMemories(userId: number, limit = 40) {
+  const db = await getDb();
+  if (!db) return [];
+  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
+  return db.select({ id: whiteAiMemories.id, memoryType: whiteAiMemories.memoryType, content: whiteAiMemories.content, sourceMessageId: whiteAiMemories.sourceMessageId, createdAt: whiteAiMemories.createdAt })
+    .from(whiteAiMemories)
+    .where(eq(whiteAiMemories.userId, userId))
+    .orderBy(desc(whiteAiMemories.createdAt))
+    .limit(safeLimit);
+}
+
+export function normalizeWhiteAiMemory(content: string) {
+  return content.replace(/\s+/g, " ").trim().slice(0, 1200);
+}
+
+export async function rememberWhiteAiConversation(userId: number, content: string, sourceMessageId?: number | null) {
+  const db = await getDb();
+  if (!db) return null;
+  const normalized = normalizeWhiteAiMemory(content);
+  if (!normalized) return null;
+  const existing = await db.select({ id: whiteAiMemories.id }).from(whiteAiMemories)
+    .where(and(eq(whiteAiMemories.userId, userId), eq(whiteAiMemories.content, normalized)))
+    .limit(1);
+  if (existing[0]) return existing[0];
+  const result = await db.insert(whiteAiMemories).values({ userId, memoryType: "CONVERSATION", content: normalized, sourceMessageId: sourceMessageId ?? null });
+  return { id: Number(result[0].insertId), content: normalized };
 }
 
 export function attachTelegramDelivery<T extends { id: number }, D extends { kind: string; signalId?: number | null; auditTradeId?: number | null }>(rows: T[], deliveries: D[], kind: "SIGNAL" | "AUDIT", key: "signalId" | "auditTradeId") {

@@ -49,6 +49,15 @@ export const auditMessages = mysqlTable("audit_messages", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+export const whiteAiMemories = mysqlTable("white_ai_memories", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  memoryType: mysqlEnum("memoryType", ["CONVERSATION", "PREFERENCE", "LEARNING"]).default("CONVERSATION").notNull(),
+  content: varchar("content", { length: 1200 }).notNull(),
+  sourceMessageId: int("sourceMessageId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export const generatedSignals = mysqlTable("generated_signals", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

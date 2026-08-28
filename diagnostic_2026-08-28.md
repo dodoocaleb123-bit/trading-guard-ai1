@@ -34,3 +34,17 @@ After the timeline was published, the next monitored external-trigger cycle at 0
 
 The live runtime-log CLI temporarily returned `cloudrun service not found`; the database delivery ledger was available and provided the authoritative end-to-end confirmation. No destructive database operation was performed.
 
+## White AI upgrade verification — 2026-08-28
+The first authenticated browser request after adding persistent memory and full outcome analytics returned the existing readable unavailable fallback. Network evidence showed HTTP 200 from the tRPC endpoint but an 18.5-second assistant fallback, with no server-side unhandled exception. The prompt was then tightened: only the last 12 conversation messages are sent, each capped at 3,000 characters; stored rule knowledge, analytics, signals, locator state, and decision context are serialized with bounded caps; recent signal fields are projected to a compact evidence shape. The v5 execution and Telegram paths remain untouched.
+
+A fresh authenticated White AI question after the bounded-context correction still returned the readable unavailable fallback. The route and composer remained functional; the request reached tRPC successfully but the assistant content was unavailable. Further runtime isolation is required before publishing this upgrade.
+
+After the prompt-size correction, a fresh authenticated White AI request succeeded. The question “What is risk management in forex?” returned a readable educational answer with the required analysis-only, paper-trading-only, and UNVALIDATED framing. A second live request asking for BTC/USD 1H v5 zones was submitted; its response is still settling and will be checked separately. The earlier fallback messages remain historical records, not a current request failure.
+
+The live BTC/USD 1H zone question was recorded in White AI history but returned the existing friendly fallback rather than an app-specific answer. General educational White AI requests succeed after the prompt bounds; this exposes a separate issue in app-specific zone grounding that must be fixed before publishing.
+
+After the syntax repair and focused tests, the authenticated BTC/USD 1H zone request still displayed the prior friendly fallback. The request was persisted, while the deterministic fallback path was not visibly reached in the browser result, suggesting the LLM returned an unavailable response rather than throwing. Further validation will inspect the latest request timing and server behavior; no v5 execution path was modified.
+
+## White AI upgrade verification — final browser pass
+After bounding conversation and analytics context and adding deterministic zone evidence fallback, the authenticated White AI route was reloaded successfully. A general question, “What is risk management in forex?”, returned a structured educational answer with analysis-only, paper-trading-only, and UNVALIDATED framing. A v5-specific question, “What zones has v5 discovered for BTC/USD on the 1H timeframe?”, returned grounded persisted state: BTC/USD 1H exists, status WAITING, 110 snapshots, no numeric support/resistance/target boundaries currently published, and no invented levels. The answer correctly explained that 1H is context-only and that the Entry Locator is WAITING. Historical unavailable messages remain historical records; the new requests succeeded. White AI remains read-only and no v5/Telegram mutation path is exposed.
+

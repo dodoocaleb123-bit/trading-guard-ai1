@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const insertValues = vi.fn().mockResolvedValue(undefined);
+const insertValues = vi.fn().mockResolvedValue([{ insertId: 1 }]);
 
 vi.mock("./db", async () => {
   const actual = await vi.importActual<typeof import("./db")>("./db");
@@ -9,7 +9,20 @@ vi.mock("./db", async () => {
     getDb: vi.fn(async () => ({ insert: vi.fn(() => ({ values: insertValues })) })),
     listGeneratedSignalsSince: vi.fn(async () => []),
     getRelevantRulesText: vi.fn(async () => "Use confirmation and preserve risk controls."),
+    getAllRulesText: vi.fn(async () => "Risk management and market structure guidance."),
     getStrategyDecisionSummary: vi.fn(async () => ({ total: 0, approved: 0, denied: 0, skipped: 0, unavailable: 0 })),
+    getScannerCadenceDiagnostics: vi.fn(async () => ({ latestSuccessfulAt: null, latestSuccessfulSource: null, completedCycles: 0, failedCycles: 0, expectedIntervalMinutes: 5 })),
+    getV5HierarchySmokeStatus: vi.fn(async () => ({ ok: false, checkedDecisions: 0, qualified: 0, waiting: 0, actualRatios: [], reason: "No smoke data" })),
+    listEntryLocatorStates: vi.fn(async () => []),
+    listStrategyDecisionsSince: vi.fn(async () => []),
+    listWhiteAiMemories: vi.fn(async () => []),
+    rememberWhiteAiConversation: vi.fn(async () => null),
+    getWinningRateStats: vi.fn(async () => ({ versions: [], confidenceBandLabels: [], assets: [], timeframes: [], generatedAt: new Date(), reconciliation: { sourceTotal: 0, includedTotal: 0, excludedTotal: 0, status: "RECONCILED" } })),
+    getBestTimeToTradeStats: vi.fn(async () => []),
+    getBestDaysToTradeStats: vi.fn(async () => []),
+    getLocatorV5OutcomeStats: vi.fn(async () => ({})),
+    getV5SourceStats: vi.fn(async () => ({})),
+    listGeneratedSignals: vi.fn(async () => []),
   };
 });
 

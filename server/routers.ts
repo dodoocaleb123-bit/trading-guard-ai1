@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { parse as parseCookie } from "cookie";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { appSettings, auditMessages, auditTrades, generatedSignals } from "../drizzle/schema";
-import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getAllRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, listOpenCurrentV5Signals, getScannerCadenceDiagnostics, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV5OutcomeStats, getAdaptiveRatioStats, getV5SourceStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV5MonitoringStats, getV5HierarchySmokeStatus, getLiveMarketPulse, listEntryLocatorStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listStrategyDecisionsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRuleSummaries, listStrategyRules, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
+import { activateIntelligenceVersion, createIntelligenceComponent, createIntelligenceVersion, createStrategyRule, getActiveIntelligenceVersion, getDb, getRelevantRulesText, getAllRulesText, getSettings, getSignalDeliverySummary, listRecentScannerRuns, listOpenCurrentV5Signals, getScannerCadenceDiagnostics, getStrategyDecisionSummary, getStrategyEngineHealth, getReplacementOutcomeStats, getLocatorV5OutcomeStats, getAdaptiveRatioStats, getV5SourceStats, getWinningRateStats, listExcludedWinningRateSignals, getBestTimeToTradeStats, getBestDaysToTradeStats, getV5MonitoringStats, getV5HierarchySmokeStatus, getLiveMarketPulse, listEntryLocatorStates, listAcceptedStrategyLessons, listPaperTradeAdjustments, listPaperTradeUpgradeChains, getPaperTradeUpgradeSummary, listAuditMessages, listAuditTrades, listCooldownChanges, listGeneratedSignals, listGeneratedSignalsSince, listStrategyDecisionsSince, listIntelligenceComponents, listIntelligenceVersions, listStrategyDecisions, listStrategyLessons, listStrategyRuleSummaries, listStrategyRules, listWhiteAiMemories, rememberWhiteAiConversation, markOnboardingComplete, recordCooldownChange, updateSetupCooldown, updateStrategyLessonStatus, updateStrategyLessonPatternStatus } from "./db";
 import { serializeDecisionLedgerCsv, serializeDecisionLedgerJson } from "./decision-ledger";
 import { extractStrategyText, fetchMarketSeries, fetchStrategyRulesFromSupabase, formatAuditResult, mirrorToSupabase, normalizeAsset, type MarketSnapshot } from "./integrations";
 import { buildIntelligenceModel, buildLessonPromotionPlan, compileExecutableComponents, resolveLessonPatternReview } from "./intelligence";
@@ -47,6 +47,41 @@ export function normalizeChatResponseContent(content: unknown): string {
     if (text) return text;
   }
   return "The assistant returned no readable text for this question. Please try again; no trade decision was created.";
+}
+
+export function compactWhiteAiJson(value: unknown, maxChars = 24000) {
+  const serialized = JSON.stringify(value);
+  return serialized.length > maxChars ? `${serialized.slice(0, maxChars)}…` : serialized;
+}
+
+export function buildWhiteAiAnalyticsContext(input: { winningRate: unknown; bestTime: unknown; bestDays: unknown; locatorOutcomes: unknown; sourceStats: unknown }) {
+  const winningRate = input.winningRate as { versions?: Array<{ version: string; overall: unknown; assets: unknown; timeframes: unknown }> };
+  const compactWinningRate = { ...(winningRate ?? {}), versions: (winningRate?.versions ?? []).map((version) => ({ version: version.version, overall: version.overall, assets: version.assets, timeframes: version.timeframes })) };
+  const compactTiming = (value: unknown) => {
+    const groups = (value as { groups?: Array<{ version: string; asset: string; timeframe: string; buckets: Array<{ label: string; resolved: number; wins: number; losses: number; winRate: number | null }> }> } | null)?.groups ?? [];
+    return groups.flatMap((group) => group.buckets.filter((bucket) => bucket.resolved > 0).map((bucket) => ({ version: group.version, asset: group.asset, timeframe: group.timeframe, ...bucket }))).sort((a, b) => (b.winRate ?? -1) - (a.winRate ?? -1)).slice(0, 12);
+  };
+  return { winningRate: compactWinningRate, bestTime: compactTiming(input.bestTime), bestDays: compactTiming(input.bestDays), locatorOutcomes: input.locatorOutcomes, sourceStats: input.sourceStats };
+}
+
+export function buildWhiteAiZoneContext(states: Array<{ asset: string; timeframe: string; status: string; snapshotCount: number; lastSnapshotAt: Date | string | null; stateJson?: string | null }>, asset: string, timeframe: string) {
+  const state = states.find((row) => row.asset === asset && row.timeframe === timeframe);
+  if (!state) return { asset, timeframe, found: false, reason: "No persisted Entry Locator state was found for this asset and timeframe." };
+  let lastSnapshot: Record<string, unknown> | null = null;
+  try {
+    const parsed = JSON.parse(state.stateJson ?? "{}");
+    const snapshots = Array.isArray(parsed?.snapshots) ? parsed.snapshots : [];
+    lastSnapshot = snapshots.length ? snapshots[snapshots.length - 1] : null;
+  } catch {
+    lastSnapshot = null;
+  }
+  return { asset, timeframe, found: true, status: state.status, snapshotCount: state.snapshotCount, lastSnapshotAt: state.lastSnapshotAt, observedAt: lastSnapshot?.observedAt ?? null, breakoutState: lastSnapshot?.breakoutState ?? null, nextResistance: lastSnapshot?.nextResistance ?? null, nextSupport: lastSnapshot?.nextSupport ?? null, targetBoundary: lastSnapshot?.targetBoundary ?? null, supportingComponents: Array.isArray(lastSnapshot?.supportingComponents) ? lastSnapshot.supportingComponents : [], indicatorEvidence: Array.isArray(lastSnapshot?.indicatorEvidence) ? lastSnapshot.indicatorEvidence : [], waitReason: lastSnapshot?.waitReason ?? null };
+}
+
+export function formatWhiteAiZoneFallback(zoneContext: ReturnType<typeof buildWhiteAiZoneContext>) {
+  if (!zoneContext.found) return `I could not find a persisted v5 Entry Locator state for ${zoneContext.asset} on ${zoneContext.timeframe}. I will not invent zone levels. This is analysis only — paper trading only — UNVALIDATED.`;
+  const level = (value: unknown) => value == null ? "not recorded" : String(value);
+  return `Persisted v5 zone evidence for ${zoneContext.asset} on ${zoneContext.timeframe}: status ${zoneContext.status}; ${zoneContext.snapshotCount} snapshots; latest observation ${zoneContext.observedAt ?? zoneContext.lastSnapshotAt ?? "not recorded"}. Next resistance/opposing upper level: ${level(zoneContext.nextResistance)}. Next support/opposing lower level: ${level(zoneContext.nextSupport)}. Target boundary: ${level(zoneContext.targetBoundary)}. Breakout state: ${level(zoneContext.breakoutState)}. These are recorded locator levels, not a chart image or a guarantee of future movement. This is analysis only — paper trading only — UNVALIDATED.`;
 }
 import { systemRouter } from "./_core/systemRouter";
 
@@ -180,6 +215,7 @@ export const appRouter = router({
   }),
   audit: router({
     history: protectedProcedure.input(z.object({ channel: z.enum(["WHITE", "CHERRY"]).default("WHITE") }).optional()).query(({ ctx, input }) => listAuditMessages(ctx.user.id, input?.channel ?? "WHITE")),
+    memory: protectedProcedure.query(({ ctx }) => listWhiteAiMemories(ctx.user.id, 100)),
     clearConversation: protectedProcedure.input(z.object({ channel: z.enum(["WHITE", "CHERRY"]).default("WHITE") }).optional()).mutation(async ({ ctx, input }) => { const db = await getDb(); if (!db) throw new Error("Database unavailable"); await db.delete(auditMessages).where(and(eq(auditMessages.userId, ctx.user.id), eq(auditMessages.channel, input?.channel ?? "WHITE"))); return { cleared: true }; }),
     run: protectedProcedure.input(z.object({ signal: z.string().min(8) })).mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -213,20 +249,30 @@ export const appRouter = router({
     conversation: protectedProcedure.input(z.object({ channel: z.enum(["WHITE", "CHERRY"]).default("WHITE"), messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(12000) })).min(1).max(24) })).mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new Error("Database unavailable");
-      const latest = input.messages[input.messages.length - 1].content;
-      await db.insert(auditMessages).values({ userId: ctx.user.id, channel: input.channel, role: "user", content: latest });
+      const chatMessages = input.messages.slice(-12).map((message) => ({ role: message.role, content: message.content.slice(-3000) }));
+      const latest = chatMessages[chatMessages.length - 1].content;
+      const userMessageInsert = await db.insert(auditMessages).values({ userId: ctx.user.id, channel: input.channel, role: "user", content: latest });
+      if (input.channel === "WHITE") await rememberWhiteAiConversation(ctx.user.id, latest, Number(userMessageInsert[0].insertId));
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const assetMatch = latest.match(/\b(EUR\/?USD|GBP\/?USD|XAU\/?USD|BTC\/?USD)\b/i);
       const requestedAsset = assetMatch ? normalizeAsset(assetMatch[1]) : null;
-      const [signals, rulesText, documentText, judgment, cadence, smoke, locatorStates, recentDecisions] = await Promise.all([
+      const requestedTimeframe = /\b(1\s*h|1h|hour)\b/i.test(latest) ? "1H" : /\b(5\s*m|5m|5\s*min|5min)\b/i.test(latest) ? "5MIN" : "15MIN";
+      const [signals, rulesText, documentText, judgment, cadence, smoke, locatorStates, recentDecisions, memories, winningRate, bestTime, bestDays, locatorOutcomes, sourceStats, recentSignalRecords] = await Promise.all([
         listGeneratedSignalsSince(ctx.user.id, since, 500),
         getRelevantRulesText(ctx.user.id, latest, 12000),
-        getAllRulesText(ctx.user.id),
+        getAllRulesText(ctx.user.id, 30000),
         getStrategyDecisionSummary(ctx.user.id),
         getScannerCadenceDiagnostics(ctx.user.id),
         getV5HierarchySmokeStatus(ctx.user.id),
         listEntryLocatorStates(ctx.user.id),
         listStrategyDecisionsSince(ctx.user.id, since),
+        input.channel === "WHITE" ? listWhiteAiMemories(ctx.user.id, 40) : Promise.resolve([]),
+        getWinningRateStats(ctx.user.id),
+        getBestTimeToTradeStats(ctx.user.id),
+        getBestDaysToTradeStats(ctx.user.id),
+        getLocatorV5OutcomeStats(ctx.user.id),
+        getV5SourceStats(ctx.user.id, {}),
+        listGeneratedSignals(ctx.user.id),
       ]);
       let marketText = "No live market snapshot was requested or available.";
       if (requestedAsset) {
@@ -236,19 +282,28 @@ export const appRouter = router({
         } catch (error) { marketText = `Live snapshot unavailable for ${requestedAsset}: ${error instanceof Error ? error.message : "provider error"}`; }
       }
       const assetPerformance = summarizeChatSignals(signals).map((item) => `${item.asset}: ${item.generated} generated, ${item.resolved} resolved, ${item.wins} TP hits, ${item.winRate == null ? "—" : `${item.winRate}%`} win rate`).join("; ") || "No signals recorded in the last 24 hours.";
+      const analyticsContext = buildWhiteAiAnalyticsContext({ winningRate, bestTime, bestDays, locatorOutcomes, sourceStats });
+      const compactSignals = recentSignalRecords.slice(0, 20).map(({ id, asset, timeframe, direction, entry, stopLoss, takeProfit, riskReward, confidence, confluenceScore, rationale, status, outcomeNote, openedAt, closedAt, telegramDelivery }) => ({ id, asset, timeframe, direction, entry, stopLoss, takeProfit, riskReward, confidence, confluenceScore, rationale, status, outcomeNote, openedAt, closedAt, telegramDelivery: telegramDelivery ? { status: telegramDelivery.status, telegramMessageId: telegramDelivery.telegramMessageId, deliveredAt: telegramDelivery.deliveredAt, error: telegramDelivery.error } : null }));
+      const compactLocatorStates = locatorStates.slice(0, 20).map(({ asset, timeframe, status, snapshotCount, lastSnapshotAt, lastDirection, lastConfidence, lastConfluence, lastEmittedAt }) => ({ asset, timeframe, status, snapshotCount, lastSnapshotAt, lastDirection, lastConfidence, lastConfluence, lastEmittedAt }));
+      const compactRecentDecisions = recentDecisions.slice(0, 20).map(({ id, asset, timeframe, verdict, confidence, confluenceScore, generatedDirection, generatedEntry, generatedStopLoss, generatedTakeProfit, decisionReason, createdAt }) => ({ id, asset, timeframe, verdict, confidence, confluenceScore, generatedDirection, generatedEntry, generatedStopLoss, generatedTakeProfit, decisionReason, createdAt }));
+      const zoneContext = requestedAsset ? buildWhiteAiZoneContext(locatorStates, requestedAsset, requestedTimeframe) : null;
+      const asksForZoneEvidence = /\b(zone|supply|demand|support|resistance|level)\b/i.test(latest);
       const system = [
         "You are White AI, Trading Guard AI's interactive app-explanation and trading-education assistant. Have a natural, useful conversation about this app's v5 workflow, scanner health, zones, hierarchy judgments, Entry Locator decisions, paper-trading records, market structure, risk, and the user's ingested forex document. Explain why the app sends or withholds signals using supplied evidence. Never invent live prices, zone positions, scanner cycles, or performance. Distinguish clearly between live market observations, persisted app records, and general educational explanations. The app's v5 signal workflow is authoritative: 4H bias, 1H context only, independent 15M/5M execution, structural target/stop geometry, 60% confidence, 45% confluence, Entry Locator final guard, strict asset/timeframe locks, Telegram delivery, and paper-only UNVALIDATED safeguards. Chat must never place, alter, release, or approve an automatic v5 trade signal. Every response must state or preserve that this is analysis only, paper trading only, and UNVALIDATED; never promise accuracy or present personalized financial advice. If a requested fact is unavailable, say so plainly.",
-        "Answer questions such as which asset appears more predictable from the available sample, the current paper context for gold, and recent wins. Use the supplied strategy-rule excerpts as the user's source of truth when relevant.",
-        `Relevant strategy rules for this question:\n${rulesText || "No matching rule excerpt was found."}\n\nFull stored forex-document knowledge:\n${documentText || "No stored forex document is available."}\n\nPaper outcomes in last 24 hours:\n${assetPerformance}\n\nStrategy judgment totals:\n${JSON.stringify(judgment)}\n\nScanner freshness and cadence:\n${JSON.stringify({ latestSuccessfulAt: cadence.latestSuccessfulAt, latestSuccessfulSource: cadence.latestSuccessfulSource, completedCycles: cadence.completedCycles, failedCycles: cadence.failedCycles, expectedIntervalMinutes: cadence.expectedIntervalMinutes })}\n\nV5 production smoke:\n${JSON.stringify(smoke)}\n\nCurrent Entry Locator states:\n${JSON.stringify(locatorStates.slice(0, 20))}\n\nRecent v5 decision ledger:\n${JSON.stringify(recentDecisions.slice(0, 40))}\n\nRequested live market context:\n${marketText}`,
+        "Answer questions such as which asset appears more predictable from the available sample, the current paper context for gold, recent wins, the best-performing timeframe, the lowest-performing asset, and which asset has the least stable evidence. Use only resolved samples for win-rate claims, state sample sizes, and say when evidence is insufficient. Conversation memory is advisory context only and must never become a v5 rule.",
+        `Relevant strategy rules for this question:\n${rulesText || "No matching rule excerpt was found."}\n\nBounded stored forex-document knowledge:\n${documentText || "No stored forex document is available."}\n\nPaper outcomes in last 24 hours:\n${assetPerformance}\n\nPersistent White AI conversation memory (advisory, not v5 rules):\n${memories.map((memory) => `[${memory.memoryType}] ${memory.content}`).join("\\n") || "No conversation memory has been saved yet."}\n\nBounded full outcome analytics from the app:\n${compactWhiteAiJson(analyticsContext, 12000)}\n\nRecent signal records with delivery and outcome fields:\n${compactWhiteAiJson(compactSignals, 10000)}\n\nStrategy judgment totals:\n${compactWhiteAiJson(judgment, 6000)}\n\nScanner freshness and cadence:\n${compactWhiteAiJson({ latestSuccessfulAt: cadence.latestSuccessfulAt, latestSuccessfulSource: cadence.latestSuccessfulSource, completedCycles: cadence.completedCycles, failedCycles: cadence.failedCycles, expectedIntervalMinutes: cadence.expectedIntervalMinutes })}\n\nV5 production smoke:\n${compactWhiteAiJson(smoke, 6000)}\n\nCurrent Entry Locator states:\n${compactWhiteAiJson(compactLocatorStates, 8000)}\n\nRecent v5 decision ledger:\n${compactWhiteAiJson(compactRecentDecisions, 10000)}\n\nRequested live market context:\n${marketText}\n\nRequested persisted v5 zone evidence:\n${zoneContext ? compactWhiteAiJson(zoneContext, 5000) : "No specific asset/timeframe zone request detected."}`
       ].join("\n\n");
       let content: string;
       try {
-        const response = await invokeLLM({ model: "gpt-5-mini", messages: [{ role: "system", content: system }, ...input.messages], maxTokens: 1400 });
+        const response = await invokeLLM({ model: "gpt-5-mini", messages: [{ role: "system", content: system }, ...chatMessages], maxTokens: 1400 });
         const choice = response?.choices?.[0];
         if (!choice?.message) throw new Error("LLM response missing readable message");
-        content = normalizeChatResponseContent(choice.message.content);
+        const normalizedContent = normalizeChatResponseContent(choice.message.content);
+        if (normalizedContent.startsWith("The assistant returned no readable text")) throw new Error("LLM response missing readable text");
+        content = normalizedContent;
       } catch (error) {
-        content = formatChatServiceError(error, input.channel === "WHITE" ? "White AI" : "Cherry AI");
+        console.warn(`[${input.channel === "WHITE" ? "White AI" : "Cherry AI"}] LLM request failed`, error instanceof Error ? error.message : String(error ?? "unknown error"));
+        content = input.channel === "WHITE" && asksForZoneEvidence && zoneContext ? formatWhiteAiZoneFallback(zoneContext) : formatChatServiceError(error, input.channel === "WHITE" ? "White AI" : "Cherry AI");
       }
       await db.insert(auditMessages).values({ userId: ctx.user.id, channel: input.channel, role: "assistant", content });
       return { role: "assistant" as const, content, verdict: null, confidence: null, telegramDelivered: false };

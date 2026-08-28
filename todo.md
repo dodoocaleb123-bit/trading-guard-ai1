@@ -1447,3 +1447,7 @@
 - [x] Preserve strict read-only boundaries so White AI cannot modify v5, Entry Locator, signals, tracking, or Telegram behavior
 - [x] Add regression coverage, visual verification, and publish the White AI upgrade
 
+- [x] Diagnose the unavailable White AI response for specific v5 stop-loss explanation questions
+- [x] Add a grounded read-only explanation path for signal entry, stop, target, and risk-to-reward questions
+- [x] Validate the exact XAU/USD stop-loss question and publish the fix without changing v5 execution
+

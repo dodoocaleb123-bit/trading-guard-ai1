@@ -238,10 +238,11 @@ export function attachTelegramDelivery<T extends { id: number }, D extends { kin
   return rows.map((row) => ({ ...row, telegramDelivery: deliveries.find((delivery) => delivery.kind === kind && delivery[key] === row.id) ?? null }));
 }
 
-export async function listGeneratedSignals(userId: number) {
+export async function listGeneratedSignals(userId: number, asset?: string | null) {
   const db = await getDb();
   if (!db) return [];
-  const signals = await db.select().from(generatedSignals).where(eq(generatedSignals.userId, userId)).orderBy(desc(generatedSignals.openedAt)).limit(50);
+  const predicate = asset ? and(eq(generatedSignals.userId, userId), eq(generatedSignals.asset, asset)) : eq(generatedSignals.userId, userId);
+  const signals = await db.select().from(generatedSignals).where(predicate).orderBy(desc(generatedSignals.openedAt)).limit(50);
   const deliveries = await db.select().from(telegramDeliveries).where(eq(telegramDeliveries.userId, userId));
   return attachTelegramDelivery(signals, deliveries, "SIGNAL", "signalId");
 }

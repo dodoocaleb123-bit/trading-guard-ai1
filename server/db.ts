@@ -698,12 +698,22 @@ export async function listStrategyDecisions(userId: number, filters: DecisionFil
 
 export async function getV5HierarchySmokeStatus(userId: number, lookbackMinutes = 30) {
   const db = await getDb();
-  if (!db) return { ok: false, reason: "Database is unavailable.", checkedDecisions: 0, qualified: 0, waiting: 0, actualRatios: [], latestCycleAt: null as Date | null };
+  if (!db) return { ok: false, reason: "Database is unavailable.", checkedDecisions: 0, qualified: 0, waiting: 0, actualRatios: [], latestCycleAt: null as Date | null, payloadChecks: [], zoneInventory: { total: 0, active: 0, weakened: 0, invalidated: 0 } };
   const since = new Date(Date.now() - lookbackMinutes * 60_000);
-  const [decisions, runs] = await Promise.all([
+  const [decisions, runs, zoneHistory] = await Promise.all([
     db.select().from(strategyDecisionLedger).where(and(eq(strategyDecisionLedger.userId, userId), gte(strategyDecisionLedger.createdAt, since))).orderBy(desc(strategyDecisionLedger.createdAt)).limit(500),
     db.select().from(scannerRunLedger).where(and(gte(scannerRunLedger.finishedAt, since), eq(scannerRunLedger.status, "SUCCEEDED"))).orderBy(desc(scannerRunLedger.finishedAt)).limit(20),
+    db.select({ lifecycle: v5ZoneHistory.lifecycle }).from(v5ZoneHistory).where(eq(v5ZoneHistory.userId, userId)).limit(500),
   ]);
+  const payloadChecks = decisions.map((decision) => {
+    try {
+      const snapshot = JSON.parse(decision.marketSnapshot ?? "{}");
+      const workflow = snapshot?.replacementIntelligence?.workflow;
+      return { id: decision.id, asset: decision.asset, timeframe: decision.timeframe, complete: Boolean(workflow && Array.isArray(workflow.zones) && workflow.confirmation && ["QUALIFIED", "WAITING"].includes(workflow.status)), zoneCount: Array.isArray(workflow?.zones) ? workflow.zones.length : 0, status: workflow?.status ?? "MISSING" };
+    } catch {
+      return { id: decision.id, asset: decision.asset, timeframe: decision.timeframe, complete: false, zoneCount: 0, status: "INVALID_JSON" };
+    }
+  });
   const hierarchyRows = decisions.flatMap((decision) => {
     try {
       const snapshot = JSON.parse(decision.marketSnapshot ?? "{}");
@@ -718,8 +728,9 @@ export async function getV5HierarchySmokeStatus(userId: number, lookbackMinutes 
   const qualified = hierarchyRows.filter((row) => row.status === "QUALIFIED").length;
   const waiting = hierarchyRows.filter((row) => row.status === "WAITING").length;
   const latestCycleAt = runs[0]?.finishedAt ?? null;
-  const ok = Boolean(latestCycleAt && hierarchyRows.length);
-  return { ok, reason: ok ? "Recent successful scanner cycles have complete persisted v5 hierarchy payloads." : "No complete v5 hierarchy payload was found after a recent successful scanner cycle.", checkedDecisions: hierarchyRows.length, qualified, waiting, actualRatios, latestCycleAt };
+  const zoneInventory = { total: zoneHistory.length, active: zoneHistory.filter((row) => row.lifecycle === "ACTIVE").length, weakened: zoneHistory.filter((row) => row.lifecycle === "WEAKENED").length, invalidated: zoneHistory.filter((row) => row.lifecycle === "INVALIDATED").length };
+  const ok = Boolean(latestCycleAt && hierarchyRows.length && payloadChecks.every((check) => check.complete));
+  return { ok, reason: ok ? "Recent successful scanner cycles have complete persisted v5 hierarchy payloads." : "No complete v5 hierarchy payload was found after a recent successful scanner cycle.", checkedDecisions: hierarchyRows.length, qualified, waiting, actualRatios, latestCycleAt, payloadChecks: payloadChecks.slice(0, 40), zoneInventory };
 }
 
 export async function listStrategyDecisionsSince(userId: number, since: Date) {

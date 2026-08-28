@@ -119,8 +119,10 @@ describe("dashboard terminology", () => {
   });
 
   it("exposes the v5 zone map, history freshness, and qualification trend", () => {
-    expect(homeSource).toContain("V5 supply-and-demand zone map");
-    expect(homeSource).toContain("Recent zone-map history");
+    expect(homeSource).toContain("V5 persistent zone inventory");
+    expect(homeSource).toContain("Each asset has its own durable zone map");
+    expect(homeSource).toContain("observationCount");
+    expect(homeSource).toContain("retestCount");
     expect(homeSource).toContain("FRESH ·");
     expect(homeSource).toContain("AGING ·");
     expect(homeSource).toContain("STALE ·");
@@ -128,7 +130,7 @@ describe("dashboard terminology", () => {
     expect(homeSource).toContain("trpc.scanner.v5Smoke.useQuery");
     expect(homeSource).toContain("V5 qualification trend · last 24 hours");
     expect(homeSource).toContain("V5 qualified and waiting decisions by hour");
-    expect(homeSource).toContain("and 5M are independent signal timeframes, and each lower timeframe");
+    expect(homeSource).toContain("4H, 1H, 15M, and 5M");
   });
 
   it("exposes the Scanner provider-quota warning when the latest cycle is unavailable", () => {

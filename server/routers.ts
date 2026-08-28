@@ -359,6 +359,7 @@ export const appRouter = router({
     health: protectedProcedure.query(({ ctx }) => getStrategyEngineHealth(ctx.user.id)),
     cadence: protectedProcedure.query(({ ctx }) => getScannerCadenceDiagnostics(ctx.user.id)),
     v5Smoke: protectedProcedure.input(z.object({ lookbackMinutes: z.number().int().min(5).max(180).optional() }).optional()).query(({ ctx, input }) => getV5HierarchySmokeStatus(ctx.user.id, input?.lookbackMinutes ?? 30)),
+    zoneHistory: protectedProcedure.input(z.object({ asset: z.string().optional(), timeframe: z.enum(["4H", "1H", "15MIN", "5MIN"]).optional() }).optional()).query(({ ctx, input }) => listV5ZoneHistory(ctx.user.id, input?.asset, input?.timeframe)),
     openCurrentSignals: protectedProcedure.query(({ ctx }) => listOpenCurrentV5Signals(ctx.user.id)),
     callbackStatus: protectedProcedure.query(async ({ ctx }) => {
       const settings = await getSettings(ctx.user.id);

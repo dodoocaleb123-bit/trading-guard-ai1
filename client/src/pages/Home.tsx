@@ -2568,12 +2568,20 @@ function V5SmokeStatusCard() {
       </CardHeader>
       <CardContent>
         {smoke.isError ? <DataError text="Authenticated v5 smoke status could not be loaded." /> : (
-          <div className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-4">
+          <>
+            <div className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-4">
             <span>Payloads checked: <b className="text-foreground">{data?.checkedDecisions ?? 0}</b></span>
             <span>Qualified: <b className="text-emerald-600">{data?.qualified ?? 0}</b></span>
             <span>Waiting: <b className="text-amber-700">{data?.waiting ?? 0}</b></span>
             <span>Actual ratios: <b className="text-foreground">{data?.actualRatios?.length ? data.actualRatios.join(", ") : "—"}</b></span>
           </div>
+          <div className="mt-3 grid gap-3 text-xs text-muted-foreground sm:grid-cols-4">
+            <span>Complete payloads: <b className="text-foreground">{data?.payloadChecks?.filter(check => check.complete).length ?? 0}/{data?.payloadChecks?.length ?? 0}</b></span>
+            <span>Active zones: <b className="text-emerald-600">{data?.zoneInventory?.active ?? 0}</b></span>
+            <span>Weakened zones: <b className="text-amber-700">{data?.zoneInventory?.weakened ?? 0}</b></span>
+            <span>Invalidated retained: <b className="text-foreground">{data?.zoneInventory?.invalidated ?? 0}</b></span>
+          </div>
+          </>
         )}
         <p className="mt-3 text-xs leading-5 text-muted-foreground">{data?.reason ?? "Waiting for an authenticated production check."}</p>
       </CardContent>
@@ -2643,96 +2651,47 @@ function V5DecisionTrend() {
 
 function V5ZoneMap() {
   const decisions = trpc.scanner.decisions.useQuery(undefined, LIVE_QUERY_OPTIONS);
+  const zoneHistory = trpc.scanner.zoneHistory.useQuery(undefined, LIVE_QUERY_OPTIONS);
   const latestByAsset = useMemo(() => {
     const map = new Map<string, any>();
     for (const decision of decisions.data ?? []) {
       const current = map.get(decision.asset);
-      if (!current || new Date(decision.createdAt).getTime() > new Date(current.createdAt).getTime()) {
-        map.set(decision.asset, decision);
-      }
+      if (!current || new Date(decision.createdAt).getTime() > new Date(current.createdAt).getTime()) map.set(decision.asset, decision);
     }
     return map;
   }, [decisions.data]);
-  const historyByAsset = useMemo(() => {
-    const map = new Map<string, Array<{ createdAt: string | Date; status: string }>>();
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    for (const decision of decisions.data ?? []) {
-      const createdAt = new Date(decision.createdAt);
-      if (createdAt.getTime() < cutoff) continue;
-      const snapshot = parseStoredJson(decision.marketSnapshot);
-      const workflow = snapshot && typeof snapshot === "object" ? (snapshot as { replacementIntelligence?: { workflow?: { status?: string } } }).replacementIntelligence?.workflow : null;
-      if (!workflow?.status) continue;
-      const rows = map.get(decision.asset) ?? [];
-      rows.push({ createdAt: decision.createdAt, status: workflow.status });
-      map.set(decision.asset, rows);
-    }
-    return map;
-  }, [decisions.data]);
-  const formatZone = (zone: any) => {
-    if (!zone) return "No qualifying zone";
-    return `${zone.kind} ${Number(zone.lower).toFixed(5)}–${Number(zone.upper).toFixed(5)}`;
-  };
-  const freshness = (createdAt: string | Date) => {
+  const formatZone = (zone: any) => zone ? `${zone.zoneKind ?? zone.kind} ${Number(zone.lower).toFixed(5)}–${Number(zone.upper).toFixed(5)}` : "No persisted zone";
+  const ageLabel = (createdAt: string | Date) => {
     const ageMinutes = Math.max(0, Math.round((Date.now() - new Date(createdAt).getTime()) / 60_000));
     return ageMinutes <= 15 ? `FRESH · ${ageMinutes}m` : ageMinutes <= 60 ? `AGING · ${ageMinutes}m` : `STALE · ${ageMinutes}m`;
   };
+  const labelForTimeframe = (timeframe: string) => timeframe === "15MIN" ? "15M" : timeframe === "5MIN" ? "5M" : timeframe;
   return (
     <Card className="mb-6 border-primary/15 bg-primary/[0.025]">
       <CardHeader>
-        <CardTitle className="font-display text-xl">V5 supply-and-demand zone map</CardTitle>
-        <p className="text-xs leading-5 text-muted-foreground">
-          Latest persisted hierarchy evidence. 4H and 1H provide context; 15M
-          and 5M are independent signal timeframes, and each lower timeframe
-          is evaluated against the shared hierarchy. Empty states mean no
-          validated zone was found, not that a level was invented.
-        </p>
+        <CardTitle className="font-display text-xl">V5 persistent zone inventory</CardTitle>
+        <p className="text-xs leading-5 text-muted-foreground">Each asset has its own durable zone map across 4H, 1H, 15M, and 5M. Active and weakened records remain visible with observation and retest counts; invalidated records are retained in the database but excluded from current evidence.</p>
       </CardHeader>
       <CardContent>
-        {decisions.isError ? (
-          <DataError text="The v5 zone map could not be loaded. Refresh after the decision ledger recovers." />
-        ) : decisions.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading persisted zones…</p>
-        ) : (
+        {decisions.isError || zoneHistory.isError ? <DataError text="The v5 zone inventory could not be loaded. Refresh after the scanner records recover." /> : decisions.isLoading || zoneHistory.isLoading ? <p className="text-sm text-muted-foreground">Loading persistent zone inventory…</p> : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {WATCHLIST.map(item => {
+              const assetZones = (zoneHistory.data ?? []).filter((zone: any) => zone.asset === item.symbol);
               const decision = latestByAsset.get(item.symbol);
               const snapshot = decision ? parseStoredJson(decision.marketSnapshot) : null;
               const workflow = snapshot && typeof snapshot === "object" ? (snapshot as { replacementIntelligence?: { workflow?: any } }).replacementIntelligence?.workflow : null;
-              const zones = Array.isArray(workflow?.zones) ? workflow.zones : [];
               return (
                 <div key={item.symbol} className="rounded-xl border bg-background p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium">{item.symbol}</p>
-                    <Badge variant="outline" className="text-[10px]">{workflow?.status ?? "NO DATA"}</Badge>
-                  </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {decision ? `Updated ${formatDateTime(decision.createdAt)}` : "Awaiting persisted hierarchy data"}
-                  </p>
+                  <div className="flex items-center justify-between gap-2"><p className="font-medium">{item.symbol}</p><Badge variant="outline" className="text-[10px]">{assetZones.length} zones</Badge></div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{decision ? `Hierarchy ${workflow?.status ?? "RECORDED"} · ${formatDateTime(decision.createdAt)}` : "Awaiting persisted hierarchy data"}</p>
                   <div className="mt-4 space-y-3 text-xs">
-                    {(["4h", "1h", "15min"] as const).map(interval => {
-                      const timeframeZones = zones.filter((zone: any) => String(zone.timeframe).toLowerCase() === interval);
-                      const active = timeframeZones.find((zone: any) => zone === workflow?.activeZone && zone.timeframe) ?? timeframeZones.find((zone: any) => Number(zone.lower) <= Number(snapshot?.price ?? decision?.generatedEntry ?? 0) && Number(zone.upper) >= Number(snapshot?.price ?? decision?.generatedEntry ?? 0));
-                      const opposing = timeframeZones.find((zone: any) => zone === workflow?.targetZone) ?? timeframeZones.find((zone: any) => zone !== active);
-                      return (
-                        <div key={interval} className="rounded-lg bg-muted/30 p-3">
-                          <p className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">{interval === "15min" ? "15M" : interval.toUpperCase()}</p>
-                          <p className="mt-2"><span className="text-muted-foreground">Active:</span> {formatZone(active)}</p>
-                          <p className="mt-1"><span className="text-muted-foreground">Opposing:</span> {formatZone(opposing)}</p>
-                        </div>
-                      );
+                    {(["4H", "1H", "15MIN", "5MIN"] as const).map(timeframe => {
+                      const zones = assetZones.filter((zone: any) => zone.timeframe === timeframe);
+                      const current = zones.find((zone: any) => zone.lifecycle === "ACTIVE") ?? zones[0];
+                      return <div key={timeframe} className="rounded-lg bg-muted/30 p-3"><div className="flex items-center justify-between"><p className="font-semibold uppercase tracking-[0.14em] text-muted-foreground">{labelForTimeframe(timeframe)}</p><span className="text-[10px] text-muted-foreground">{current?.lifecycle ?? "EMPTY"}</span></div>{current ? <><p className="mt-2 font-medium">{formatZone(current)}</p><p className="mt-1 text-[11px] text-muted-foreground">{current.observationCount} observations · {current.retestCount} retests · {current.fresh ? "fresh" : "retested/older"}</p><p className="mt-1 text-[11px] text-muted-foreground">Seen {ageLabel(current.lastSeenAt)}</p></> : <p className="mt-2 text-muted-foreground">No persisted zone</p>}</div>;
                     })}
                   </div>
-                  <div className="mt-4 border-t pt-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Recent zone-map history</p>
-                    <div className="mt-2 space-y-1.5">
-                      {(historyByAsset.get(item.symbol) ?? []).slice(0, 3).map((entry, index) => (
-                        <div key={`${item.symbol}-${entry.createdAt}-${index}`} className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                          <span>{entry.status}</span><span>{freshness(entry.createdAt)}</span>
-                        </div>
-                      ))}
-                      {!(historyByAsset.get(item.symbol) ?? []).length && <p className="text-[11px] text-muted-foreground">No recent persisted map history.</p>}
-                    </div>
-                  </div>
+                  <div className="mt-4 border-t pt-3"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Inventory summary</p><p className="mt-2 text-[11px] text-muted-foreground">{assetZones.filter((zone: any) => zone.lifecycle === "ACTIVE").length} active · {assetZones.filter((zone: any) => zone.lifecycle === "WEAKENED").length} weakened · {assetZones.filter((zone: any) => zone.lifecycle === "INVALIDATED").length} invalidated</p></div>
                 </div>
               );
             })}

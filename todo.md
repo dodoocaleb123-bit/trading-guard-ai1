@@ -1462,3 +1462,8 @@
 - [x] Expose maintained zone history to White AI as read-only grounded context
 - [x] Add migration, regression coverage, production-safe validation, and publish the persistent zone-memory implementation
 
+
+- [x] Verify multiple fresh production scanner cycles and confirm zone persistence/retest behavior; four successive cycles at 04:25–04:40 UTC succeeded with marketData=available, while no qualifying zones were detected to persist in that sample
+- [x] Add a per-asset v5 zone-history dashboard for EUR/USD, XAU/USD, GBP/USD, and BTC/USD across 4H, 1H, 15M, and 5M
+- [x] Add authenticated production smoke validation for each persisted hierarchy and zone-memory payload after scanner cycles
+- [x] Add regression coverage, visual verification, and publish the follow-up release

@@ -161,7 +161,14 @@ export function isTwelveDataFailoverError(error: unknown, payload?: any) {
   return status === 401 || status === 403 || status === 429 || code === 401 || code === 403 || code === 429 || errorCode === "ECONNABORTED" || errorCode === "ETIMEDOUT" || /credit|quota|rate.?limit|too many requests|timeout/i.test(message);
 }
 
-async function requestTwelveData(path: string, params: Record<string, string | number>, timeout: number, assets: readonly string[] = []) {
+export function hasCompleteTwelveDataBatch(payload: any, symbols: readonly string[]) {
+  return symbols.every(symbol => {
+    const values = payload?.[symbol]?.values;
+    return Array.isArray(values) && values.length >= 3;
+  });
+}
+
+async function requestTwelveData(path: string, params: Record<string, string | number>, timeout: number, assets: readonly string[] = [], isUsableResponse?: (payload: any) => boolean) {
   const keys = twelveDataKeyPoolForAssets(assets);
   if (!keys.length) throw new Error("Twelve Data is not configured");
   let lastError: unknown;
@@ -175,6 +182,10 @@ async function requestTwelveData(path: string, params: Record<string, string | n
       const response = await axios.get(path, { params: { ...params, apikey: key }, timeout });
       if (isTwelveDataFailoverError(undefined, response.data) || response.status === 401 || response.status === 403 || response.status === 429) {
         lastError = new Error(response.data?.message ?? `Twelve Data key ${index + 1} unavailable`);
+        continue;
+      }
+      if (isUsableResponse && !isUsableResponse(response.data)) {
+        lastError = new Error(`Twelve Data key ${index + 1} returned an incomplete response`);
         continue;
       }
       return response;
@@ -238,7 +249,7 @@ export async function fetchMarketSeriesBatch(assets: readonly string[], interval
   const startedAt = Date.now();
   console.info(`[Market] Twelve Data batch started interval=${interval} assets=${symbols.length} at=${new Date(startedAt).toISOString()}`);
   try {
-    const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 200, order: "ASC", timezone: "UTC" }, 20000, symbols);
+    const response = await requestTwelveData("https://api.twelvedata.com/time_series", { symbol: symbols.join(","), interval, outputsize: 200, order: "ASC", timezone: "UTC" }, 20000, symbols, (payload) => hasCompleteTwelveDataBatch(payload, symbols));
     if (response.data?.status === "error") throw new Error(response.data.message ?? "OHLCV batch unavailable");
     const result = new Map<string, MarketSeries>();
     for (const symbol of symbols) {
@@ -249,6 +260,10 @@ export async function fetchMarketSeriesBatch(assets: readonly string[], interval
       } catch (error) {
         console.warn(`[Market] ${symbol} ${interval} skipped:`, error instanceof Error ? error.message : error);
       }
+    }
+    if (result.size !== symbols.length) {
+      const missing = symbols.filter(symbol => !result.has(symbol));
+      throw new Error(`Twelve Data returned incomplete ${interval} batch; missing usable series: ${missing.join(", ")}`);
     }
     console.info(`[Market] Twelve Data batch completed interval=${interval} assets=${symbols.length} series=${result.size} durationMs=${Date.now() - startedAt} at=${new Date().toISOString()}`);
     return result;

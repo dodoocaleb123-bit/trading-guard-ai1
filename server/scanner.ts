@@ -169,6 +169,46 @@ async function fetchSharedMarketData(): Promise<SharedMarketData> {
   return { series5m, series15m, series1h, series4h };
 }
 
+export function parseMarketSeriesCandleAt(series: Pick<MarketSeries, "values" | "fetchedAt">): Date {
+  const latest = series.values.at(-1);
+  const raw = typeof latest?.datetime === "string" ? latest.datetime : null;
+  const parsed = raw ? new Date(raw.includes("T") ? raw : `${raw.replace(" ", "T")}Z`) : new Date(series.fetchedAt);
+  const fallback = new Date(series.fetchedAt);
+  return Number.isFinite(parsed.getTime()) ? parsed : Number.isFinite(fallback.getTime()) ? fallback : new Date();
+}
+
+export function buildContextOnlyState(input: { asset: string; timeframe: "1H" | "4H"; series: MarketSeries; previousSnapshotCount?: number; previousLastEmittedAt?: Date | null }) {
+  const candleAt = parseMarketSeriesCandleAt(input.series);
+  return {
+    status: "WAITING" as const,
+    snapshotCount: (input.previousSnapshotCount ?? 0) + 1,
+    lastSnapshotAt: candleAt,
+    lastDirection: null,
+    lastConfidence: null,
+    lastConfluence: null,
+    evidenceJson: JSON.stringify({ kind: "V5_CONTEXT_REFRESH", asset: input.asset, timeframe: input.timeframe, interval: input.series.interval, fetchedAt: input.series.fetchedAt, candleAt: candleAt.toISOString() }),
+    conflictJson: "[]",
+    stateJson: JSON.stringify({ contextOnly: true, asset: input.asset, timeframe: input.timeframe, interval: input.series.interval, fetchedAt: input.series.fetchedAt, candleAt: candleAt.toISOString(), waitReason: `${input.timeframe} context refreshed for the v5 hierarchy; this timeframe is not eligible for signal emission.` }),
+    lastEmittedAt: input.previousLastEmittedAt ?? null,
+  };
+}
+
+async function persistV5ContextStates(userId: number, series1h: Map<string, MarketSeries>, series4h: Map<string, MarketSeries>) {
+  const contextSeries = [
+    { timeframe: "1H" as const, series: series1h },
+    { timeframe: "4H" as const, series: series4h },
+  ];
+  const writes = WATCHLIST.flatMap(asset => contextSeries.map(({ timeframe, series }) => ({ asset, timeframe, series: series.get(asset) })));
+  const availableWrites = writes.filter((item): item is { asset: typeof WATCHLIST[number]; timeframe: "1H" | "4H"; series: MarketSeries } => Boolean(item.series));
+  const results = await Promise.allSettled(availableWrites.map(async ({ asset, timeframe, series }) => {
+    const previous = await getEntryLocatorState(userId, asset, timeframe);
+    const state = buildContextOnlyState({ asset, timeframe, series, previousSnapshotCount: previous?.snapshotCount ?? 0, previousLastEmittedAt: previous?.lastEmittedAt ?? null });
+    await saveEntryLocatorState({ userId, asset, timeframe, ...state });
+  }));
+  const failures = results.flatMap((result, index) => result.status === "rejected" ? [{ asset: availableWrites[index]?.asset, timeframe: availableWrites[index]?.timeframe, message: result.reason instanceof Error ? result.reason.message : String(result.reason) }] : []);
+  if (failures.length) console.warn(`[Scanner] Context-only timeframe state persistence had ${failures.length} failure(s): ${failures.map(failure => `${failure.asset} ${failure.timeframe}: ${failure.message}`).join(" | ")}`);
+}
+
 export function outcomeFallbackPrice(signal: { status: string; entry: string | number; stopLoss: string | number; takeProfit: string | number; outcomeNote?: string | null; resolutionPrice?: string | number | null }) {
   const resolutionPrice = Number(signal.resolutionPrice);
   if (Number.isFinite(resolutionPrice)) return resolutionPrice;
@@ -251,6 +291,7 @@ export async function scanUser(userId: number, input?: ScanUserInput): Promise<S
   series15m.forEach((series, symbol) => seriesCache.set(`${symbol}:15MIN`, series));
   series1h.forEach((series, symbol) => seriesCache.set(`${symbol}:1H`, series));
   series4h.forEach((series, symbol) => seriesCache.set(`${symbol}:4H`, series));
+  await persistV5ContextStates(userId, series1h, series4h);
   const created: Array<{ id: number; asset: string; timeframe: string; direction: string; entry: number; stopLoss: number; takeProfit: number; riskReward: number; confidence: number }> = [];
   const createdSignalIds = new Set<number>();
   const mirroredRules = await fetchStrategyRulesFromSupabase();

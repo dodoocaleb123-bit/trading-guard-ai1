@@ -809,13 +809,13 @@ function EntryLocatorCard() {
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <p className="text-muted-foreground">V5 snapshots evaluated</p>
+                    <p className="text-muted-foreground">{state.timeframe === "1H" || state.timeframe === "4H" ? "V5 context refreshes" : "V5 snapshots evaluated"}</p>
                     <p className="mt-1 font-semibold">{state.snapshotCount}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Last direction</p>
+                    <p className="text-muted-foreground">{state.timeframe === "1H" || state.timeframe === "4H" ? "Role" : "Last direction"}</p>
                     <p className="mt-1 font-semibold">
-                      {state.lastDirection ?? "—"}
+                      {state.timeframe === "1H" || state.timeframe === "4H" ? "CONTEXT ONLY" : state.lastDirection ?? "—"}
                     </p>
                   </div>
                   <div>
@@ -836,7 +836,9 @@ function EntryLocatorCard() {
                   </div>
                 </div>
                 <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                  {state.stateJson
+                  {state.timeframe === "1H" || state.timeframe === "4H"
+                    ? `${state.timeframe} context refreshed for the v5 hierarchy; this timeframe is not eligible for signal emission.`
+                    : state.stateJson
                     ? (() => {
                         try {
                           return (
@@ -850,7 +852,7 @@ function EntryLocatorCard() {
                     : "State recorded."}
                 </p>
                 <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2 text-[11px]">
-                  <span className="text-muted-foreground">Telegram delivery</span>
+                  <span className="text-muted-foreground">{state.timeframe === "1H" || state.timeframe === "4H" ? "Signal delivery" : "Telegram delivery"}</span>
                   <span className={
                     state.orphanedEmission
                       ? "font-semibold text-amber-700"
@@ -860,9 +862,11 @@ function EntryLocatorCard() {
                           ? "font-semibold text-rose-700"
                           : "font-semibold text-muted-foreground"
                   }>
-                    {state.orphanedEmission
-                      ? "ORPHANED STATE"
-                      : state.telegramDelivery?.status ?? (state.matchingSignal ? "NOT RECORDED" : "NO SIGNAL")}
+                    {state.timeframe === "1H" || state.timeframe === "4H"
+                      ? "CONTEXT ONLY"
+                      : state.orphanedEmission
+                        ? "ORPHANED STATE"
+                        : state.telegramDelivery?.status ?? (state.matchingSignal ? "NOT RECORDED" : "NO SIGNAL")}
                   </span>
                 </div>
                 {state.orphanedEmission ? (
@@ -881,7 +885,7 @@ function EntryLocatorCard() {
                   </p>
                 ) : null}
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  Last v5 state update {formatDateTime(state.updatedAt)}
+                  {state.timeframe === "1H" || state.timeframe === "4H" ? `Last ${state.timeframe} context refresh` : "Last v5 state update"} {formatDateTime(state.updatedAt)}
                 </p>
                 {scannerAttemptIsNewer ? (
                   <p className="mt-1 text-[11px] leading-4 text-amber-700">

@@ -28,3 +28,9 @@ The compact production health timeline is now mounted on the authenticated Scann
 
 A first monitoring observation found no qualified setup yet: the latest persisted v5 decisions are explicit SKIPPED/WAITING states, so no Telegram signal was expected. The monitor remains focused only on the next qualified v5 setup and its persisted delivery record.
 
+## Qualified v5 monitoring result
+
+After the timeline was published, the next monitored external-trigger cycle at 01:35 UTC completed successfully with `marketData=available`, `createdSignals=2`, `usersProcessed=2`, and no run error. The strategy decision ledger persisted two APPROVED XAU/USD 5MIN judgments with SELL direction, entry 4586.07550000, stop 4588.86790000, take profit 4580.60400000, 73% confidence, 69% confluence, 370 characters of rule evidence, and a 102,725-character market snapshot. The generated-signals table persisted both signals as PENDING with v5 intelligence provenance and risk/reward 1.96. Matching SIGNAL delivery rows for signal IDs 16920001 and 16920002 are DELIVERED, with Telegram message IDs 2078 and 2079 and delivered timestamps 01:35:03 and 01:35:06 UTC. This verifies the complete persisted v5-approval → signal → Telegram delivery path.
+
+The live runtime-log CLI temporarily returned `cloudrun service not found`; the database delivery ledger was available and provided the authoritative end-to-end confirmation. No destructive database operation was performed.
+

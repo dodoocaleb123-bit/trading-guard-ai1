@@ -1439,5 +1439,5 @@
 - [x] Add regression coverage for bounded rule-list summaries while preserving full server-side rule context
 
 - [x] Add a compact production health timeline showing recent scanner cycles, market-data availability, v5 waiting/qualified state, and delivery status
-- [ ] Monitor the next qualified v5 setup and verify the complete persisted signal-to-Telegram delivery path
+- [x] Monitor the next qualified v5 setup and verify the complete persisted signal-to-Telegram delivery path
 
